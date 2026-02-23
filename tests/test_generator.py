@@ -620,3 +620,279 @@ def _create_file(arg0, module_path, generator):
     manifest_v1 = make_manifest(module_path, own_exports=exports_v1)
     code_v1 = generator.generate(manifest_v1)
     generator.write_file(module_path, code_v1)
+
+
+# --- Additional tests for uncovered lines ---
+
+
+# GeneratedCode.create() with add_markers=True (lines 112, 115)
+
+
+def test_generated_code_create_with_markers():
+    """Test GeneratedCode.create with add_markers=True adds preserved code markers."""
+    from exportify.export_manager.generator import PRESERVED_BEGIN, PRESERVED_END
+
+    manual = "# some custom code\nMY_VAR = 1"
+    managed = "__all__ = ()\ndef __dir__(): return []"
+
+    code = GeneratedCode.create(manual=manual, managed=managed, export_count=1, add_markers=True)
+
+    assert PRESERVED_BEGIN in code.content
+    assert PRESERVED_END in code.content
+    assert manual in code.content
+
+
+def test_generated_code_create_without_markers():
+    """Test GeneratedCode.create without add_markers does not add markers."""
+    from exportify.export_manager.generator import PRESERVED_BEGIN, PRESERVED_END
+
+    manual = "# custom\nX = 1"
+    managed = "__all__ = ()\ndef __dir__(): return []"
+
+    code = GeneratedCode.create(manual=manual, managed=managed, export_count=1, add_markers=False)
+
+    assert PRESERVED_BEGIN not in code.content
+    assert PRESERVED_END not in code.content
+
+
+def test_generated_code_create_without_headers():
+    """Test GeneratedCode.create with include_headers=False omits SPDX headers."""
+    from exportify.export_manager.generator import SPDX_HEADERS
+
+    managed = "__all__ = ()\ndef __dir__(): return []"
+    code = GeneratedCode.create(
+        manual="", managed=managed, export_count=0, include_headers=False
+    )
+
+    assert "SPDX-FileCopyrightText" not in code.content
+
+
+# write_file raises OSError for non-syntax write failures (line 191)
+
+
+def test_write_file_raises_oserror_on_non_syntax_failure(generator, temp_dir, monkeypatch):
+    """Test write_file raises OSError when file writing fails for non-syntax reasons."""
+    from exportify.export_manager.file_writer import FileWriter, WriteResult
+
+    # Create a FileWriter that returns a non-syntax error
+    def failing_writer(target, content):
+        return WriteResult.failure_result(target, "disk full or something")
+
+    # Monkeypatch the file_writer's write_file to simulate a non-syntax failure
+    original_write = generator.file_writer.write_file
+    generator.file_writer.write_file = failing_writer
+
+    try:
+        module_path = "test.module"
+        exports = [make_lazy_export("MyClass", module_path + ".sub")]
+        manifest = make_manifest(module_path, own_exports=exports)
+        code = generator.generate(manifest)
+
+        with pytest.raises(OSError):
+            generator.write_file(module_path, code)
+    finally:
+        generator.file_writer.write_file = original_write
+
+
+# _preserve_manual_section exception fallback (lines 264-266)
+
+
+def test_preserve_manual_section_section_parser_exception(generator, temp_dir, monkeypatch):
+    """Test _preserve_manual_section falls back to split on sentinel if SectionParser raises."""
+    module_path = "test.fallback"
+    target = temp_dir / "test" / "fallback" / "__init__.py"
+    target.parent.mkdir(parents=True)
+
+    existing = f"# Manual code above\nMY_VAR = 99\n\n{SENTINEL}\n__all__ = []\n"
+    target.write_text(existing)
+
+    # Make section_parser.parse_content raise an exception to trigger the fallback path
+    def broken_parse(content):
+        raise RuntimeError("simulated parser failure")
+
+    monkeypatch.setattr(generator.section_parser, "parse_content", broken_parse)
+
+    exports = [make_lazy_export("MyClass", module_path + ".sub")]
+    manifest = make_manifest(module_path, own_exports=exports)
+    code = generator.generate(manifest)
+
+    # Fallback: everything before the sentinel is preserved
+    assert "MY_VAR = 99" in code.manual_section
+
+
+# _generate_managed_section barrel dispatch (line 273)
+
+
+def test_generate_barrel_style(temp_dir):
+    """Test CodeGenerator with barrel output_style generates barrel imports."""
+    generator_barrel = CodeGenerator(temp_dir, output_style="barrel")
+    exports = [
+        make_lazy_export("MyClass", "test.module.sub"),
+        make_lazy_export("MyFunc", "test.module.sub2"),
+    ]
+    manifest = make_manifest("test.module", own_exports=exports)
+    code = generator_barrel.generate(manifest)
+
+    # Barrel style: from .sub import MyClass
+    assert "from .sub import" in code.content
+    assert "from .sub2 import" in code.content
+    # No lateimport machinery
+    assert "create_lazy_getattr" not in code.content
+    assert "_dynamic_imports" not in code.content
+
+
+# _generate_barrel_managed_section (lines 341-366)
+
+
+def test_barrel_managed_section_with_type_only(temp_dir):
+    """Test barrel output wraps type-only exports in TYPE_CHECKING block."""
+    generator_barrel = CodeGenerator(temp_dir, output_style="barrel")
+    exports = [
+        make_lazy_export("RuntimeClass", "test.module.runtime"),
+        make_lazy_export("TypeAlias", "test.module.types", is_type_only=True),
+    ]
+    manifest = make_manifest("test.module", own_exports=exports)
+    code = generator_barrel.generate(manifest)
+
+    assert "from typing import TYPE_CHECKING" in code.content
+    assert "if TYPE_CHECKING:" in code.content
+    # TypeAlias inside TYPE_CHECKING block
+    assert "TypeAlias" in code.content
+    # RuntimeClass as direct import
+    assert "from .runtime import RuntimeClass" in code.content
+
+
+def test_barrel_managed_section_no_type_only(temp_dir):
+    """Test barrel output without type-only exports has no TYPE_CHECKING block."""
+    generator_barrel = CodeGenerator(temp_dir, output_style="barrel")
+    exports = [make_lazy_export("MyClass", "test.module.sub")]
+    manifest = make_manifest("test.module", own_exports=exports)
+    code = generator_barrel.generate(manifest)
+
+    assert "TYPE_CHECKING" not in code.content
+    assert "from .sub import MyClass" in code.content
+
+
+def test_barrel_managed_section_empty(temp_dir):
+    """Test barrel output with no exports generates minimal valid code."""
+    generator_barrel = CodeGenerator(temp_dir, output_style="barrel")
+    manifest = make_manifest("test.module", own_exports=[])
+    code = generator_barrel.generate(manifest)
+
+    assert "__all__ = ()" in code.content
+    assert "def __dir__" in code.content
+
+
+# _barrel_import_lines (lines 382-403)
+
+
+def test_barrel_import_lines_aliased(temp_dir):
+    """Test barrel imports with aliased exports (target_object != public_name)."""
+    generator_barrel = CodeGenerator(temp_dir, output_style="barrel")
+    exports = [
+        # aliased: from .sub import _OriginalClass as PublicClass
+        make_lazy_export("PublicClass", "test.module.sub", target_object="_OriginalClass"),
+    ]
+    manifest = make_manifest("test.module", own_exports=exports)
+    code = generator_barrel.generate(manifest)
+
+    assert "_OriginalClass as PublicClass" in code.content
+
+
+def test_barrel_import_lines_external_module(temp_dir):
+    """Test barrel import from module outside the package uses absolute import."""
+    generator_barrel = CodeGenerator(temp_dir, output_style="barrel")
+    # target_module does NOT start with 'test.module.' so relative can't be computed
+    exports = [make_lazy_export("ExternalClass", "other.package.module")]
+    manifest = make_manifest("test.module", own_exports=exports)
+    code = generator_barrel.generate(manifest)
+
+    # Should use absolute import since it's outside the package
+    assert "from other.package.module import ExternalClass" in code.content
+
+
+def test_barrel_import_lines_multiple_from_same_module(temp_dir):
+    """Test barrel imports from same module are grouped together."""
+    generator_barrel = CodeGenerator(temp_dir, output_style="barrel")
+    exports = [
+        make_lazy_export("ClassA", "test.module.sub"),
+        make_lazy_export("ClassB", "test.module.sub"),
+    ]
+    manifest = make_manifest("test.module", own_exports=exports)
+    code = generator_barrel.generate(manifest)
+
+    # Should have one import line with both names
+    assert "from .sub import ClassA, ClassB" in code.content
+
+
+# _generate_type_checking_imports with aliased import (line 414)
+
+
+def test_type_checking_import_aliased(generator):
+    """Test TYPE_CHECKING block includes 'obj as alias' when names differ."""
+    exports = [
+        make_lazy_export("PublicAlias", "test.module.sub", target_object="InternalClass"),
+    ]
+    manifest = make_manifest("test.module", own_exports=exports)
+    code = generator.generate(manifest)
+
+    # The TYPE_CHECKING block should contain 'InternalClass as PublicAlias'
+    assert "InternalClass as PublicAlias" in code.content
+
+
+# _validate_sentinel_section with multiple sentinels (lines 492, 494)
+
+
+def test_validate_sentinel_section_multiple_sentinels(temp_dir):
+    """Test validate_init_file catches multiple SENTINEL occurrences."""
+    init_file = temp_dir / "double_sentinel" / "__init__.py"
+    init_file.parent.mkdir(parents=True)
+
+    # Two sentinels — invalid
+    content = f"""from __future__ import annotations
+
+{SENTINEL}
+__all__ = ("A",)
+def __dir__(): return list(__all__)
+
+{SENTINEL}
+__all__ = ("B",)
+def __dir__(): return list(__all__)
+"""
+    init_file.write_text(content)
+    errors = validate_init_file(init_file)
+    assert any("Multiple sentinels" in e for e in errors)
+
+
+def test_validate_sentinel_section_missing_all_in_managed(temp_dir):
+    """Test _validate_sentinel_section catches missing __all__ after sentinel."""
+    from exportify.export_manager.generator import _validate_sentinel_section
+
+    # sentinel present but nothing that looks like __all__ appears after it
+    content = f"# preamble\n\n{SENTINEL}\n# no declaration here\ndef __dir__(): return []\n"
+    errors = _validate_sentinel_section(content)
+    assert any("__all__ not in managed section" in e for e in errors)
+
+
+# validate_init_file OSError branch (lines 508-509)
+
+
+def test_validate_init_file_oserror(temp_dir, monkeypatch):
+    """Test validate_init_file returns an error string when read raises OSError."""
+    init_file = temp_dir / "unreadable" / "__init__.py"
+    init_file.parent.mkdir(parents=True)
+    init_file.write_text("__all__ = ()\ndef __dir__(): return []")
+
+    # Monkeypatch Path.read_text to raise OSError
+    original_read_text = Path.read_text
+
+    def patched_read_text(self, *args, **kwargs):
+        if self == init_file:
+            raise OSError("Permission denied")
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", patched_read_text)
+
+    errors = validate_init_file(init_file)
+    assert len(errors) > 0
+    assert "Permission denied" in errors[0]

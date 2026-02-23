@@ -21,6 +21,13 @@ from pathlib import Path
 # Enumerations
 
 
+class OutputStyle(StrEnum):
+    """Output style for generated __init__.py files."""
+
+    LAZY = "lazy"  # create_lazy_getattr / _dynamic_imports / TYPE_CHECKING pattern
+    BARREL = "barrel"  # plain `from .module import Symbol` pattern
+
+
 class PropagationLevel(StrEnum):
     """How far an export should propagate up the package hierarchy."""
 
@@ -454,3 +461,40 @@ class CallError:
     module: str
     obj: str
     error: str
+
+
+__all__ = (
+    "AnalysisResult",
+    "CacheEntry",
+    "CacheStatistics",
+    "CallError",
+    "ConsistencyIssue",
+    "CoordinatedResult",
+    "DetectedSymbol",
+    "ExportDecision",
+    "ExportGenerationResult",
+    "ExportManifest",
+    "GeneratedFile",
+    "GenerationMetrics",
+    "ImportResolution",
+    "LazyExport",
+    "LazyImportConfig",
+    "MemberType",
+    "OutputStyle",
+    "OutputStyle",
+    "PropagationLevel",
+    "Rule",
+    "RuleAction",
+    "RuleEvaluationResult",
+    "RuleMatch",
+    "RuleMatchCriteria",
+    "SkippedFile",
+    "SourceLocation",
+    "SymbolProvenance",
+    "UpdatedFile",
+    "ValidationConfig",
+    "ValidationError",
+    "ValidationMetrics",
+    "ValidationReport",
+    "ValidationWarning",
+)

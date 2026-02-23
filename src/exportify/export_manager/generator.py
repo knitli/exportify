@@ -133,9 +133,17 @@ class GeneratedCode:
 class CodeGenerator:
     """Generates __init__.py files from export manifests."""
 
-    def __init__(self, output_dir: Path):
-        """Initialize code generator."""
+    def __init__(self, output_dir: Path, output_style: str = "lazy") -> None:
+        """Initialize code generator.
+
+        Args:
+            output_dir: Directory to write generated files to
+            output_style: Output style — ``"lazy"`` (default) uses lateimport lazy
+                loading via ``__getattr__``; ``"barrel"`` generates direct ``from .mod
+                import Name`` style imports.
+        """
         self.output_dir = output_dir
+        self._output_style = output_style
         self.file_writer = FileWriter(validator=self._create_validator())
         self.section_parser = SectionParser()
 
@@ -260,7 +268,13 @@ class CodeGenerator:
             return parsed.preserved_code
 
     def _generate_managed_section(self, manifest: ExportManifest) -> str:
-        """Generate the managed section below sentinel."""
+        """Generate the managed section below sentinel, dispatching on output style."""
+        if self._output_style == "barrel":
+            return self._generate_barrel_managed_section(manifest)
+        return self._generate_lazy_managed_section(manifest)
+
+    def _generate_lazy_managed_section(self, manifest: ExportManifest) -> str:
+        """Generate the managed section using lazy lateimport pattern."""
         # Sort exports using the custom sort key
         exports = sorted(manifest.all_exports, key=lambda x: _export_sort_key(x.public_name))
 
@@ -309,6 +323,84 @@ class CodeGenerator:
             "    return list(__all__)",
         ])
         return "\n".join(parts)
+
+    def _generate_barrel_managed_section(self, manifest: ExportManifest) -> str:
+        """Generate the managed section using barrel (direct import) pattern.
+
+        Produces ``from .<module> import Name`` style imports instead of lazy
+        loading.  Type-only exports are wrapped in an ``if TYPE_CHECKING:``
+        block; runtime exports are emitted as plain imports.
+
+        Args:
+            manifest: Export manifest describing what to expose.
+
+        Returns:
+            Formatted string for the managed section (without the sentinel
+            header, which is added by :meth:`GeneratedCode.create`).
+        """
+        exports = sorted(manifest.all_exports, key=lambda x: _export_sort_key(x.public_name))
+
+        type_only = [e for e in exports if e.is_type_only]
+        runtime = [e for e in exports if not e.is_type_only]
+
+        parts: list[str] = ["from __future__ import annotations"]
+
+        # Only add TYPE_CHECKING import when there are type-only exports
+        if type_only:
+            parts.extend(["", "from typing import TYPE_CHECKING", "", "if TYPE_CHECKING:"])
+            parts.extend(self._barrel_import_lines(type_only, manifest.module_path, indent="    "))
+
+        # Runtime imports (direct, not inside TYPE_CHECKING)
+        if runtime:
+            parts.append("")
+            parts.extend(self._barrel_import_lines(runtime, manifest.module_path, indent=""))
+
+        parts.extend([
+            "",
+            self._generate_all_tuple(exports),
+            "",
+            "def __dir__() -> list[str]:",
+            '    """List available attributes for the package."""',
+            "    return list(__all__)",
+        ])
+        return "\n".join(parts)
+
+    def _barrel_import_lines(
+        self, exports: list[LazyExport], package_path: str, *, indent: str
+    ) -> list[str]:
+        """Build ``from .<module> import ...`` lines for a group of exports.
+
+        Args:
+            exports: Exports to emit (all should share the same is_type_only value).
+            package_path: Package module path used to compute relative names.
+            indent: Leading whitespace for each generated line (``""`` for
+                top-level, ``"    "`` inside a ``TYPE_CHECKING`` block).
+
+        Returns:
+            List of import statement strings.
+        """
+        by_module: dict[str, list[LazyExport]] = {}
+        for export in exports:
+            by_module.setdefault(export.target_module, []).append(export)
+
+        lines: list[str] = []
+        for module in sorted(by_module):
+            relative = self._extract_relative_module(module, package_path)
+            names = sorted(by_module[module], key=lambda e: _export_sort_key(e.public_name))
+            name_tokens: list[str] = []
+            for e in names:
+                if e.public_name != e.target_object:
+                    name_tokens.append(f"{e.target_object} as {e.public_name}")
+                else:
+                    name_tokens.append(e.public_name)
+            # If _extract_relative_module returned the module unchanged, it is outside
+            # this package — emit an absolute import instead of a broken relative one.
+            if relative == module:
+                import_stmt = f"{indent}from {module} import {', '.join(name_tokens)}"
+            else:
+                import_stmt = f"{indent}from .{relative} import {', '.join(name_tokens)}"
+            lines.append(import_stmt)
+        return lines
 
     def _generate_type_checking_imports(self, exports: Sequence[LazyExport]) -> list[str]:
         """Generate import lines for TYPE_CHECKING block, grouped by source module."""

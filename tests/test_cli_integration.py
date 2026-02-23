@@ -44,8 +44,77 @@ def run_cli(*args):
 
 
 @pytest.mark.integration
+class TestCLICheckCommand:
+    """Test check command."""
+
+    def test_check_runs_successfully(self, tmp_path: Path):
+        """Check command executes without error."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("")
+        (pkg / "mod.py").write_text("class Foo: pass")
+        exit_code, _stdout, stderr = run_cli("check", str(pkg))
+
+        assert exit_code == 0, f"Failed: {stderr}"
+
+    def test_check_module_all_flag(self, tmp_path: Path):
+        """Check --module-all flag works."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("")
+        (pkg / "mod.py").write_text("class Foo: pass")
+        exit_code, _stdout, stderr = run_cli("check", str(pkg), "--module-all")
+
+        assert exit_code == 0, f"Failed: {stderr}"
+
+    def test_check_with_nonexistent_path(self, tmp_path: Path):
+        """Check handles nonexistent paths gracefully."""
+        nonexistent = tmp_path / "nonexistent"
+
+        exit_code, stdout, stderr = run_cli("check", str(nonexistent))
+
+        # Should either fail or complete with warning
+        assert (
+            exit_code != 0
+            or "not found" in (stdout + stderr).lower()
+            or "does not exist" in (stdout + stderr).lower()
+        )
+
+
+@pytest.mark.integration
+class TestCLIFixCommand:
+    """Test fix command."""
+
+    def test_fix_dry_run(self, tmp_path: Path):
+        """Dry-run mode doesn't write files."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "mod.py").write_text("class Foo: pass")
+
+        (pkg / "__init__.py").write_text("")
+
+        exit_code, stdout, stderr = run_cli("fix", "--source", str(tmp_path), "--dry-run")
+
+        assert exit_code == 0, f"Failed: {stderr}"
+        assert "dry run" in (stdout + stderr).lower() or "Dry run" in (stdout + stderr)
+
+    def test_fix_module_all_dry_run(self, tmp_path: Path):
+        """Fix --module-all --dry-run works."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("")
+        (pkg / "mod.py").write_text("class Foo: pass\ndef bar(): pass")
+
+        exit_code, _stdout, stderr = run_cli(
+            "fix", "--source", str(tmp_path), "--module-all", "--dry-run"
+        )
+
+        assert exit_code == 0, f"Failed: {stderr}"
+
+
+@pytest.mark.integration
 class TestCLIAnalyzeCommand:
-    """Test analyze command."""
+    """Test analyze command (backward compatibility)."""
 
     def test_analyze_runs_successfully(self, tmp_path: Path):
         """Analyze command executes without error."""
@@ -164,23 +233,50 @@ class TestCLICacheIntegration:
         (pkg / "mod.py").write_text("class Foo: pass")
 
         # First run
-        run_cli("analyze", "--source", str(pkg))
+        run_cli("fix", "--dry-run", "--source", str(pkg))
 
         # Second run
         time.sleep(0.1)  # Small delay
-        exit_code2, _stdout2, _stderr2 = run_cli("analyze", "--source", str(pkg))
+        exit_code2, _stdout2, _stderr2 = run_cli("fix", "--dry-run", "--source", str(pkg))
 
         assert exit_code2 == 0
-        # May show cache hit rate
-        # (implementation-dependent)
 
 
 @pytest.mark.integration
 class TestCLIEndToEnd:
     """Test complete workflows."""
 
+    def test_check_then_generate(self, tmp_path: Path):
+        """Complete workflow: check → generate."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("")
+        (pkg / "mod.py").write_text("""
+class Public:
+    pass
+
+def public_func():
+    return 42
+
+_private = "secret"
+""")
+
+        # Step 1: Check (target the package dir directly)
+        exit1, _stdout1, stderr1 = run_cli("check", str(pkg))
+        assert exit1 == 0, f"Check failed: {stderr1}"
+
+        # Step 2: Generate
+        exit2, _stdout2, stderr2 = run_cli("generate", "--source", str(tmp_path))
+        assert exit2 == 0, f"Generate failed: {stderr2}"
+
+        # Verify file created
+        init_file = pkg / "__init__.py"
+        if init_file.exists():
+            content = init_file.read_text()
+            assert len(content) > 0
+
     def test_analyze_then_generate(self, tmp_path: Path):
-        """Complete workflow: analyze → generate."""
+        """Complete workflow: analyze → generate (backward compat)."""
         pkg = tmp_path / "pkg"
         pkg.mkdir()
         (pkg / "__init__.py").write_text("")
@@ -251,6 +347,20 @@ class TestCLIErrorHandling:
         # Ensure find_config_file() returns None regardless of working directory.
         monkeypatch.setattr("exportify.cli.find_config_file", lambda: None)
 
+        exit_code, _stdout, _stderr = run_cli("fix", "--dry-run", "--source", str(pkg))
+
+        assert exit_code == 0
+
+    def test_missing_rules_uses_defaults_analyze(self, tmp_path: Path, monkeypatch):
+        """Missing rules file uses defaults for analyze (backward compat)."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("")
+        (pkg / "mod.py").write_text("class Foo: pass")
+
+        # Ensure find_config_file() returns None regardless of working directory.
+        monkeypatch.setattr("exportify.cli.find_config_file", lambda: None)
+
         exit_code, stdout, _stderr = run_cli("analyze", "--source", str(pkg))
 
         assert exit_code == 0
@@ -271,7 +381,7 @@ rules: []
 """)
 
         # Should not crash
-        exit_code, _stdout, stderr = run_cli("analyze", "--source", str(tmp_path))
+        exit_code, _stdout, stderr = run_cli("check", str(pkg))
 
         # May complete with warnings or errors, but should not crash
         assert "Traceback" not in stderr or exit_code != 0
@@ -286,10 +396,24 @@ class TestCLIHelp:
         exit_code, stdout, _stderr = run_cli("--help")
 
         assert exit_code == 0
-        assert "analyze" in stdout or "generate" in stdout
+        assert "check" in stdout or "generate" in stdout or "fix" in stdout
+
+    def test_check_help(self):
+        """Check command help works."""
+        exit_code, stdout, _stderr = run_cli("check", "--help")
+
+        assert exit_code == 0
+        assert "source" in stdout.lower() or "check" in stdout.lower()
+
+    def test_fix_help(self):
+        """Fix command help works."""
+        exit_code, stdout, _stderr = run_cli("fix", "--help")
+
+        assert exit_code == 0
+        assert "dry-run" in stdout.lower() or "fix" in stdout.lower()
 
     def test_analyze_help(self):
-        """Analyze command help works."""
+        """Analyze command help works (backward compat)."""
         exit_code, stdout, _stderr = run_cli("analyze", "--help")
 
         assert exit_code == 0
@@ -337,3 +461,44 @@ rules:
             content = init_file.read_text()
             count = content.count("from __future__ import annotations")
             assert count <= 1, f"Found {count} future imports, expected 1"
+
+    def test_check_no_lateimports_blacklist(self, tmp_path: Path):
+        """check --no-lateimports (blacklist mode) runs without crashing."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("")
+        (pkg / "mod.py").write_text("class Foo: pass")
+
+        exit_code, _stdout, stderr = run_cli("check", str(pkg), "--no-lateimports")
+
+        assert exit_code == 0, f"Failed: {stderr}"
+
+    def test_fix_warns_on_missing_init(self, tmp_path: Path):
+        """fix warns when a package directory has no __init__.py and suggests generate."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        # Intentionally no __init__.py
+        (pkg / "mod.py").write_text("class Foo: pass")
+
+        exit_code, stdout, stderr = run_cli("fix", "--source", str(tmp_path))
+
+        combined = stdout + stderr
+        # Should warn about missing __init__.py
+        assert "__init__.py" in combined or "init" in combined.lower(), (
+            f"Expected warning about missing __init__.py, got: {combined!r}"
+        )
+        # Should suggest running generate
+        assert "generate" in combined.lower(), (
+            f"Expected suggestion to run generate, got: {combined!r}"
+        )
+
+    def test_check_package_all_flag(self, tmp_path: Path):
+        """check --package-all runs without error."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("")
+        (pkg / "mod.py").write_text("class Foo: pass")
+
+        exit_code, _stdout, stderr = run_cli("check", str(pkg), "--package-all")
+
+        assert exit_code == 0, f"Failed: {stderr}"

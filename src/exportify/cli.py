@@ -3,11 +3,12 @@
 # SPDX-FileContributor: Adam Poulemanos <adam@knit.li>
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
-"""Lazy imports CLI commands.
+"""Exportify CLI commands.
 
-Provides user interface for all lazy import operations:
-- Validation and fixing of imports
-- Generation of __init__.py files
+Provides user interface for all export management operations:
+- Checking exports and __all__ consistency
+- Fixing exports and __all__ declarations
+- Generating __init__.py files for new packages
 - Analysis and health checks
 - Migration from old system
 """
@@ -26,6 +27,7 @@ from rich.panel import Panel
 from exportify.common.config import CONFIG_ENV_VAR, find_config_file
 from exportify.common.types import MemberType, RuleAction
 from exportify.export_manager.rules import RuleEngine
+from exportify.utils import detect_source_root
 
 
 logger = logging.getLogger(__name__)
@@ -36,7 +38,7 @@ if TYPE_CHECKING:
 
 app = App(
     name="exportify",
-    help="Manage lazy imports, package exports, and auto-generated __init__.py files",
+    help="Manage Python package exports: check, fix, and generate __init__.py files",
 )
 
 console = Console(markup=True)
@@ -63,63 +65,6 @@ def _print_warning(message: str) -> None:
 def _print_info(message: str) -> None:
     """Print info message."""
     console.print(f"[cyan]ℹ[/cyan] {message}")  # noqa: RUF001
-
-
-def _detect_source_root() -> Path:
-    """Detect the Python source root for the current project.
-
-    Resolution order:
-    1. ``pyproject.toml`` – common build-backend conventions (Hatch, Setuptools, Flit)
-    2. ``src/`` directory exists → return ``Path("src")``
-    3. Fall back to ``Path(".")`` (project root / flat layout)
-    """
-    import tomllib
-
-    pyproject = Path("pyproject.toml")
-    if pyproject.exists():
-        try:
-            with pyproject.open("rb") as f:
-                data = tomllib.load(f)
-        except Exception:
-            data = {}
-
-        tool = data.get("tool", {})
-
-        # Hatch: [tool.hatch.build.targets.wheel] packages = ["src/mypkg"]
-        hatch_pkgs = (
-            tool.get("hatch", {})
-            .get("build", {})
-            .get("targets", {})
-            .get("wheel", {})
-            .get("packages", [])
-        )
-        if hatch_pkgs:
-            candidate = Path(hatch_pkgs[0]).parent
-            if str(candidate) != "." and candidate.exists():
-                return candidate
-
-        # Setuptools: [tool.setuptools.packages.find] where = ["src"]
-        sf_where = tool.get("setuptools", {}).get("packages", {}).get("find", {}).get("where", [])
-        if sf_where:
-            candidate = Path(sf_where[0])
-            if candidate.exists():
-                return candidate
-
-        # Setuptools: [tool.setuptools.package-dir] "" = "src"
-        pkg_dir_root = tool.get("setuptools", {}).get("package-dir", {}).get("", "")
-        if pkg_dir_root:
-            candidate = Path(pkg_dir_root)
-            if candidate.exists():
-                return candidate
-
-        # Flit / PDM / Poetry – typically flat layout; fall through
-
-    # Conventional src/ layout fallback
-    src = Path("src")
-    if src.exists():
-        return src
-
-    return Path(".")
 
 
 def _print_generation_results(result: ExportGenerationResult) -> None:
@@ -305,6 +250,846 @@ def _output_validation_concise(results) -> None:
     console.print(f"Errors: {len(results.errors)}, Warnings: {len(results.warnings)}")
 
 
+def _resolve_checks(
+    *,
+    lateimports: bool | None,
+    dynamic_imports: bool | None,
+    module_all: bool | None,
+    package_all: bool | None,
+) -> set[str]:
+    """Resolve which checks to run given bool|None flags.
+
+    Logic:
+    - If ANY flag is True (explicitly given) → whitelist mode: only run those checks.
+    - If ONLY False flags (--no-X) → blacklist mode: run everything except those.
+    - If all None (no flags given) → run all checks.
+    """
+    all_checks = {"lateimports", "dynamic_imports", "module_all", "package_all"}
+    flag_values = [lateimports, dynamic_imports, module_all, package_all]
+    explicit_true = {k for k, v in zip(all_checks, flag_values, strict=True) if v is True}
+    explicit_false = {k for k, v in zip(all_checks, flag_values, strict=True) if v is False}
+    if explicit_true:
+        return explicit_true
+    return all_checks - explicit_false if explicit_false else all_checks
+
+
+def _resolve_fix_checks(
+    *, dynamic_imports: bool | None, module_all: bool | None, package_all: bool | None
+) -> set[str]:
+    """Resolve which fix operations to run given bool|None flags.
+
+    Same logic as _resolve_checks but for the fix command (no lateimports).
+    """
+    all_checks = {"dynamic_imports", "module_all", "package_all"}
+    flag_values = [dynamic_imports, module_all, package_all]
+    explicit_true = {k for k, v in zip(all_checks, flag_values, strict=True) if v is True}
+    explicit_false = {k for k, v in zip(all_checks, flag_values, strict=True) if v is False}
+    if explicit_true:
+        return explicit_true
+    return all_checks - explicit_false if explicit_false else all_checks
+
+
+def _run_lateimports_check(
+    checks_to_run: set[str],
+    *,
+    lateimports: bool | None,
+    py_files: list[Path],
+    paths: tuple[Path, ...],
+    shared_cache,
+    json_output: bool,
+    verbose: bool,
+) -> tuple[int, int]:
+    """Run lateimports check and return (errors, warnings) counts."""
+    from exportify.utils import detect_lateimport_dependency
+    from exportify.validator.validator import LazyImportValidator
+
+    if "lateimports" not in checks_to_run:
+        return 0, 0
+
+    if not detect_lateimport_dependency():
+        if lateimports is True or verbose:
+            _print_info("Skipping lateimports check: 'lateimport' is not a project dependency")
+        return 0, 0
+
+    if verbose:
+        _print_info("Checking lateimport() / LateImport calls...")
+
+    validator = LazyImportValidator(project_root=Path.cwd(), cache=shared_cache)
+    file_paths = py_files if paths else None
+    results = validator.validate(file_paths=file_paths)
+
+    # Only count import-resolution errors (not consistency errors)
+    import_errors = [e for e in results.errors if e.code != "CONSISTENCY_ERROR"]
+    import_warnings = [
+        w for w in results.warnings if not hasattr(w, "code") or w.code != "CONSISTENCY_ERROR"
+    ]
+
+    if json_output:
+        _output_validation_json(results)
+    elif verbose:
+        _output_validation_verbose(results)
+    else:
+        _output_validation_concise(results)
+
+    return len(import_errors), len(import_warnings)
+
+
+def _run_dynamic_imports_check(
+    checks_to_run: set[str], py_files: list[Path], shared_cache, *, json_output: bool, verbose: bool
+) -> tuple[int, int]:
+    """Run dynamic_imports check and return (errors, warnings) counts."""
+    from exportify.validator.validator import LazyImportValidator
+
+    if "dynamic_imports" not in checks_to_run:
+        return 0, 0
+
+    if verbose:
+        _print_info("Checking _dynamic_imports in __init__.py files...")
+
+    if init_files := [f for f in py_files if f.name == "__init__.py"]:
+        validator = LazyImportValidator(project_root=Path.cwd(), cache=shared_cache)
+        results = validator.validate(file_paths=init_files)
+
+        # dynamic_imports = import resolution errors (exclude CONSISTENCY_ERROR)
+        import_resolution_codes = {
+            "BROKEN_IMPORT",
+            "INVALID_LATEIMPORT",
+            "NON_LITERAL_LATEIMPORT",
+            "SYNTAX_ERROR",
+            "VALIDATION_ERROR",
+            "UNDEFINED_IN_ALL",
+        }
+        dynamic_errors = [e for e in results.errors if e.code in import_resolution_codes]
+        dynamic_warnings = list(results.warnings)
+
+        if not json_output:
+            from exportify.common.types import ValidationReport
+
+            filtered = ValidationReport(
+                errors=dynamic_errors,
+                warnings=dynamic_warnings,
+                metrics=results.metrics,
+                success=not dynamic_errors,
+            )
+            if verbose:
+                _output_validation_verbose(filtered)
+            else:
+                _output_validation_concise(filtered)
+
+        return len(dynamic_errors), len(dynamic_warnings)
+
+    return 0, 0
+
+
+def _run_module_all_check(
+    checks_to_run: set[str],
+    py_files: list[Path],
+    source_root: Path,
+    rules: RuleEngine,
+    *,
+    json_output: bool,
+    verbose: bool,
+) -> tuple[int, int]:
+    """Run module_all check and return (errors, warnings) counts."""
+    from exportify.export_manager.module_all import check_module_all
+
+    if "module_all" not in checks_to_run:
+        return 0, 0
+
+    if verbose:
+        _print_info("Checking __all__ in regular modules...")
+
+    # Only non-__init__ Python files
+    regular_files = [f for f in py_files if f.name != "__init__.py"]
+    module_all_errors = 0
+    module_all_warnings = 0
+
+    for py_file in regular_files:
+        module_path = _path_to_module(py_file.with_suffix(""), source_root)
+        issues = check_module_all(py_file, module_path, rules)
+        for issue in issues:
+            if issue.issue_type == "no_all":
+                module_all_warnings += 1
+                if not json_output:
+                    _print_warning(issue.message)
+            else:
+                module_all_errors += 1
+                if not json_output:
+                    _print_error(issue.message)
+
+    if not json_output and module_all_errors == 0 and module_all_warnings == 0 and verbose:
+        _print_success("All regular modules have consistent __all__")
+
+    return module_all_errors, module_all_warnings
+
+
+def _run_package_all_check(
+    checks_to_run: set[str], py_files: list[Path], shared_cache, *, json_output: bool, verbose: bool
+) -> tuple[int, int]:
+    """Run package_all check and return (errors, warnings) counts."""
+    from exportify.validator.validator import LazyImportValidator
+
+    if "package_all" not in checks_to_run:
+        return 0, 0
+
+    if verbose:
+        _print_info("Checking __all__ and exports in __init__.py files...")
+
+    if init_files := [f for f in py_files if f.name == "__init__.py"]:
+        validator = LazyImportValidator(project_root=Path.cwd(), cache=shared_cache)
+        results = validator.validate(file_paths=init_files)
+
+        # Only consistency errors belong to package_all
+        consistency_errors = [e for e in results.errors if e.code == "CONSISTENCY_ERROR"]
+        consistency_warnings = list(results.warnings)
+
+        if not json_output:
+            from exportify.common.types import ValidationReport
+
+            filtered = ValidationReport(
+                errors=consistency_errors,
+                warnings=consistency_warnings,
+                metrics=results.metrics,
+                success=not consistency_errors,
+            )
+            if verbose:
+                _output_validation_verbose(filtered)
+            else:
+                _output_validation_concise(filtered)
+
+        return len(consistency_errors), len(consistency_warnings)
+
+    return 0, 0
+
+
+def _load_rules(verbose: bool = False) -> RuleEngine:  # noqa: FBT001
+    """Load rules from config file, falling back to defaults."""
+    rules = RuleEngine()
+    rules_path = find_config_file()
+
+    if rules_path is None:
+        if verbose:
+            _print_warning(f"No config file found (set {CONFIG_ENV_VAR} or create .exportify.yaml)")
+            _print_info("Using default rules")
+    else:
+        rules.load_rules([rules_path])
+        if verbose:
+            _print_success(f"Loaded rules from {rules_path}")
+
+    return rules
+
+
+def _collect_py_files(paths: tuple[Path, ...], source: Path | None) -> list[Path]:
+    """Collect Python files from given paths or auto-detect source root.
+
+    Args:
+        paths: Explicit paths to check. If empty, auto-detect source root.
+        source: Optional source root override.
+
+    Returns:
+        List of Python file paths to process.
+    """
+    if not paths:
+        source_root = source or detect_source_root()
+        return list(source_root.rglob("*.py"))
+
+    all_files: list[Path] = []
+    for p in paths:
+        if not p.exists():
+            _print_error(f"Path does not exist: {p}")
+            raise SystemExit(1)
+        if p.is_file():
+            all_files.append(p)
+        else:
+            all_files.extend(p.rglob("*.py"))
+    return all_files
+
+
+def _path_to_module(path: Path, source_root: Path) -> str:
+    """Convert a file path to a module path."""
+    try:
+        relative = path.relative_to(source_root)
+    except ValueError:
+        # Not relative to source_root, fall back to cwd-relative path
+        try:
+            relative = path.relative_to(Path.cwd())
+        except ValueError:
+            # Last resort: use just the file/dir stem
+            return path.stem
+
+    parts = relative.parts
+    return ".".join(parts)
+
+
+def _fix_module_all_files(
+    py_files: list[Path], source_root: Path, rules: RuleEngine, *, dry_run: bool, verbose: bool
+) -> int:
+    """Fix __all__ in regular modules. Returns count of modified files."""
+    from exportify.export_manager.module_all import fix_module_all
+
+    if verbose:
+        _print_info("Fixing __all__ in regular modules...")
+
+    regular_files = [f for f in py_files if f.name != "__init__.py"]
+    files_modified = 0
+
+    for py_file in regular_files:
+        module_path = _path_to_module(py_file.with_suffix(""), source_root)
+        result = fix_module_all(py_file, module_path, rules, dry_run=dry_run)
+        if result.was_modified:
+            files_modified += 1
+            if dry_run:
+                _print_info(f"Would update {py_file}")
+                _display_all_modifications(
+                    result,
+                    "  [green]+[/green] Add to __all__: ",
+                    "  [red]-[/red] Remove from __all__: ",
+                    "  [cyan]new[/cyan] __all__ would be created",
+                )
+            else:
+                _print_success(f"Updated {py_file}")
+                if verbose:
+                    _display_all_modifications(
+                        result,
+                        "  [green]+[/green] Added to __all__: ",
+                        "  [red]-[/red] Removed from __all__: ",
+                        "  [cyan]new[/cyan] __all__ created",
+                    )
+    return files_modified
+
+
+def _display_all_modifications(result, added: str, removed: str, created: str):
+    """Helper to display __all__ modifications in a human-friendly way."""
+    if result.added:
+        console.print(f"{added}{result.added}")
+    if result.removed:
+        console.print(f"{removed}{result.removed}")
+    if result.created:
+        console.print(f"{created}{result.created}")
+
+
+def _fix_package_via_pipeline(
+    py_files: list[Path], source_root: Path, rules: RuleEngine, *, dry_run: bool, verbose: bool
+) -> int:
+    """Fix dynamic_imports and package_all via pipeline. Returns count of modified files."""
+    from exportify.common.cache import JSONAnalysisCache
+    from exportify.pipeline import Pipeline
+
+    if verbose:
+        _print_info("Fixing __init__.py exports...")
+
+    package_dirs: set[Path] = {
+        py_file.parent for py_file in py_files if py_file.parent != source_root
+    }
+    for pkg_dir in sorted(package_dirs):
+        init_file = pkg_dir / "__init__.py"
+        if not init_file.exists():
+            _print_warning(f"{pkg_dir} has no __init__.py")
+            console.print("  Run `exportify generate` to bootstrap it first")
+
+    # Run pipeline to regenerate managed sections
+    cache = JSONAnalysisCache()
+    output_dir = source_root
+
+    pipeline = Pipeline(rule_engine=rules, cache=cache, output_dir=output_dir)
+
+    try:
+        result = pipeline.run(source_root=source_root, dry_run=dry_run)
+        files_modified = result.metrics.files_updated + result.metrics.files_generated
+        if verbose:
+            if dry_run:
+                _print_info(f"Would update {result.metrics.files_updated} __init__.py file(s)")
+                _print_info(
+                    f"Would generate {result.metrics.files_generated} new __init__.py file(s)"
+                )
+            else:
+                _print_info(f"Updated {result.metrics.files_updated} __init__.py file(s)")
+    except Exception as e:
+        _print_error(f"Pipeline execution failed: {e}")
+        import traceback
+
+        console.print("[dim]Full traceback:[/dim]")
+        console.print(traceback.format_exc())
+        raise SystemExit(1) from e
+    else:
+        return files_modified
+
+
+@app.command
+def check(
+    *paths: Annotated[Path, Parameter(help="Paths to check (default: whole project)")],
+    source: Annotated[Path | None, Parameter(help="Source root directory")] = None,
+    lateimports: Annotated[
+        bool | None, Parameter(help="Check lateimport() / LateImport calls")
+    ] = None,
+    dynamic_imports: Annotated[
+        bool | None,
+        Parameter(
+            name="dynamic-imports", help="Check _dynamic_imports entries in __init__.py files"
+        ),
+    ] = None,
+    module_all: Annotated[
+        bool | None, Parameter(name="module-all", help="Check __all__ in regular modules")
+    ] = None,
+    package_all: Annotated[
+        bool | None,
+        Parameter(name="package-all", help="Check __all__ and exports in __init__.py files"),
+    ] = None,
+    strict: Annotated[bool, Parameter(help="Exit non-zero on warnings")] = False,
+    json_output: Annotated[bool, Parameter(name="json", help="Output results as JSON")] = False,
+    verbose: Annotated[bool, Parameter(help="Show detailed output")] = False,
+) -> None:
+    """Check exports and __all__ declarations for consistency.
+
+    Checks:
+    - lateimport() / LateImport calls resolve to real modules (--lateimports)
+    - _dynamic_imports entries in __init__.py files are consistent (--dynamic-imports)
+    - __all__ in regular modules matches export rules (--module-all)
+    - __all__ and exports in __init__.py files are consistent (--package-all)
+
+    If ANY flag is explicitly set to True, only those checks are run.
+    Use --no-X flags to exclude specific checks while running the rest.
+    If no flags are given, all checks are run.
+
+    Note: The lateimports check is automatically skipped if 'lateimport' is not
+    listed as a project dependency (it's an opt-in library).
+
+    Examples:
+        exportify check
+        exportify check --module-all
+        exportify check --no-lateimports
+        exportify check --strict
+        exportify check src/mypackage/core
+        exportify check --json
+    """
+    from exportify.common.cache import JSONAnalysisCache
+    from exportify.export_manager.module_all import check_module_all
+    from exportify.utils import detect_lateimport_dependency
+    from exportify.validator.validator import LazyImportValidator
+
+    checks_to_run = _resolve_checks(
+        lateimports=lateimports,
+        dynamic_imports=dynamic_imports,
+        module_all=module_all,
+        package_all=package_all,
+    )
+
+    if not json_output:
+        _print_info("Running checks...")
+        console.print()
+
+    source_root = source or detect_source_root()
+    py_files = _collect_py_files(paths, source)
+
+    rules = _load_rules(verbose=verbose)
+
+    # Create one shared cache for all validator-based checks
+    shared_cache = JSONAnalysisCache()
+
+    total_errors = 0
+    total_warnings = 0
+
+    # --- lateimports check ---
+    if "lateimports" in checks_to_run:
+        if detect_lateimport_dependency():
+            if verbose:
+                _print_info("Checking lateimport() / LateImport calls...")
+
+            validator = LazyImportValidator(project_root=Path.cwd(), cache=shared_cache)
+            file_paths = py_files if paths else None
+            results = validator.validate(file_paths=file_paths)
+
+            # Only count import-resolution errors (not consistency errors)
+            import_errors = [e for e in results.errors if e.code != "CONSISTENCY_ERROR"]
+            import_warnings = [
+                w
+                for w in results.warnings
+                if not hasattr(w, "code") or w.code != "CONSISTENCY_ERROR"
+            ]
+
+            if json_output:
+                _output_validation_json(results)
+            elif verbose:
+                _output_validation_verbose(results)
+            else:
+                _output_validation_concise(results)
+
+            total_errors += len(import_errors)
+            total_warnings += len(import_warnings)
+
+        elif lateimports is True or verbose:
+            _print_info("Skipping lateimports check: 'lateimport' is not a project dependency")
+
+    # --- dynamic_imports check ---
+    if "dynamic_imports" in checks_to_run:
+        if verbose:
+            _print_info("Checking _dynamic_imports in __init__.py files...")
+
+        # Scope validation to __init__.py files only; report only import-resolution errors
+        init_files = [f for f in py_files if f.name == "__init__.py"]
+        if init_files or not paths:
+            validator = LazyImportValidator(project_root=Path.cwd(), cache=shared_cache)
+            results = validator.validate(file_paths=init_files or None)
+
+            # dynamic_imports = import resolution errors (BROKEN_IMPORT, INVALID_LATEIMPORT, etc.)
+            # Exclude CONSISTENCY_ERROR codes which belong to package_all
+            import_resolution_codes = {
+                "BROKEN_IMPORT",
+                "INVALID_LATEIMPORT",
+                "NON_LITERAL_LATEIMPORT",
+                "SYNTAX_ERROR",
+                "VALIDATION_ERROR",
+                "UNDEFINED_IN_ALL",
+            }
+            dynamic_errors = [e for e in results.errors if e.code in import_resolution_codes]
+            dynamic_warnings = list(results.warnings)
+
+            if not json_output:
+                # Build a filtered result view for output
+                from exportify.common.types import ValidationReport
+
+                filtered = ValidationReport(
+                    errors=dynamic_errors,
+                    warnings=dynamic_warnings,
+                    metrics=results.metrics,
+                    success=not dynamic_errors,
+                )
+                if verbose:
+                    _output_validation_verbose(filtered)
+                else:
+                    _output_validation_concise(filtered)
+
+            total_errors += len(dynamic_errors)
+            total_warnings += len(dynamic_warnings)
+
+    # --- module_all check ---
+    if "module_all" in checks_to_run:
+        if verbose:
+            _print_info("Checking __all__ in regular modules...")
+
+        # Only non-__init__ Python files
+        regular_files = [f for f in py_files if f.name != "__init__.py"]
+        module_all_errors = 0
+        module_all_warnings = 0
+
+        for py_file in regular_files:
+            module_path = _path_to_module(py_file.with_suffix(""), source_root)
+            issues = check_module_all(py_file, module_path, rules)
+            for issue in issues:
+                if issue.issue_type == "no_all":
+                    # Missing __all__ is advisory (warning), not an error
+                    module_all_warnings += 1
+                    if not json_output:
+                        _print_warning(issue.message)
+                else:
+                    # Mismatched (missing/extra) entries are errors
+                    module_all_errors += 1
+                    if not json_output:
+                        _print_error(issue.message)
+
+        if not json_output and module_all_errors == 0 and module_all_warnings == 0 and verbose:
+            _print_success("All regular modules have consistent __all__")
+
+        total_errors += module_all_errors
+        total_warnings += module_all_warnings
+
+    # --- package_all check ---
+    if "package_all" in checks_to_run:
+        if verbose:
+            _print_info("Checking __all__ and exports in __init__.py files...")
+
+        # package_all = consistency errors (__all__ vs _dynamic_imports mismatches)
+        init_files = [f for f in py_files if f.name == "__init__.py"]
+        if init_files or not paths:
+            validator = LazyImportValidator(project_root=Path.cwd(), cache=shared_cache)
+            results = validator.validate(file_paths=init_files or None)
+
+            # Only consistency errors belong to package_all
+            consistency_errors = [e for e in results.errors if e.code == "CONSISTENCY_ERROR"]
+            consistency_warnings = list(results.warnings)
+
+            if not json_output:
+                from exportify.common.types import ValidationReport
+
+                filtered = ValidationReport(
+                    errors=consistency_errors,
+                    warnings=consistency_warnings,
+                    metrics=results.metrics,
+                    success=not consistency_errors,
+                )
+                if verbose:
+                    _output_validation_verbose(filtered)
+                else:
+                    _output_validation_concise(filtered)
+
+            total_errors += len(consistency_errors)
+            total_warnings += len(consistency_warnings)
+
+    # Final status
+    console.print()
+    if total_errors == 0 and total_warnings == 0:
+        _print_success("All checks passed")
+    elif total_errors == 0:
+        _print_warning(f"Checks passed with {total_warnings} warning(s)")
+    else:
+        _print_error(f"Checks failed: {total_errors} error(s), {total_warnings} warning(s)")
+    console.print()
+
+    if total_errors > 0 or (strict and total_warnings > 0):
+        raise SystemExit(1)
+
+
+@app.command
+def fix(
+    *paths: Annotated[Path, Parameter(help="Paths to fix (default: whole project)")],
+    source: Annotated[Path | None, Parameter(help="Source root directory")] = None,
+    dynamic_imports: Annotated[
+        bool | None,
+        Parameter(name="dynamic-imports", help="Fix _dynamic_imports entries in __init__.py files"),
+    ] = None,
+    module_all: Annotated[
+        bool | None, Parameter(name="module-all", help="Fix __all__ in regular modules")
+    ] = None,
+    package_all: Annotated[
+        bool | None,
+        Parameter(name="package-all", help="Fix __all__ and exports in __init__.py files"),
+    ] = None,
+    dry_run: Annotated[
+        bool, Parameter(name="dry-run", help="Show what would change without writing")
+    ] = False,
+    verbose: Annotated[bool, Parameter(help="Show detailed output")] = False,
+) -> None:
+    """Sync exports and __all__ declarations to match rules.
+
+    Updates:
+    - __all__ in regular modules (--module-all)
+    - _dynamic_imports and __all__ in __init__.py files (--dynamic-imports, --package-all)
+
+    Does NOT fix lateimport() call paths — those require manual correction.
+
+    If --dry-run: shows what would change without writing any files.
+
+    When __init__.py is missing entirely, warns and suggests running `generate`.
+
+    Examples:
+        exportify fix
+        exportify fix --dry-run
+        exportify fix --module-all
+        exportify fix src/mypackage/core
+    """
+    from exportify.common.cache import JSONAnalysisCache
+    from exportify.export_manager.module_all import fix_module_all
+    from exportify.pipeline import Pipeline
+
+    fixes_to_run = _resolve_fix_checks(
+        dynamic_imports=dynamic_imports, module_all=module_all, package_all=package_all
+    )
+
+    if dry_run:
+        _print_info("Dry run mode — no files will be written")
+    else:
+        _print_info("Fixing exports and __all__ declarations...")
+    console.print()
+    source_root = source or detect_source_root()
+    py_files = _collect_py_files(paths, source)
+
+    rules = _load_rules(verbose=verbose)
+
+    files_modified = 0
+    files_would_modify = 0
+
+    # --- module_all fix ---
+    if "module_all" in fixes_to_run:
+        if verbose:
+            _print_info("Fixing __all__ in regular modules...")
+
+        regular_files = [f for f in py_files if f.name != "__init__.py"]
+        for py_file in regular_files:
+            module_path = _path_to_module(py_file.with_suffix(""), source_root)
+            result = fix_module_all(py_file, module_path, rules, dry_run=dry_run)
+            if result.was_modified:
+                if dry_run:
+                    files_would_modify += 1
+                    _print_info(f"Would update {py_file}")
+                    if result.added:
+                        console.print(f"  [green]+[/green] Add to __all__: {result.added}")
+                    if result.removed:
+                        console.print(f"  [red]-[/red] Remove from __all__: {result.removed}")
+                    if result.created:
+                        console.print("  [cyan]new[/cyan] __all__ would be created")
+                else:
+                    files_modified += 1
+                    _print_success(f"Updated {py_file}")
+                    if verbose:
+                        if result.added:
+                            console.print(f"  [green]+[/green] Added to __all__: {result.added}")
+                        if result.removed:
+                            console.print(f"  [red]-[/red] Removed from __all__: {result.removed}")
+                        if result.created:
+                            console.print("  [cyan]new[/cyan] __all__ created")
+
+    # --- dynamic_imports and package_all fix ---
+    # Both are handled via the Pipeline (regenerates __init__.py content)
+    if "dynamic_imports" in fixes_to_run or "package_all" in fixes_to_run:
+        if verbose:
+            _print_info("Fixing __init__.py exports...")
+
+        package_dirs: set[Path] = {
+            py_file.parent for py_file in py_files if py_file.parent != source_root
+        }
+        for pkg_dir in sorted(package_dirs):
+            init_file = pkg_dir / "__init__.py"
+            if not init_file.exists():
+                _print_warning(f"{pkg_dir} has no __init__.py")
+                console.print("  Run `exportify generate` to bootstrap it first")
+
+        # Run pipeline to regenerate managed sections
+        cache = JSONAnalysisCache()
+        output_dir = source_root
+
+        pipeline = Pipeline(rule_engine=rules, cache=cache, output_dir=output_dir)
+
+        try:
+            result = pipeline.run(source_root=source_root, dry_run=dry_run)
+            if dry_run:
+                files_would_modify += result.metrics.files_updated + result.metrics.files_generated
+                if verbose:
+                    _print_info(f"Would update {result.metrics.files_updated} __init__.py file(s)")
+                    _print_info(
+                        f"Would generate {result.metrics.files_generated} new __init__.py file(s)"
+                    )
+            else:
+                files_modified += result.metrics.files_updated + result.metrics.files_generated
+                if verbose:
+                    _print_info(f"Updated {result.metrics.files_updated} __init__.py file(s)")
+
+        except Exception as e:
+            _print_error(f"Pipeline execution failed: {e}")
+            if verbose:
+                import traceback
+
+                console.print("[dim]Full traceback:[/dim]")
+                console.print(traceback.format_exc())
+            raise SystemExit(1) from e
+
+    # Final summary
+    console.print()
+    if (dry_run and files_would_modify == 0) or (not dry_run and files_modified == 0):
+        _print_success("Everything is already in sync — no changes needed")
+    elif dry_run:
+        _print_info(f"Dry run: {files_would_modify} file(s) would be modified")
+    else:
+        _print_success(f"Fixed {files_modified} file(s)")
+    console.print()
+
+
+@app.command
+def generate(
+    dry_run: Annotated[bool, Parameter(help="Show changes without writing files")] = False,
+    module: Annotated[Path | None, Parameter(help="Generate for specific module")] = None,
+    source: Annotated[Path | None, Parameter(help="Source root directory")] = None,
+    output: Annotated[
+        Path | None, Parameter(help="Output directory (default: same as source)")
+    ] = None,
+) -> None:
+    """Bootstrap new __init__.py files for packages that don't have one.
+
+    Analyzes the codebase and creates __init__.py files for packages that are
+    currently missing them, with:
+    - Proper __all__ declarations
+    - lazy_import() calls for exports (or barrel imports if configured)
+    - TYPE_CHECKING imports where appropriate
+
+    Use `fix` to update existing __init__.py files.
+
+    Examples:
+        exportify generate
+        exportify generate --dry-run
+        exportify generate --module src/mypackage/core
+        exportify generate --source src/mypackage --output /tmp/test
+    """
+
+    def _raise_system_exit(message: str) -> NoReturn:
+        _print_error(message)
+        raise SystemExit(1)
+
+    from exportify.common.cache import JSONAnalysisCache
+    from exportify.common.config import load_config
+    from exportify.pipeline import Pipeline
+
+    source_root = source or detect_source_root()
+
+    _print_info("Generating exports...")
+    console.print()
+
+    # Load rules
+    _print_info("Loading export rules...")
+    rules = RuleEngine()
+    rules_path = find_config_file()
+
+    if rules_path is None:
+        _print_warning(f"No config file found (set {CONFIG_ENV_VAR} or create .exportify.yaml)")
+        _print_info("Using default rules")
+        output_style_value = "lazy"
+    else:
+        rules.load_rules([rules_path])
+        _print_success(f"Loaded rules from {rules_path}")
+        config = load_config(rules_path)
+        output_style_value = config.output_style.value
+
+    console.print()
+
+    # Set up cache and output directory
+    cache = JSONAnalysisCache()
+    output_dir = output or source_root
+
+    # Create pipeline
+    _print_info("Initializing pipeline...")
+    pipeline = Pipeline(
+        rule_engine=rules, cache=cache, output_dir=output_dir, output_style=output_style_value
+    )
+
+    if not source_root.exists():
+        _print_error(f"Source directory not found: {source_root}")
+        raise SystemExit(1)
+
+    console.print()
+
+    # Show dry-run status
+    if dry_run:
+        _print_info("Dry run mode - no files will be written")
+        console.print()
+
+    # Execute pipeline
+    _print_info(f"Processing {source_root}...")
+    if module:
+        _print_info(f"Filtering to module: {module}")
+
+    console.print()
+
+    try:
+        result = pipeline.run(source_root=source_root, dry_run=dry_run, module=module)
+
+        # Display results
+        _print_generation_results(result)
+
+        # Exit with error if generation failed
+        if not result.success:
+            _raise_system_exit("Export generation failed - see above for details")
+
+    except Exception as e:
+        _print_error(f"Pipeline execution failed: {e}")
+        console.print()
+        import traceback
+
+        console.print("[dim]Full traceback:[/dim]")
+        console.print(traceback.format_exc())
+        raise SystemExit(1) from e
+
+
+# --- Legacy validate command (kept for backward compatibility) ---
+
+
 @app.command
 def validate(
     fix: Annotated[bool, Parameter(help="Auto-fix import issues")] = False,
@@ -314,6 +1099,8 @@ def validate(
     verbose: Annotated[bool, Parameter(help="Show detailed validation information")] = False,
 ) -> None:
     """Validate that imports match exports.
+
+    Deprecated: use `check` instead. This command is kept for backward compatibility.
 
     Checks:
     - All lazy_import() calls resolve to real modules
@@ -373,102 +1160,6 @@ def validate(
         raise SystemExit(1)
 
 
-@app.command
-def generate(
-    dry_run: Annotated[bool, Parameter(help="Show changes without writing files")] = False,
-    module: Annotated[Path | None, Parameter(help="Generate for specific module")] = None,
-    source: Annotated[Path | None, Parameter(help="Source root directory")] = None,
-    output: Annotated[
-        Path | None, Parameter(help="Output directory (default: same as source)")
-    ] = None,
-) -> None:
-    """Generate __init__.py files from export manifests.
-
-    Analyzes the codebase and generates __init__.py files with:
-    - Proper __all__ declarations
-    - lazy_import() calls for exports
-    - TYPE_CHECKING imports where appropriate
-
-    Examples:
-        exportify generate
-        exportify generate --dry-run
-        exportify generate --module src/mypackage/core
-        exportify generate --source src/mypackage --output /tmp/test
-    """
-
-    def _raise_system_exit(message: str) -> NoReturn:
-        _print_error(message)
-        raise SystemExit(1)
-
-    from exportify.common.cache import JSONAnalysisCache
-    from exportify.export_manager import RuleEngine
-    from exportify.pipeline import Pipeline
-
-    source_root = source or _detect_source_root()
-
-    _print_info("Generating exports...")
-    console.print()
-
-    # Load rules
-    _print_info("Loading export rules...")
-    rules = RuleEngine()
-    rules_path = find_config_file()
-
-    if rules_path is None:
-        _print_warning(f"No config file found (set {CONFIG_ENV_VAR} or create .exportify.yaml)")
-        _print_info("Using default rules")
-    else:
-        rules.load_rules([rules_path])
-        _print_success(f"Loaded rules from {rules_path}")
-
-    console.print()
-
-    # Set up cache and output directory
-    cache = JSONAnalysisCache()
-    output_dir = output or source_root
-
-    # Create pipeline
-    _print_info("Initializing pipeline...")
-    pipeline = Pipeline(rule_engine=rules, cache=cache, output_dir=output_dir)
-
-    if not source_root.exists():
-        _print_error(f"Source directory not found: {source_root}")
-        raise SystemExit(1)
-
-    console.print()
-
-    # Show dry-run status
-    if dry_run:
-        _print_info("Dry run mode - no files will be written")
-        console.print()
-
-    # Execute pipeline
-    _print_info(f"Processing {source_root}...")
-    if module:
-        _print_info(f"Filtering to module: {module}")
-
-    console.print()
-
-    try:
-        result = pipeline.run(source_root=source_root, dry_run=dry_run, module=module)
-
-        # Display results
-        _print_generation_results(result)
-
-        # Exit with error if generation failed
-        if not result.success:
-            _raise_system_exit("Export generation failed - see above for details")
-
-    except Exception as e:
-        _print_error(f"Pipeline execution failed: {e}")
-        console.print()
-        import traceback
-
-        console.print("[dim]Full traceback:[/dim]")
-        console.print(traceback.format_exc())
-        raise SystemExit(1) from e
-
-
 def _analyze_target_path(module: Path | None, source_root: Path) -> tuple[Path, Path, str]:
     """Determine and validate target path for analysis.
 
@@ -520,7 +1211,7 @@ def _analyze_missing_init_and_exit(target_path) -> NoReturn:
     _print_warning(f"No Python package found in {target_path}")
     _print_info("Searched for directories containing an __init__.py but found none.")
     _print_info("Specify a package explicitly with --module, e.g.:")
-    _print_info(f"  exportify analyze --module {target_path}/<package>")
+    _print_info(f"  exportify fix --dry-run --module {target_path}/<package>")
     raise SystemExit(1)
 
 
@@ -801,6 +1492,8 @@ def analyze(
 ) -> None:
     """Analyze package structure and show what would be generated.
 
+    Deprecated: use `fix --dry-run` instead. This command is kept for backward compatibility.
+
     Performs dry-run analysis showing:
     - Detected symbols with metadata
     - Export rules applied
@@ -815,7 +1508,6 @@ def analyze(
         exportify analyze --format json
     """
     from exportify.common.cache import AnalysisCache
-    from exportify.export_manager import RuleEngine
 
     _print_info("Analyzing package structure...")
     console.print()
@@ -835,7 +1527,7 @@ def analyze(
     console.print()
 
     # Determine target path
-    source_root = source or _detect_source_root()
+    source_root = source or detect_source_root()
     if not source_root.exists():
         _print_error(f"Source directory not found: {source_root}")
         raise SystemExit(1)
@@ -872,18 +1564,6 @@ def analyze(
         )
 
     console.print()
-
-
-def _path_to_module(path: Path, source_root: Path) -> str:
-    """Convert a file path to a module path."""
-    try:
-        relative = path.relative_to(source_root)
-    except ValueError:
-        # Not relative to source_root, use absolute
-        relative = path
-
-    parts = relative.parts
-    return ".".join(parts)
 
 
 @app.command
@@ -1046,7 +1726,7 @@ def status(verbose: Annotated[bool, Parameter(help="Show detailed information")]
     if rules_path is not None:
         console.print(f"  Rules: [green]✓[/green] {rules_path}")
     else:
-        console.print("  Rules: [yellow]–[/yellow] Not found (using defaults)")
+        console.print("  Rules: [yellow]–[/yellow] Not found (using defaults)")  # noqa: RUF001
 
     console.print()
 

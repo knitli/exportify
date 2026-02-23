@@ -17,8 +17,14 @@ Config file resolution order:
 from __future__ import annotations
 
 import os
+import tomllib
 
+from dataclasses import dataclass, field
 from pathlib import Path
+
+import yaml
+
+from exportify.common.types import OutputStyle
 
 
 CONFIG_ENV_VAR = "EXPORTIFY_CONFIG"
@@ -66,4 +72,147 @@ def find_config_file() -> Path | None:
     return None
 
 
-__all__ = ["CONFIG_ENV_VAR", "DEFAULT_CACHE_SUBDIR", "DEFAULT_CONFIG_NAMES", "find_config_file"]
+@dataclass
+class ExportifyConfig:
+    """Parsed exportify configuration."""
+
+    output_style: OutputStyle = OutputStyle.LAZY
+    """Default output style for all generated __init__.py files."""
+
+    package_styles: dict[str, OutputStyle] = field(default_factory=dict)
+    """Per-package overrides: maps package path (e.g. "mypackage.compat") to its OutputStyle."""
+
+    def get_output_style(self, module_path: str) -> OutputStyle:
+        """Get output style for a module, inheriting from the nearest matching ancestor.
+
+        Walks up the dotted path from most-specific to least-specific, returning
+        the first matching per-package override.  Falls back to the global default
+        when no ancestor (including the module itself) has an explicit override.
+
+        Args:
+            module_path: Dotted module path (e.g. "mypackage.core.models").
+
+        Returns:
+            The :class:`OutputStyle` for this module — the most specific per-package
+            override found when walking up the package hierarchy, or the global default.
+        """
+        parts = module_path.split(".")
+        for i in range(len(parts), 0, -1):
+            candidate = ".".join(parts[:i])
+            if candidate in self.package_styles:
+                return self.package_styles[candidate]
+        return self.output_style
+
+
+def load_config(path: Path) -> ExportifyConfig:
+    """Load an exportify configuration from a YAML file.
+
+    Reads the file at *path* and populates an :class:`ExportifyConfig`.  Only
+    the ``output_style`` and ``overrides`` sections are relevant to this
+    function; all other YAML keys (e.g. ``schema_version``, ``rules``) are
+    silently ignored.
+
+    YAML schema understood by this function::
+
+        output_style: lazy  # or "barrel"; default "lazy"
+
+        overrides:
+          "mypackage.compat":
+            output_style: barrel
+
+    Args:
+        path: Path to the YAML config file.
+
+    Returns:
+        A populated :class:`ExportifyConfig`.
+
+    Raises:
+        ValueError: If ``output_style`` (top-level or in an override) contains
+            an unrecognised value.
+    """
+    with path.open() as fh:
+        data: dict = yaml.safe_load(fh) or {}
+
+    # --- top-level output_style ---
+    raw_style = data.get("output_style", OutputStyle.LAZY.value)
+    try:
+        global_style = OutputStyle(raw_style)
+    except ValueError:
+        valid = [s.value for s in OutputStyle]
+        raise ValueError(
+            f"Unrecognised output_style {raw_style!r} in {path}. Valid values: {valid}"
+        ) from None
+
+    # --- per-package overrides ---
+    package_styles: dict[str, OutputStyle] = {}
+    overrides_section = data.get("overrides", {}) or {}
+    for pkg_path, pkg_cfg in overrides_section.items():
+        if not isinstance(pkg_cfg, dict):
+            continue
+        raw_pkg_style = pkg_cfg.get("output_style")
+        if raw_pkg_style is None:
+            continue
+        try:
+            package_styles[pkg_path] = OutputStyle(raw_pkg_style)
+        except ValueError:
+            valid = [s.value for s in OutputStyle]
+            raise ValueError(
+                f"Unrecognised output_style {raw_pkg_style!r} for package {pkg_path!r} "
+                f"in {path}. Valid values: {valid}"
+            ) from None
+
+    return ExportifyConfig(output_style=global_style, package_styles=package_styles)
+
+
+def detect_lateimport_dependency() -> bool:
+    """Return True if 'lateimport' is listed as a project dependency in pyproject.toml.
+
+    Checks both ``project.dependencies`` (runtime) and every list under
+    ``dependency-groups`` (e.g. dev dependencies added via ``uv add --dev``).
+
+    ``pyproject.toml`` is looked up relative to the current working directory
+    (``Path.cwd() / "pyproject.toml"``), consistent with the behaviour of
+    :func:`find_config_file`.
+
+    Returns:
+        ``True`` if any dependency entry starting with ``"lateimport"`` is
+        found; ``False`` otherwise (including when ``pyproject.toml`` is absent
+        or cannot be parsed).
+    """
+    pyproject_path = Path.cwd() / "pyproject.toml"
+    if not pyproject_path.exists():
+        return False
+
+    try:
+        with pyproject_path.open("rb") as fh:
+            data = tomllib.load(fh)
+    except (OSError, tomllib.TOMLDecodeError):
+        return False
+
+    # Check project.dependencies
+    project_deps: list[str] = data.get("project", {}).get("dependencies", []) or []
+    if any(dep.startswith("lateimport") for dep in project_deps):
+        return True
+
+    # Check dependency-groups.* (each value is a list of deps or dicts)
+    dep_groups: dict[str, list] = data.get("dependency-groups", {}) or {}
+    for group_deps in dep_groups.values():
+        if not isinstance(group_deps, list):
+            continue
+        for entry in group_deps:
+            # Entries can be plain strings or dicts (e.g. {include-group = "..."})
+            if isinstance(entry, str) and entry.startswith("lateimport"):
+                return True
+
+    return False
+
+
+__all__ = [
+    "CONFIG_ENV_VAR",
+    "DEFAULT_CACHE_SUBDIR",
+    "DEFAULT_CONFIG_NAMES",
+    "ExportifyConfig",
+    "detect_lateimport_dependency",
+    "find_config_file",
+    "load_config",
+]

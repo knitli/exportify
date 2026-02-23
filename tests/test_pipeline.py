@@ -387,6 +387,56 @@ class TestErrorHandling:
         result = pipeline.run(temp_source, dry_run=True)
         assert result.success or len(result.errors) > 0
 
+    def test_graph_build_failure_recorded_in_errors(
+        self, rule_engine, cache, tmp_path, monkeypatch
+    ) -> None:
+        """ValueError from build_manifests is captured as an error, not raised."""
+        from exportify.export_manager.graph import PropagationGraph
+
+        pipeline = Pipeline(rule_engine, cache, tmp_path)
+
+        # Monkeypatch build_manifests to raise ValueError (e.g. cycle detected)
+        def bad_build():
+            raise ValueError("cycle detected in graph")
+
+        monkeypatch.setattr(pipeline.graph, "build_manifests", bad_build)
+
+        # Create a minimal source so there is at least one file to discover
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "mod.py").write_text("class A: pass")
+
+        result = pipeline.run(src, dry_run=True)
+
+        # The ValueError should be captured in errors, not propagated
+        assert any("cycle detected" in e for e in result.errors)
+        assert not result.success
+
+    def test_code_generation_failure_recorded_in_errors(
+        self, rule_engine, cache, tmp_path, monkeypatch
+    ) -> None:
+        """Exception from generator.generate is captured per-manifest."""
+        from unittest.mock import MagicMock
+
+        pipeline = Pipeline(rule_engine, cache, tmp_path)
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "mod.py").write_text("class A: pass")
+
+        # Let the graph build succeed, but make generator.generate always raise
+        orig_generate = pipeline.generator.generate
+
+        def bad_generate(manifest):
+            raise RuntimeError("generation failed")
+
+        monkeypatch.setattr(pipeline.generator, "generate", bad_generate)
+
+        result = pipeline.run(src, dry_run=True)
+
+        # Errors should be populated from the failed generation
+        assert any("generation failed" in e for e in result.errors)
+
 
 class TestModulePathCalculation:
     """Test module path calculation."""

@@ -57,22 +57,30 @@ class PipelineStats:
 class Pipeline:
     """Orchestrate the export generation pipeline."""
 
-    def __init__(self, rule_engine: RuleEngine, cache: JSONAnalysisCache, output_dir: Path):
+    def __init__(
+        self,
+        rule_engine: RuleEngine,
+        cache: JSONAnalysisCache,
+        output_dir: Path,
+        output_style: str = "lazy",
+    ):
         """Initialize pipeline with required components.
 
         Args:
             rule_engine: Rule engine for export decisions
             cache: Analysis cache for performance
             output_dir: Root directory for output
+            output_style: Output style — ``"lazy"`` (default) or ``"barrel"``
         """
         self.rule_engine = rule_engine
         self.cache = cache
         self.output_dir = output_dir
+        self.output_style = output_style
 
         # Initialize components
         self.file_discovery = FileDiscovery()
         self.ast_parser = ASTParser()
-        self.generator = CodeGenerator(output_dir)
+        self.generator = CodeGenerator(output_dir, output_style=output_style)
         self.graph = PropagationGraph(rule_engine)
 
         # Statistics

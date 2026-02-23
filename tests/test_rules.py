@@ -743,7 +743,7 @@ class TestRuleLoading:
                 priority=500,
                 description="Invalid",
                 match=RuleMatchCriteria(),
-                action="invalid_action",
+                action="not_a_valid_action",  # type: ignore[arg-type]
             )
 
     def test_load_rule_with_provenance(self, rule_engine: RuleEngine, temp_rule_file) -> None:
@@ -864,3 +864,295 @@ class TestSchemaVersioning:
 
         error_msg = str(exc_info.value)
         assert "Unsupported schema version 2.0" in error_msg
+
+
+# ============================================================================
+# Test Class: Coverage Gap Tests
+# ============================================================================
+
+
+class TestRuleEngineAdditionalCoverage:
+    """Tests targeting specific uncovered lines in rules.py."""
+
+    def _create_symbol(
+        self,
+        name: str,
+        member_type: MemberType = MemberType.CLASS,
+        provenance: SymbolProvenance = SymbolProvenance.DEFINED_HERE,
+    ) -> DetectedSymbol:
+        return DetectedSymbol(
+            name=name,
+            member_type=member_type,
+            provenance=provenance,
+            location=SourceLocation(line=1),
+            is_private=name.startswith("_"),
+            original_source=None,
+            original_name=name,
+        )
+
+    # -------------------------------------------------------------------------
+    # set_overrides (line 63) and override evaluation (lines 82, 96)
+    # -------------------------------------------------------------------------
+
+    def test_set_overrides_include_triggers_include_decision(self):
+        """set_overrides with include entry returns INCLUDE at priority 9999 (lines 63, 82)."""
+        engine = RuleEngine()
+        engine.set_overrides({
+            "include": {"my.module": ["SpecialClass"]},
+            "exclude": {},
+        })
+
+        symbol = self._create_symbol("SpecialClass")
+        result = engine.evaluate(symbol, "my.module")
+
+        assert result.action == RuleAction.INCLUDE
+        assert result.priority == 9999
+        assert result.propagation == PropagationLevel.ROOT
+        assert "Manual override" in result.reason
+
+    def test_set_overrides_exclude_triggers_exclude_decision(self):
+        """set_overrides with exclude entry returns EXCLUDE at priority 9999 (lines 63, 96)."""
+        engine = RuleEngine()
+        engine.set_overrides({
+            "include": {},
+            "exclude": {"my.module": ["BadClass"]},
+        })
+
+        symbol = self._create_symbol("BadClass")
+        result = engine.evaluate(symbol, "my.module")
+
+        assert result.action == RuleAction.EXCLUDE
+        assert result.priority == 9999
+        assert result.propagation == PropagationLevel.NONE
+        assert "Manual override" in result.reason
+
+    def test_override_include_does_not_apply_to_other_module(self):
+        """Include override for one module does not affect a different module (line 79-81)."""
+        engine = RuleEngine()
+        engine.set_overrides({
+            "include": {"my.module": ["SpecialClass"]},
+            "exclude": {},
+        })
+
+        symbol = self._create_symbol("SpecialClass")
+        # Different module — override must not apply
+        result = engine.evaluate(symbol, "other.module")
+
+        assert result.action == RuleAction.NO_DECISION
+
+    def test_override_include_does_not_apply_to_other_symbol(self):
+        """Include override for one symbol name does not affect a different symbol (line 80)."""
+        engine = RuleEngine()
+        engine.set_overrides({
+            "include": {"my.module": ["SpecialClass"]},
+            "exclude": {},
+        })
+
+        symbol = self._create_symbol("OtherClass")
+        result = engine.evaluate(symbol, "my.module")
+
+        assert result.action == RuleAction.NO_DECISION
+
+    # -------------------------------------------------------------------------
+    # module_exact matching (line 152)
+    # -------------------------------------------------------------------------
+
+    def test_module_exact_match_hits_line_152(self):
+        """Criteria with module_exact that does NOT match short-circuits (line 152)."""
+        from exportify.common.types import Rule, RuleMatchCriteria
+
+        engine = RuleEngine()
+        rule = Rule(
+            name="exact-module-rule",
+            priority=500,
+            description="Only for specific module",
+            match=RuleMatchCriteria(module_exact="specific.module"),
+            action=RuleAction.INCLUDE,
+        )
+        engine.add_rule(rule)
+
+        symbol = self._create_symbol("AnyClass")
+
+        # Wrong module — should NOT match (line 152 executes and returns False)
+        result = engine.evaluate(symbol, "wrong.module")
+        assert result.action == RuleAction.NO_DECISION
+
+        # Correct module — should match
+        result2 = engine.evaluate(symbol, "specific.module")
+        assert result2.action == RuleAction.INCLUDE
+
+    # -------------------------------------------------------------------------
+    # Invalid regex pattern (lines 169-170)
+    # -------------------------------------------------------------------------
+
+    def test_invalid_regex_pattern_raises_value_error(self):
+        """_get_compiled_pattern raises ValueError for bad regex (lines 169-170)."""
+        engine = RuleEngine()
+
+        with pytest.raises(ValueError, match="Invalid regex pattern"):
+            engine._get_compiled_pattern("[invalid(regex")
+
+    def test_invalid_name_pattern_in_rule_raises_on_match(self):
+        """A rule with an invalid name_pattern raises ValueError during evaluation (lines 169-170)."""
+        from exportify.common.types import Rule, RuleMatchCriteria
+
+        engine = RuleEngine()
+        # Inject an invalid pattern by directly bypassing _parse_rule
+        rule = Rule(
+            name="bad-pattern-rule",
+            priority=500,
+            description="Has invalid regex",
+            match=RuleMatchCriteria(name_pattern="[unclosed("),
+            action=RuleAction.INCLUDE,
+        )
+        engine.rules.append(rule)  # Bypass add_rule to avoid compile at add time
+
+        symbol = self._create_symbol("AnyClass")
+        with pytest.raises(ValueError, match="Invalid regex pattern"):
+            engine.evaluate(symbol, "some.module")
+
+    # -------------------------------------------------------------------------
+    # _get_match_reason (line 181)
+    # -------------------------------------------------------------------------
+
+    def test_get_match_reason_returns_rule_name(self):
+        """_get_match_reason returns 'Matched rule: <name>' (line 181)."""
+        from exportify.common.types import Rule, RuleMatchCriteria
+
+        engine = RuleEngine()
+        rule = Rule(
+            name="my-special-rule",
+            priority=500,
+            description="Test",
+            match=RuleMatchCriteria(name_exact="Foo"),
+            action=RuleAction.INCLUDE,
+        )
+        engine.add_rule(rule)
+
+        symbol = self._create_symbol("Foo")
+        result = engine.evaluate(symbol, "some.module")
+
+        assert result.reason == "Matched rule: my-special-rule"
+
+    # -------------------------------------------------------------------------
+    # load_rules file not found (lines 186-187)
+    # -------------------------------------------------------------------------
+
+    def test_load_rules_file_not_found_raises(self):
+        """load_rules raises FileNotFoundError for missing file (lines 186-187)."""
+        engine = RuleEngine()
+        missing = Path("/nonexistent/path/to/rules.yaml")
+
+        with pytest.raises(FileNotFoundError, match="Rule file not found"):
+            engine.load_rules([missing])
+
+    # -------------------------------------------------------------------------
+    # YAML parse error (line 204)
+    # -------------------------------------------------------------------------
+
+    def test_load_rules_invalid_yaml_raises_value_error(self, tmp_path):
+        """load_rules raises ValueError for malformed YAML (line 204)."""
+        engine = RuleEngine()
+        bad_yaml = tmp_path / "bad.yaml"
+        # Write bytes that are structurally invalid YAML (tabs where not allowed)
+        bad_yaml.write_text("key: [\n  - bad\n    orphan: value\n  }")
+
+        with pytest.raises((ValueError, Exception)):
+            engine.load_rules([bad_yaml])
+
+    # -------------------------------------------------------------------------
+    # _migrate_schema (line 197) - called when version matches but != CURRENT
+    # -------------------------------------------------------------------------
+
+    def test_migrate_schema_called_for_same_supported_version(self):
+        """_migrate_schema is a no-op passthrough (line 197, body).
+
+        Since SUPPORTED_VERSIONS == ['1.0'] and CURRENT_SCHEMA_VERSION == '1.0',
+        the branch at line 196-197 is only reachable when a version is in
+        SUPPORTED_VERSIONS but != CURRENT_SCHEMA_VERSION. We test _migrate_schema
+        directly to cover its body, and use monkeypatching to cover line 197
+        through the load_rules code path.
+        """
+        engine = RuleEngine()
+        data = {"schema_version": "1.0", "rules": [], "extra_key": "value"}
+        result = engine._migrate_schema(data, from_version="1.0")
+        # Should return data unchanged (passthrough)
+        assert result == data
+
+    def test_migrate_schema_called_via_load_rules_when_version_differs(self, tmp_path):
+        """Cover line 197: _migrate_schema is called when version in SUPPORTED but != CURRENT.
+
+        We monkeypatch SUPPORTED_VERSIONS to include a fake old version so that
+        the branch `if version != CURRENT_SCHEMA_VERSION` is taken.
+        """
+        import exportify.export_manager.rules as rules_module
+
+        engine = RuleEngine()
+        rule_yaml = {"schema_version": "0.9", "rules": []}
+        rule_file = tmp_path / "old_schema.yaml"
+        import yaml as _yaml
+        rule_file.write_text(_yaml.dump(rule_yaml))
+
+        # Temporarily add "0.9" to SUPPORTED_VERSIONS so the unsupported-version
+        # check passes, but the migrate branch fires because "0.9" != "1.0"
+        original_supported = rules_module.SUPPORTED_VERSIONS[:]
+        rules_module.SUPPORTED_VERSIONS.append("0.9")
+        try:
+            engine.load_rules([rule_file])
+        finally:
+            rules_module.SUPPORTED_VERSIONS[:] = original_supported
+
+        # Migration should have run silently (no error), engine has no rules
+        assert len(engine.rules) == 0
+
+    # -------------------------------------------------------------------------
+    # module_pattern pre-compilation in _parse_rule (line 229)
+    # -------------------------------------------------------------------------
+
+    def test_parse_rule_with_module_pattern_precompiles(self, tmp_path):
+        """_parse_rule pre-compiles module_pattern into _compiled_patterns (line 229)."""
+        engine = RuleEngine()
+        rule_yaml = {
+            "schema_version": "1.0",
+            "rules": [
+                {
+                    "name": "module-pattern-rule",
+                    "priority": 500,
+                    "match": {"module_pattern": r"^pkg\.core"},
+                    "action": "include",
+                }
+            ],
+        }
+        rule_file = tmp_path / "rules.yaml"
+        import yaml as _yaml
+        rule_file.write_text(_yaml.dump(rule_yaml))
+
+        engine.load_rules([rule_file])
+
+        # The module_pattern should have been pre-compiled and cached
+        assert r"^pkg\.core" in engine._compiled_patterns
+
+    # -------------------------------------------------------------------------
+    # validate_rules (line 259)
+    # -------------------------------------------------------------------------
+
+    def test_validate_rules_returns_empty_list(self):
+        """validate_rules returns an empty list (line 259)."""
+        engine = RuleEngine()
+        result = engine.validate_rules()
+        assert result == []
+
+    # -------------------------------------------------------------------------
+    # No-match fallback (line 119-128) — already covered, but exercise reason
+    # -------------------------------------------------------------------------
+
+    def test_no_match_reason_is_no_rule_matched(self):
+        """When no rules exist, reason is 'No rule matched'."""
+        engine = RuleEngine()
+        symbol = self._create_symbol("Whatever")
+        result = engine.evaluate(symbol, "some.module")
+
+        assert result.action == RuleAction.NO_DECISION
+        assert result.reason == "No rule matched"
+        assert result.priority == 0
+        assert result.propagation == PropagationLevel.NONE

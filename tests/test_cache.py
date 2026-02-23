@@ -653,3 +653,235 @@ class TestCircuitBreaker:
         breaker.state = CircuitState.HALF_OPEN
         breaker.record_success()  # Should close at threshold
         assert breaker.state == CircuitState.CLOSED
+
+    def test_circuit_breaker_reset(self, temp_cache_dir: Path):
+        """CircuitBreaker.reset() restores initial state."""
+        from exportify.common.cache import CircuitBreaker, CircuitState
+
+        breaker = CircuitBreaker(failure_threshold=2)
+        # Drive circuit to OPEN
+        breaker.record_failure()
+        breaker.record_failure()
+        assert breaker.state == CircuitState.OPEN
+
+        # Reset should restore everything
+        breaker.reset()
+        assert breaker.state == CircuitState.CLOSED
+        assert breaker.failure_count == 0
+        assert breaker.success_count == 0
+        assert breaker.last_failure_time is None
+
+    def test_circuit_call_raises_when_open(self, temp_cache_dir: Path):
+        """CircuitBreaker.call() raises RuntimeError when circuit is OPEN."""
+        from exportify.common.cache import CircuitBreaker, CircuitState
+
+        breaker = CircuitBreaker()
+        breaker.state = CircuitState.OPEN
+        breaker.last_failure_time = None  # No last failure time means cannot recover yet
+
+        with pytest.raises(RuntimeError, match="Circuit breaker is OPEN"):
+            breaker.call(lambda: None)
+
+    def test_circuit_call_raises_propagates_exception(self, temp_cache_dir: Path):
+        """CircuitBreaker.call() re-raises exception from function."""
+        from exportify.common.cache import CircuitBreaker
+
+        breaker = CircuitBreaker()
+
+        def boom():
+            raise ValueError("test error")
+
+        with pytest.raises(ValueError, match="test error"):
+            breaker.call(boom)
+
+        assert breaker.failure_count == 1
+
+    def test_put_handles_cache_write_failure(self, temp_cache_dir: Path, monkeypatch):
+        """put() should swallow write exceptions gracefully without crashing."""
+        cache = JSONAnalysisCache(cache_dir=temp_cache_dir)
+
+        # Force _save_to_disk to fail by monkeypatching
+        def failing_save():
+            raise OSError("disk full")
+
+        monkeypatch.setattr(cache, "_save_to_disk", failing_save)
+
+        analysis = AnalysisResult(
+            symbols=[],
+            imports=[],
+            file_hash="hashX",
+            analysis_timestamp=time.time(),
+            schema_version="1.0",
+        )
+
+        # Should not raise
+        cache.put(Path("module.py"), "hashX", analysis)
+
+    def test_set_alias_stores_with_hash_from_analysis(self, temp_cache_dir: Path):
+        """set() is an alias for put() using file_hash attribute from analysis."""
+        cache = JSONAnalysisCache(cache_dir=temp_cache_dir)
+
+        analysis = AnalysisResult(
+            symbols=[],
+            imports=[],
+            file_hash="set_hash_123",
+            analysis_timestamp=time.time(),
+            schema_version="1.0",
+        )
+
+        # Use set() alias
+        cache.set(Path("alias_module.py"), analysis)
+
+        # Should be retrievable by the hash stored in analysis.file_hash
+        cached = cache.get(Path("alias_module.py"), "set_hash_123")
+        assert cached is not None
+
+    def test_set_alias_with_no_file_hash_attribute(self, temp_cache_dir: Path):
+        """set() falls back to 'unknown' when analysis has no file_hash attribute."""
+        import types
+
+        cache = JSONAnalysisCache(cache_dir=temp_cache_dir)
+
+        # Create a simple object without file_hash attribute
+        fake_analysis = types.SimpleNamespace(
+            symbols=[],
+            imports=[],
+            analysis_timestamp=time.time(),
+            schema_version="1.0",
+        )
+
+        # Should not raise even with no file_hash
+        # (getattr with default "unknown" is used)
+        cache.set(Path("no_hash.py"), fake_analysis)  # type: ignore[arg-type]
+
+    def test_load_from_disk_corrupt_json(self, temp_cache_dir: Path):
+        """_load_from_disk should recover from corrupt JSON gracefully."""
+        # Write a corrupt cache file before creating the cache instance
+        cache_file = temp_cache_dir / "analysis_cache.json"
+        cache_file.write_text("{this is not valid json!!")
+
+        # Should not raise; cache starts empty
+        cache = JSONAnalysisCache(cache_dir=temp_cache_dir)
+        assert cache.get(Path("any.py"), "hash") is None
+
+    def test_load_from_disk_oserror(self, temp_cache_dir: Path, monkeypatch):
+        """_load_from_disk should recover from OSError gracefully (cache stays empty)."""
+        import json as _json
+
+        # Create the cache normally
+        cache = JSONAnalysisCache(cache_dir=temp_cache_dir)
+        cache._cache.clear()
+
+        # Write a file so the exists() check passes, but make json.load raise OSError
+        cache_file = temp_cache_dir / "analysis_cache.json"
+        cache_file.write_text('{"x": 1}')
+
+        def bad_json_load(*args, **kwargs):
+            raise OSError("disk read error")
+
+        monkeypatch.setattr(_json, "load", bad_json_load)
+
+        # _load_from_disk should recover gracefully, leaving _cache empty
+        cache._load_from_disk()
+        assert cache._cache == {}
+
+    def test_get_from_cache_non_dict_analysis(self, temp_cache_dir: Path):
+        """_get_from_cache returns raw analysis when it is not a dict (e.g. pre-stored object)."""
+        cache = JSONAnalysisCache(cache_dir=temp_cache_dir)
+
+        # Inject a raw (non-dict) value directly into the internal cache dict
+        sentinel = object()
+        cache._cache[Path("raw.py")] = {"file_hash": "rawhash", "analysis": sentinel}
+
+        result = cache._get_from_cache(Path("raw.py"), "rawhash")
+        assert result is sentinel
+
+    def test_get_from_cache_symbol_non_dict_entry(self, temp_cache_dir: Path):
+        """_get_from_cache handles symbol entries that are not dicts (already objects)."""
+        from exportify.common.types import (
+            DetectedSymbol,
+            MemberType,
+            SourceLocation,
+            SymbolProvenance,
+        )
+
+        cache = JSONAnalysisCache(cache_dir=temp_cache_dir)
+
+        # Inject an analysis dict with a non-dict symbol entry
+        pre_built_symbol = DetectedSymbol(
+            name="PreBuilt",
+            member_type=MemberType.CLASS,
+            provenance=SymbolProvenance.DEFINED_HERE,
+            location=SourceLocation(line=1),
+            is_private=False,
+            original_source=None,
+            original_name=None,
+        )
+
+        cache._cache[Path("prebuilt.py")] = {
+            "file_hash": "builthash",
+            "analysis": {
+                "symbols": [pre_built_symbol],  # Already an object, not a dict
+                "imports": [],
+                "file_hash": "builthash",
+                "analysis_timestamp": 0.0,
+                "schema_version": "1.0",
+            },
+        }
+
+        result = cache._get_from_cache(Path("prebuilt.py"), "builthash")
+        assert result is not None
+        assert result.symbols[0] is pre_built_symbol
+
+    def test_put_with_model_dump_object(self, temp_cache_dir: Path):
+        """put() serializes objects with model_dump correctly."""
+        from unittest.mock import MagicMock
+
+        cache = JSONAnalysisCache(cache_dir=temp_cache_dir)
+
+        # Create a mock analysis that has model_dump (like a pydantic model)
+        mock_analysis = MagicMock()
+        mock_analysis.model_dump.return_value = {
+            "symbols": [],
+            "imports": [],
+            "file_hash": "modeldump_hash",
+            "analysis_timestamp": 0.0,
+            "schema_version": "1.0",
+        }
+
+        # Should not raise; model_dump takes priority in to_dict
+        cache.put(Path("model_dump.py"), "modeldump_hash", mock_analysis)
+        # Verify model_dump was called
+        mock_analysis.model_dump.assert_called_once()
+
+    def test_add_ignore_non_default_cache_dir(self, tmp_path):
+        """_add_ignore_to_cache should not write .gitignore for non-default cache dirs."""
+        from exportify.common.cache import _add_ignore_to_cache
+
+        custom_cache = tmp_path / "custom_cache"
+        # Does not exist yet
+        _add_ignore_to_cache(custom_cache)
+
+        # Directory should be created
+        assert custom_cache.exists()
+
+        # No .gitignore should have been created (non-default dir)
+        gitignore = tmp_path / ".gitignore"
+        assert not gitignore.exists()
+
+    def test_add_ignore_default_cache_dir_creates_gitignore(self, tmp_path, monkeypatch):
+        """_add_ignore_to_cache writes .gitignore for the default cache directory."""
+        from exportify.common.cache import DEFAULT_CACHE_SUBDIR, _add_ignore_to_cache
+
+        # Monkeypatch DEFAULT_CACHE_SUBDIR so we can test the gitignore-creation branch
+        # without side effects on the actual project
+        fake_default = tmp_path / ".exportify" / "cache"
+        monkeypatch.setattr("exportify.common.cache.DEFAULT_CACHE_SUBDIR", fake_default)
+
+        # Call with a path that equals the (patched) default
+        _add_ignore_to_cache(fake_default)
+
+        # .gitignore should be created in the parent of fake_default
+        gitignore = tmp_path / ".exportify" / ".gitignore"
+        assert gitignore.exists()
+        assert "cache" in gitignore.read_text()

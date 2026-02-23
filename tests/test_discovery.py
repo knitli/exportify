@@ -124,3 +124,79 @@ class TestFileDiscovery:
         files = discovery.discover_python_files(tmp_path)
 
         assert len(files) == 1
+
+    def test_pycache_excluded_with_gitignore_enabled(self, tmp_path) -> None:
+        """__pycache__ files should be excluded even when respect_gitignore=True."""
+        (tmp_path / "a.py").touch()
+        pycache = tmp_path / "__pycache__"
+        pycache.mkdir()
+        (pycache / "a.cpython-312.pyc").write_text("")
+        # Create a .py file inside __pycache__ to make the filter relevant
+        (pycache / "cached.py").write_text("x = 1")
+
+        discovery = FileDiscovery(respect_gitignore=True)
+        files = discovery.discover_python_files(tmp_path)
+
+        # Should only find a.py, not the pycache variant
+        assert len(files) == 1
+        assert files[0].name == "a.py"
+
+    def test_gitignore_invalid_regex_pattern_skipped(self, tmp_path) -> None:
+        """Invalid regex patterns in .gitignore should be silently skipped."""
+        # Write a .gitignore with an invalid regex pattern (unbalanced brackets)
+        (tmp_path / ".gitignore").write_text("[invalid_pattern\nvalid.py\n")
+        (tmp_path / "valid.py").touch()
+        (tmp_path / "other.py").touch()
+
+        discovery = FileDiscovery(respect_gitignore=True)
+        # Should not raise despite invalid pattern
+        files = discovery.discover_python_files(tmp_path)
+
+        # 'valid.py' should be excluded by the valid pattern; 'other.py' included
+        assert any(f.name == "other.py" for f in files)
+        # 'valid.py' is excluded
+        assert all(f.name != "valid.py" for f in files)
+
+    def test_is_ignored_path_not_relative_to_root(self, tmp_path) -> None:
+        """_is_ignored should return False when path is not relative to root."""
+        discovery = FileDiscovery(respect_gitignore=True)
+
+        # Use a path completely unrelated to tmp_path
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as other_dir:
+            from pathlib import Path
+
+            other_path = Path(other_dir) / "some.py"
+            other_path.touch()
+
+            # Should return False, not raise
+            result = discovery._is_ignored(other_path, tmp_path)
+            assert result is False
+
+    def test_gitignore_wildcard_pattern_excludes_files(self, tmp_path) -> None:
+        """Wildcard pattern in .gitignore should exclude matching files."""
+        (tmp_path / ".gitignore").write_text("gen_*.py\n")
+        (tmp_path / "gen_code.py").write_text("pass")
+        (tmp_path / "gen_types.py").write_text("pass")
+        (tmp_path / "main.py").touch()
+
+        discovery = FileDiscovery(respect_gitignore=True)
+        files = discovery.discover_python_files(tmp_path)
+
+        file_names = [f.name for f in files]
+        assert "main.py" in file_names
+        assert "gen_code.py" not in file_names
+        assert "gen_types.py" not in file_names
+
+    def test_gitignore_with_empty_lines(self, tmp_path) -> None:
+        """Empty lines in .gitignore should be skipped gracefully."""
+        (tmp_path / ".gitignore").write_text("\n\n\nexcluded.py\n\n")
+        (tmp_path / "excluded.py").touch()
+        (tmp_path / "included.py").touch()
+
+        discovery = FileDiscovery(respect_gitignore=True)
+        files = discovery.discover_python_files(tmp_path)
+
+        assert len(files) == 1
+        assert files[0].name == "included.py"

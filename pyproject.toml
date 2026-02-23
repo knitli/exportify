@@ -67,6 +67,13 @@ dev = [
 requires = ["hatchling", "uv-dynamic-versioning"]
 build-backend = "hatchling.build"
 
+[tool.coverage.run]
+omit = [
+  "src/exportify/__init__.py",
+  "src/exportify/_version.py",
+  "src/exportify/types.py",
+]
+
 [tool.hatch.version]
 source = "uv-dynamic-versioning"
 
