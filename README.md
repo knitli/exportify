@@ -27,8 +27,16 @@ Exportify offers a simple rule-based system for enforcing `__all__` and `__init_
 
 ## Installation
 
+Easiest to install with [`uv`](https://docs.astral.sh/uv/getting-started/installation/):
+
 ```bash
-pip install exportify
+uv tool install exportify
+```
+
+or `pipx`:
+
+```bash
+pipx install exportify
 ```
 
 Python 3.12+ required.
@@ -69,7 +77,7 @@ exportify status
 |----------|-------------|
 | [CLI Reference](docs/cli-reference.md) | Complete command reference with all flags |
 | [Rule Engine](src/exportify/rules/README.md) | Rule syntax, priorities, match criteria, provenance |
-| [Configuration](docs/init.md) | Initialising and configuring exportify |
+| [Configuration](docs/init.md) | Initializing and configuring exportify |
 
 ### Guides
 
@@ -210,7 +218,7 @@ Everything above the sentinel is left untouched on every `fix` or `generate` run
 | `exportify generate` | Bootstrap new `__init__.py` files for packages missing one |
 | `exportify status` | Show current export/import health status |
 | `exportify doctor` | Run health checks and provide actionable advice |
-| `exportify init` | Initialise exportify with a default config file |
+| `exportify init` | Initialize exportify with a default config file |
 | `exportify clear-cache` | Clear the analysis cache |
 
 See the [full CLI reference](docs/cli-reference.md) for all flags and options.
