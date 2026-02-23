@@ -395,7 +395,7 @@ rules:
         (pkg / "mod.py").write_text("class Foo: pass")
 
         exit_code, stdout, stderr = run_cli("fix", "--source", str(tmp_path))
-
+        assert exit_code == 0, f"Failed: {stderr}"
         combined = stdout + stderr
         # Should warn about missing __init__.py
         assert "__init__.py" in combined or "init" in combined.lower(), (

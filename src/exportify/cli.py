@@ -3,14 +3,16 @@
 # SPDX-FileContributor: Adam Poulemanos <adam@knit.li>
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
-"""Exportify CLI commands.
+"""Exportify CLI entry point and command registration.
 
-Provides user interface for all export management operations:
-- Checking exports and __all__ consistency
-- Fixing exports and __all__ declarations
-- Generating __init__.py files for new packages
-- Analysis and health checks
-- Migration from old system
+Registers all seven commands and wires them to the ``exportify`` program:
+- ``check``       — validate exports and ``__all__`` consistency
+- ``fix``         — repair exports and ``__all__`` declarations
+- ``generate``    — create ``__init__.py`` files with lazy imports
+- ``status``      — show a quick cache and configuration snapshot
+- ``doctor``      — run cache and configuration health checks
+- ``init``        — initialize Exportify in a project
+- ``clear-cache`` — delete all cached analysis results
 """
 
 from __future__ import annotations
@@ -27,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 app = App(
     name="exportify",
-    help="Manage Python package exports: check, fix, and generate __init__.py files",
+    help="Generate, validate, and fix Python package exports and __init__.py files",
     version=__version__,
     console=CONSOLE,
 )

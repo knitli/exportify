@@ -3,7 +3,7 @@
 # SPDX-FileContributor: Adam Poulemanos <adam@knit.li>
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
-"""Module for the `fix` command."""
+"""Implementation of the ``fix`` command for syncing exports and ``__all__`` declarations to configured rules."""
 
 from __future__ import annotations
 
@@ -147,35 +147,41 @@ def _print_summary(count: int, *, dry_run: bool) -> None:
 
 @FixCommand.default
 def fix(
-    *paths: Annotated[Path, Parameter(help="Paths to fix (default: whole project)")],
+    *paths: Annotated[Path, Parameter(help="Files or directories to fix")],
     source: Annotated[Path | None, Parameter(help="Source root directory")] = None,
     dynamic_imports: Annotated[
         bool | None,
-        Parameter(name="dynamic-imports", help="Fix _dynamic_imports entries in __init__.py files"),
+        Parameter(
+            name="dynamic-imports",
+            help="Rewrite _dynamic_imports in __init__.py to match rules",
+        ),
     ] = None,
     module_all: Annotated[
-        bool | None, Parameter(name="module-all", help="Fix __all__ in regular modules")
+        bool | None,
+        Parameter(name="module-all", help="Update __all__ in modules to match export rules"),
     ] = None,
     package_all: Annotated[
         bool | None,
-        Parameter(name="package-all", help="Fix __all__ and exports in __init__.py files"),
+        Parameter(
+            name="package-all", help="Update __all__ and exports in __init__.py files"
+        ),
     ] = None,
     dry_run: Annotated[
         bool, Parameter(name="dry-run", help="Show what would change without writing")
     ] = False,
     verbose: Annotated[bool, Parameter(help="Show detailed output")] = False,
 ) -> None:
-    """Sync exports and __all__ declarations to match rules.
+    """Sync exports and __all__ declarations to match configured rules.
 
     Updates:
-    - __all__ in regular modules (--module-all)
+    - __all__ in regular modules to match export rules (--module-all)
     - _dynamic_imports and __all__ in __init__.py files (--dynamic-imports, --package-all)
 
-    Does NOT fix lateimport() call paths — those require manual correction.
+    Skips lateimport() call paths — those import targets require manual correction.
 
-    If --dry-run: shows what would change without writing any files.
+    Use --dry-run to preview all changes before writing any files.
 
-    When __init__.py is missing entirely, warns and suggests running `generate`.
+    Warns when a package directory has no __init__.py and suggests running `generate` first.
 
     Examples:
         exportify fix

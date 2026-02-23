@@ -17,12 +17,10 @@ The exportify tool uses a **priority-based rule engine** to decide which symbols
 ```
 rules/
 ├── README.md             # This file - documentation
-├── default_rules.yaml    # Built-in rules (required)
-└── custom_rules.yaml     # User-defined rules (optional)
-
-overrides/
-└── codeweaver_overrides.yaml  # Project-specific overrides
+└── default_rules.yaml    # Built-in rules (reference/template)
 ```
+
+User rules are loaded from the project config file (`.exportify/config.yaml` by default). The config file uses the same YAML rule format as `default_rules.yaml`.
 
 ## Rule Schema
 
@@ -60,11 +58,13 @@ Match criteria specify when a rule applies. Multiple criteria can be combined:
 match:
   name_exact: "SymbolName"           # Exact name match
   name_pattern: "^public_.*"         # Regex pattern
-  module_exact: "codeweaver.core"    # Exact module path
+  module_exact: "mypackage.core"     # Exact module path
   module_pattern: ".*\\.types$"      # Regex pattern
-  member_type: class                 # class | function | constant | variable | type_alias | imported
+  member_type: class                 # class | function | constant | variable | type_alias | imported | unknown
   provenance: imported               # defined_here | imported | alias_imported | unknown
 ```
+
+**Important**: `name_pattern` and `module_pattern` use `re.match()`, which anchors at the start but not the end. Use `^` and `$` anchors explicitly to control matching boundaries.
 
 #### Logical Combinations
 
@@ -91,14 +91,14 @@ match:
 When `action: include`, the `propagate` field controls how far up the package hierarchy the export travels:
 
 - **`none`**: Export only in the defining module's `__init__.py`
-- **`parent`**: Export in the parent module's `__init__.py`  *(default)*
+- **`parent`**: Export in the parent module's `__init__.py`  *(default when `propagate` is omitted)*
 - **`root`**: Propagate all the way to the package root
 - **`custom`**: Reserved for future advanced use cases
 
-**Example**: If `codeweaver.core.types.models` defines `BasedModel`:
-- `propagate: none` → Only in `codeweaver/core/types/models/__init__.py`
-- `propagate: parent` → In `codeweaver/core/types/__init__.py`
-- `propagate: root` → In `codeweaver/__init__.py`
+**Example**: If `mypackage.core.types.models` defines `BasedModel`:
+- `propagate: none` → Only in `mypackage/core/types/models/__init__.py`
+- `propagate: parent` → In `mypackage/core/types/__init__.py`
+- `propagate: root` → In `mypackage/__init__.py`
 
 ## Priority System
 
@@ -106,15 +106,15 @@ Rules are evaluated in priority order (highest first):
 
 | Priority Range | Purpose | Examples |
 |---------------|---------|----------|
-| 1000 | Critical exclusions | Private symbols, dunders |
-| 900 | Infrastructure exclusions | lateimporter components |
+| 1000 | Critical exclusions / special inclusions | Private symbols, `__version__` |
+| 999 | Dunder exclusions | Dunder symbols |
+| 900 | Infrastructure exclusions | lateimport components |
 | 800 | Framework exclusions | Test fixtures, dev utilities |
-| 700 | Defined symbols (exports) | Classes, functions, constants |
+| 700–702 | Defined symbols (exports) | Classes, functions, constants |
 | 600 | Import handling | Aliased imports |
-| 500 | Import exclusions | Non-aliased imports |
 | 400 | Variable handling | Public variables |
-| 300 | Propagation overrides | Root-level types |
-| 0-200 | Catch-all defaults | Fallback behaviors |
+| 300 | Propagation overrides | Root-level types, core utilities |
+| 0 | Catch-all default | Fallback behavior |
 
 **Note**: If multiple rules have the same priority, they are evaluated alphabetically by `name`.
 
@@ -122,40 +122,46 @@ Rules are evaluated in priority order (highest first):
 
 The `default_rules.yaml` file contains the standard rule set:
 
-1. **ExcludePrivateSymbols** (1000): Skip `_private` symbols
-2. **ExcludeDunderSymbols** (1000): Skip `__dunder__` symbols
-3. **ExcludeLateImporter** (900): Prevent circular dependency on lateimporter
-4. **ExcludeTestFixtures** (800): Skip pytest fixtures
-5. **ExportDefinedClasses** (700): Export defined classes
-6. **ExportDefinedFunctions** (700): Export defined functions
-7. **ExportDefinedConstants** (700): Export SCREAMING_SNAKE constants
-8. **ExportTypeAliases** (700): Export type aliases
-9. **ExportAliasedImports** (600): Export `from x import y as z`
-10. **SkipNonAliasedImports** (500): Skip `from x import y`
-11. **ExportPublicVariables** (400): Export module-level variables
-12. **PropagateToRoot** (300): Errors/types go to root
-13. **DefaultNoDecision** (0): Fallback
+1. **IncludeDunderVersion** (1000): Always export `__version__` from root `__init__`
+2. **ExcludePrivateSymbols** (1000): Skip `_private` symbols
+3. **ExcludeDunderSymbols** (999): Skip `__dunder__` symbols (after `IncludeDunderVersion`)
+4. **ExcludeLateImportComponents** (900): Prevent circular dependency on lateimport module
+5. **ExcludeLateImportFunction** (900): Don't export the `lateimport` function itself
+6. **ExcludeCreateLateGetattr** (900): Don't export the `create_late_getattr` infrastructure function
+7. **ExcludeLateImportClass** (900): Don't export the `LateImport` infrastructure class
+8. **ExcludeTestFixtures** (800): Skip pytest fixtures and test utilities
+9. **ExcludeDevOnlyFunctions** (800): Skip `dev_*` prefixed functions
+10. **ExportDefinedClasses** (700): Export defined classes, propagate to root
+11. **ExportDefinedFunctions** (700): Export defined functions (including async), propagate to parent
+12. **ExportDefinedConstants** (700): Export SCREAMING_SNAKE constants, propagate to parent
+13. **ExportSpecialConstants** (702): Export constants from `constants.py` / `file_extensions.py` to root
+14. **ExportTypeAliases** (700): Export type aliases, propagate to root
+15. **ExportImportedSymbols** (600): Export aliased imports (`from x import y as z`), propagate to root
+16. **ExportPublicVariables** (400): Exclude snake_case module-level variables
+17. **CoreUtilsPropagateToRoot** (300): Core utilities (`core.utils`) propagate to package root
+18. **SpecialUtilitiesPropagateToRoot** (300): Project-specific utility functions propagate to root
+19. **EnsureINJECTEDPropagateToRoot** (300): `INJECTED` constant propagates to root
+20. **PropagateToRoot** (300): Core types and exceptions propagate to package root
+21. **DefaultNoDecision** (0): Fallback — no decision (symbol not exported)
 
 ## Overrides
 
-Override files provide **manual control** that bypasses all rules. Overrides are the **highest priority**.
+Overrides provide **manual control** that bypasses all rules. Overrides are the **highest priority** (priority 9999 internally).
 
-### Override Structure
+Overrides are set programmatically on the `RuleEngine` instance via `set_overrides()`, and are not part of the YAML rule file format. They are keyed by dotted module path:
 
-```yaml
-schema_version: "1.0"
-
-overrides:
-  include:
-    "module.path":
-      - "SymbolName"
-      - "AnotherSymbol"
-  exclude:
-    "module.path":
-      - "ExcludedSymbol"
+```python
+engine.set_overrides({
+    "include": {
+        "mypackage.internal": ["PublicHelper", "UtilityClass"]
+    },
+    "exclude": {
+        "mypackage.core": ["_InternalBase"]
+    }
+})
 ```
 
-**Include overrides**: Force export even if rules would exclude
+**Include overrides**: Force export even if rules would exclude (propagates to ROOT by default)
 **Exclude overrides**: Force exclusion even if rules would include
 
 ### When to Use Overrides
@@ -167,7 +173,7 @@ overrides:
 
 ## Creating Custom Rules
 
-You can create `custom_rules.yaml` to add project-specific rules without modifying `default_rules.yaml`.
+Project-specific rules go in the config file (`.exportify/config.yaml` by default). Use the same YAML format as `default_rules.yaml`.
 
 **Example** - Export all symbols with "Public" prefix:
 
@@ -229,6 +235,7 @@ The `member_type` criterion recognizes these symbol types:
 | `variable` | Module-level variables | `config = {}` |
 | `type_alias` | Type aliases | `type StrDict = dict[str, str]` |
 | `imported` | Imported symbols | `from x import y` |
+| `unknown` | Member type could not be determined | Edge cases |
 
 ## Symbol Provenance
 
@@ -248,15 +255,15 @@ The `provenance` criterion distinguishes where symbols come from:
 
 ## Regex Pattern Reference
 
-Patterns use Python's `re` module syntax. Common patterns:
+Patterns use Python's `re` module syntax with `re.match()` (anchors at start, not end). Common patterns:
 
 | Pattern | Matches | Example |
 |---------|---------|---------|
 | `^_.*` | Starts with underscore | `_private`, `__dunder` |
 | `.*Error$` | Ends with "Error" | `ValueError`, `ImportError` |
 | `^[A-Z_]+$` | All caps (constants) | `MAX_SIZE`, `API_KEY` |
-| `.*\\.types$` | Module ending in "types" | `codeweaver.core.types` |
-| `.*\\.tests?\\..*` | Test modules | `codeweaver.tests.unit` |
+| `.*\\.types$` | Module ending in "types" | `mypackage.core.types` |
+| `.*\\.tests?\\..*` | Test modules | `mypackage.tests.unit` |
 
 **Tip**: Use [regex101.com](https://regex101.com/) to test patterns with Python flavor.
 
@@ -280,13 +287,17 @@ The rule engine validates rules when loaded:
 
 ## Loading Rules
 
-Rules are loaded in this order:
+Rules are loaded from the project config file. The config file search order is:
 
-1. **Default rules** (`default_rules.yaml`) - Always loaded
-2. **Custom rules** (`custom_rules.yaml`) - If present
-3. **Project overrides** (`../overrides/*.yaml`) - If present
+1. `EXPORTIFY_CONFIG` environment variable (any path)
+2. `.exportify/config.yaml` in the current working directory
+3. `.exportify/config.yml` in the current working directory
+4. `.exportify.yaml` in the current working directory
+5. `.exportify.yml` in the current working directory
+6. `exportify.yaml` in the current working directory
+7. `exportify.yml` in the current working directory
 
-Rules from later files are **merged** with earlier ones. Same-priority rules are evaluated alphabetically by name.
+If no config file is found, the rule engine starts with no rules (symbols are not exported by default). The `default_rules.yaml` in this directory serves as a reference and template; it is not auto-loaded.
 
 ## Best Practices
 
@@ -299,18 +310,18 @@ Rules from later files are **merged** with earlier ones. Same-priority rules are
 
 ### Priority Assignment
 
-- **1000**: Only for absolute exclusions (private, dunders)
+- **1000**: Only for absolute exclusions or must-include overrides (private, dunders, `__version__`)
 - **900-800**: Framework/infrastructure exclusions
 - **700**: Primary export rules
-- **600-500**: Import handling
-- **400-300**: Special cases and overrides
-- **0-200**: Defaults and fallbacks
+- **600**: Import handling
+- **400-300**: Special cases and propagation overrides
+- **0**: Default catch-all fallback
 
 ### Pattern Writing
 
 - **Start simple**: Test with exact matches before adding patterns
 - **Escape regex**: Use `\\.` for literal dots in module paths
-- **Anchor patterns**: Use `^` and `$` to prevent partial matches
+- **Anchor patterns**: Use `^` and `$` to prevent partial matches (patterns use `re.match()`, which anchors at the start but not the end)
 - **Test thoroughly**: Verify patterns match expected symbols only
 
 ### Overrides
@@ -340,8 +351,9 @@ Rules from later files are **merged** with earlier ones. Same-priority rules are
 
 1. Test regex at regex101.com with Python flavor
 2. Check for escaping issues (dots, brackets)
-3. Verify member_type and module_path are correct
-4. Enable debug logging to see match attempts
+3. Remember `re.match()` anchors at start — use `$` to also anchor at end
+4. Verify member_type and module_path are correct
+5. Enable debug logging to see match attempts
 
 ## Examples
 
@@ -421,5 +433,5 @@ When adding new rules:
 ---
 
 **Version**: 1.0
-**Last Updated**: 2026-02-15
+**Last Updated**: 2026-02-23
 **Schema Version**: 1.0

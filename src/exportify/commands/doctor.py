@@ -3,7 +3,7 @@
 # SPDX-FileContributor: Adam Poulemanos <adam@knit.li>
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
-"""Module for the `doctor` command."""
+"""Implements the ``doctor`` command: cache and configuration health checks."""
 
 from __future__ import annotations
 
@@ -20,15 +20,14 @@ DoctorCommand = App(console=CONSOLE)
 
 @DoctorCommand.default
 def doctor() -> None:
-    """Run health checks and provide actionable advice.
+    """Check Exportify cache and configuration health.
 
     Checks:
-    - Cache health and validity
-    - Rule configuration
-    - Export conflicts
-    - Performance issues
+    - Cache entries (total, valid, invalid, size, hit rate)
+    - Rule configuration (config file present or missing)
 
-    Provides recommendations for improvements.
+    Warns if more than 10% of cache entries are invalid and
+    recommends running ``exportify clear-cache``.
 
     Examples:
         exportify doctor

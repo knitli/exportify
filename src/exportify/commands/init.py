@@ -3,7 +3,7 @@
 # SPDX-FileContributor: Adam Poulemanos <adam@knit.li>
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
-"""Module for the `init` command."""
+"""CLI command for creating the initial exportify configuration file."""
 
 from __future__ import annotations
 
@@ -34,11 +34,11 @@ def init(
     force: Annotated[bool, Parameter(help="Overwrite existing config file")] = False,
     verbose: Annotated[bool, Parameter(help="Show full configuration summary")] = False,
 ) -> None:
-    """Initialise exportify with a default configuration file.
+    """Initialize exportify with a default configuration file.
 
-    Creates `.exportify.yaml` in the current directory with sensible default
-    rules that work for most Python packages.  Edit the file afterwards to
-    customise which symbols are exported and how they propagate.
+    Creates `.exportify.yaml` in the current directory with reasonable default
+    rules that work for most Python packages. Edit the file afterwards to
+    customize which symbols are exported and how they propagate.
 
     Examples:
         exportify init

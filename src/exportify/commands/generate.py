@@ -3,7 +3,7 @@
 # SPDX-FileContributor: Adam Poulemanos <adam@knit.li>
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
-"""Module for the `generate` command."""
+"""CLI command for running the full export generation pipeline."""
 
 from __future__ import annotations
 
@@ -64,22 +64,27 @@ def _print_generation_results(result: ExportGenerationResult) -> None:
 
 @GenerateCommand.default
 def generate(
-    module: Annotated[Path | None, Parameter(help="Generate for specific module")] = None,
+    module: Annotated[Path | None, Parameter(help="Limit generation to this path")] = None,
     source: Annotated[Path | None, Parameter(help="Source root directory")] = None,
     output: Annotated[
         Path | None, Parameter(help="Output directory (default: same as source)")
     ] = None,
     dry_run: Annotated[bool, Parameter(help="Show changes without writing files")] = False,
 ) -> None:
-    """Bootstrap new __init__.py files for packages that don't have one.
+    """Create and update __init__.py files with lazy exports across your package.
 
-    Analyzes the codebase and creates __init__.py files for packages that are
-    currently missing them, with:
-    - Proper __all__ declarations
-    - lateimport() calls for exports (or barrel imports if configured)
+    Runs the full export pipeline: discovers Python files, applies export rules,
+    then writes or updates every __init__.py in the source tree. New packages get
+    fresh files; existing ones are updated in-place, preserving any code above the
+    managed-exports sentinel.
+
+    Each generated file includes:
+    - A __all__ declaration listing public exports
+    - lateimport() calls for lazy loading (or barrel imports if configured)
     - TYPE_CHECKING imports where appropriate
 
-    Use `fix` to update existing __init__.py files.
+    Use `fix` to make targeted updates — syncing __all__ and _dynamic_imports
+    without re-running the full pipeline.
 
     Examples:
         exportify generate

@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/knitli/exportify/main/src/exportify/schemas/exportify-config.schema.json",
+  "title": "Exportify Configuration",
+  "description": "Schema for exportify configuration files (.exportify/config.yaml and project rule files).",
+  "type": "object",
+  "required": ["schema_version"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "description": "Schema version for this configuration file. Must be '1.0'.",
+      "type": "string",
+      "enum": ["1.0"]
+    },
+    "metadata": {
+      "description": "Optional informational metadata. Keys and values are arbitrary strings and are not interpreted by exportify.",
+      "type": "object",
+      "additionalProperties": true
+    },
+    "output_style": {
+      "description": "Default output style for all generated __init__.py files. 'lazy' (default) generates a __getattr__-based lazy import pattern; 'barrel' generates direct star-import re-exports.",
+      "type": "string",
+      "enum": ["lazy", "barrel"],
+      "default": "lazy"
+    },
+    "overrides": {
+      "description": "Per-package output style overrides. Keys are dotted module paths (e.g. 'mypackage.compat'). The most-specific matching ancestor wins; falls back to the top-level output_style.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/PackageOverride"
+      }
+    },
+    "rules": {
+      "description": "Export rules evaluated in priority order (highest priority first). The first rule whose 'match' criteria are satisfied determines the export decision. If no rule matches, the symbol receives no_decision and is not exported.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Rule"
+      }
+    }
+  },
+  "$defs": {
+    "PackageOverride": {
+      "description": "Per-package configuration override. Applied to the named package and all of its subpackages unless a more-specific override exists.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "output_style": {
+          "description": "Output style for this package and its subpackages.",
+          "type": "string",
+          "enum": ["lazy", "barrel"]
+        }
+      }
+    },
+    "Rule": {
+      "description": "A single export rule. Rules are evaluated highest-priority-first; ties are broken alphabetically by name.",
+      "type": "object",
+      "required": ["name", "action", "match"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "Unique rule name. Used as a tie-breaker when two rules share the same priority (alphabetically earlier name wins).",
+          "type": "string",
+          "minLength": 1
+        },
+        "priority": {
+          "description": "Evaluation priority in the range 0–1000 (higher = evaluated first). Default: 500.\n\nRecommended bands:\n  1000      – absolute exclusions (private members, dunders)\n  900–800   – infrastructure/framework exclusions\n  700       – primary export rules (classes, functions, constants)\n  600–500   – import handling\n  300–400   – special cases / propagation overrides\n  0–200     – defaults and fallbacks",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000,
+          "default": 500
+        },
+        "description": {
+          "description": "Human-readable description of what this rule does (documentation only).",
+          "type": "string"
+        },
+        "match": {
+          "description": "Criteria that must be satisfied for this rule to apply to a symbol.",
+          "$ref": "#/$defs/MatchCriteria"
+        },
+        "action": {
+          "description": "Action to take when this rule matches.\n  'include'     – mark the symbol for export\n  'exclude'     – suppress the symbol from export\n  'no_decision' – pass through without a decision (useful as a fallback/catch-all)",
+          "type": "string",
+          "enum": ["include", "exclude", "no_decision"]
+        },
+        "propagate": {
+          "description": "How far to propagate an included symbol up the package hierarchy.\n  'none'   – do not propagate beyond the module's own __init__.py\n  'parent' – propagate one level up to the immediate parent package\n  'root'   – propagate all the way to the top-level package __init__.py\n  'custom' – reserved for future use\n\nOnly meaningful when action is 'include'. Has no effect on 'exclude' or 'no_decision' actions.",
+          "type": "string",
+          "enum": ["none", "parent", "root", "custom"]
+        }
+      }
+    },
+    "MatchCriteria": {
+      "description": "Criteria for matching Python symbols. Fields at the same level are combined with AND logic (all must match). Use 'any_of' for OR logic and 'all_of' for explicit AND grouping. Criteria objects may be nested recursively.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name_exact": {
+          "description": "Match symbols whose __name__ is exactly this string.",
+          "type": "string",
+          "minLength": 1
+        },
+        "name_pattern": {
+          "description": "Match symbols whose __name__ matches this regular expression (Python re syntax, full-string match).",
+          "type": "string",
+          "format": "regex",
+          "minLength": 1
+        },
+        "module_exact": {
+          "description": "Match symbols defined in a module whose dotted path is exactly this string (e.g. 'mypackage.core.__init__' or '__init__' for the root init).",
+          "type": "string",
+          "minLength": 1
+        },
+        "module_pattern": {
+          "description": "Match symbols defined in a module whose dotted path matches this regular expression (Python re syntax, full-string match). Example: '.*\\\\.exceptions$'",
+          "type": "string",
+          "format": "regex",
+          "minLength": 1
+        },
+        "member_type": {
+          "description": "Match symbols of the specified AST-detected member type.\n  'class'      – class definitions\n  'function'   – function and async function definitions\n  'variable'   – module-level variable assignments\n  'constant'   – SCREAMING_SNAKE_CASE module-level assignments\n  'type_alias' – Python 3.12+ 'type X = ...' statements and pre-3.12 TypeAlias annotations\n  'imported'   – symbols imported from another module\n  'unknown'    – member type could not be determined",
+          "type": "string",
+          "enum": ["class", "function", "variable", "constant", "type_alias", "imported", "unknown"]
+        },
+        "provenance": {
+          "description": "Match symbols by how they were introduced into the current module.\n  'defined_here'   – defined directly in this file\n  'imported'       – imported from another module (plain import)\n  'alias_imported' – imported with an alias (import X as Y)\n  'unknown'        – provenance could not be determined",
+          "type": "string",
+          "enum": ["defined_here", "imported", "alias_imported", "unknown"]
+        },
+        "any_of": {
+          "description": "Match if ANY of the listed sub-criteria match (OR logic). Can be nested inside 'all_of' for complex boolean expressions.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MatchCriteria"
+          },
+          "minItems": 1
+        },
+        "all_of": {
+          "description": "Match if ALL of the listed sub-criteria match (AND logic). Can be nested inside 'any_of' for complex boolean expressions.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MatchCriteria"
+          },
+          "minItems": 1
+        }
+      }
+    }
+  }
+}

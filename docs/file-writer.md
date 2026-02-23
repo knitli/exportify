@@ -100,7 +100,7 @@ result = generator.write_file(module_path, code)  # Now returns WriteResult
 
 ```python
 # Direct FileWriter usage
-from exportify.export_manager.file_writer import FileWriter, BackupPolicy
+from exportify.export_manager.file_writer import BackupPolicy, FileWriter
 
 writer = FileWriter(backup_policy=BackupPolicy.ALWAYS)
 result = writer.write_file(target, content)
@@ -159,13 +159,13 @@ removed = writer.cleanup_backups(directory, max_age_days=7)
 
 ## Files Modified
 
-1. **Created**: `exportify/export_manager/file_writer.py` (256 lines)
-2. **Updated**: `exportify/export_manager/generator.py` (removed ~60 lines of I/O code)
-3. **Created**: `tools/tests/exportify/test_file_writer.py` (217 lines)
+1. **Created**: `src/exportify/export_manager/file_writer.py`
+2. **Updated**: `src/exportify/export_manager/generator.py` (removed ~60 lines of I/O code)
+3. **Created**: `tests/test_file_writer.py`
 
 ## Code Quality
 
-- Follows CodeWeaver patterns (frozen dataclasses, type hints, docstrings)
+- Follows exportify patterns (frozen dataclasses, type hints, docstrings)
 - Clean separation with single responsibility
 - Comprehensive error handling
 - Full test coverage for new functionality

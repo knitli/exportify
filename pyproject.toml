@@ -95,12 +95,13 @@ __all__ = ("__version__",)
 # REUSE-IgnoreEnd
 
 [tool.hatch.build.targets.wheel]
-artifacts = ["*.so", "src/**", "vendored/**", "packages/**"]
+artifacts = ["src/**", "README.md", "LICENSES/*"]
 
 [tool.hatch.build.targets.sdist]
 include = [
   "src/**",
   "README.md",
+  "LICENSES/*",
 ]
 exclude = [
   ".claude/**",

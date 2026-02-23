@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Knitli Inc.
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
-"""Module for the `status` command."""
+"""Implements the ``status`` command: quick snapshot of cache and configuration state."""
 
 from __future__ import annotations
 
@@ -19,15 +19,16 @@ StatusCommand = App(console=CONSOLE)
 
 @StatusCommand.default
 def status(
-    *, verbose: Annotated[bool, Parameter(help="Show detailed information")] = False
+    *, verbose: Annotated[bool, Parameter(help="Show cache size and invalid entry count")] = False
 ) -> None:
-    """Show current export/import health status.
+    """Show a quick snapshot of Exportify's current state.
 
     Displays:
-    - Cache statistics
-    - Validation status
-    - Rule configuration status
-    - Recent activity
+    - Cache status (valid/total entries, hit rate)
+    - Configuration status (rules file found or missing)
+    - System readiness
+
+    Pass ``--verbose`` to also show cache size and invalid entry count.
 
     Examples:
         exportify status

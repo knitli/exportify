@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
+# yaml-language-server: $schema=https://raw.githubusercontent.com/knitli/exportify/main/src/exportify/schemas/exportify-config.schema.json
+
 # Default Export Rules for exportify
 # This file defines the standard rules for determining which symbols should be exported
 # from __init__.py files using the lazy loading pattern.

@@ -3,7 +3,7 @@
 # SPDX-FileContributor: Adam Poulemanos <adam@knit.li>
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
-"""Module for the `clear_cache` command."""
+"""Implements the ``clear-cache`` command: wipes all cached analysis results."""
 
 from __future__ import annotations
 
@@ -18,15 +18,15 @@ ClearCacheCommand = App(console=CONSOLE)
 
 @ClearCacheCommand.default
 def clear_cache() -> None:
-    """Clear the analysis cache.
+    """Delete all cached analysis results.
 
-    Removes all cached analysis results. The cache will be rebuilt
-    on the next validation or generation run.
+    Removes every entry from the analysis cache. Exportify rebuilds
+    the cache automatically on the next ``validate`` or ``generate`` run.
 
     Use this when:
-    - Cache is corrupted
-    - Schema version changed
-    - Performance issues
+    - The cache is corrupted
+    - You upgrade Exportify and the cache schema changes
+    - Stale cache entries cause unexpected behavior
 
     Examples:
         exportify clear-cache

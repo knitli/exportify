@@ -20,12 +20,12 @@ The Analysis Cache provides persistent caching of file analysis results for the 
 ### ✅ JSON Persistence
 - Atomic writes using temp file + rename pattern
 - Schema versioning for cache invalidation on structure changes
-- Stored at `tools/.codeweaver/exportify_cache.json`
+- Stored at `.exportify/cache/analysis_cache.json`
 
 ### ✅ Circuit Breaker Pattern
 - Automatically disables cache after 5 consecutive failures
 - Prevents cascading failures
-- Auto-reset after 300 seconds (configurable)
+- Auto-reset after 60 seconds (configurable)
 
 ### ✅ Graceful Error Handling
 - **FM-001**: Corrupt JSON → Auto-delete and rebuild
@@ -43,18 +43,21 @@ The Analysis Cache provides persistent caching of file analysis results for the 
 ### Basic Operations
 
 ```python
-from exportify.common.cache import AnalysisCache
+from exportify.common.cache import JSONAnalysisCache
 
-# Initialize cache
-cache = AnalysisCache()  # Uses .codeweaver/ by default
+# Initialize cache (AnalysisCache is an alias for JSONAnalysisCache)
+cache = JSONAnalysisCache()  # Uses .exportify/cache/ by default
 # or
-cache = AnalysisCache(cache_dir=Path("/custom/path"))
+cache = JSONAnalysisCache(cache_dir=Path("/custom/path"))
 
 # Get cached analysis (returns None if not found/invalid)
-analysis = cache.get(file_path)
+# Note: get() requires both file_path and file_hash
+analysis = cache.get(file_path, file_hash)
 
-# Cache analysis result
+# Cache analysis result (set() is an alias for put(), extracting hash from analysis)
 cache.set(file_path, analysis_result)
+# or use put() directly with an explicit hash
+cache.put(file_path, file_hash, analysis_result)
 
 # Invalidate specific entry
 cache.invalidate(file_path)
@@ -84,12 +87,13 @@ stats = cache.get_statistics()
 ### Properties
 
 ```python
-# Check if cache is enabled (not disabled by circuit breaker)
-if cache.is_enabled:
+# Check circuit breaker state
+if cache.circuit_breaker.can_attempt():
     ...
 
-# Get current hit rate
-print(f"Hit rate: {cache.hit_rate:.2%}")
+# Get current statistics
+stats = cache.get_statistics()
+print(f"Hit rate: {stats.hit_rate:.2%}")
 ```
 
 ## Configuration
@@ -106,8 +110,10 @@ CACHE_SCHEMA_VERSION = "1.0"
 ### Circuit Breaker
 
 ```python
-CIRCUIT_BREAKER_THRESHOLD = 5  # Failures before opening
-CIRCUIT_BREAKER_TIMEOUT = 300  # Seconds before reset attempt
+# CircuitBreaker default parameters:
+failure_threshold = 5   # Failures before opening
+recovery_timeout = 60   # Seconds before trying half-open (timedelta(seconds=60))
+success_threshold = 2   # Successes to close circuit from half-open
 ```
 
 ## Error Handling
@@ -147,8 +153,9 @@ Deserialization reconstructs the original types:
 Cache writes are atomic to prevent corruption:
 
 ```python
-1. Write to temp file: exportify_cache.tmp
-2. Rename to final: exportify_cache.json
+# Cache writes use Python's json.dump() directly to the file at:
+#   .exportify/cache/analysis_cache.json
+# Path keys are serialized as strings; deserialization reconstructs Path objects.
 ```
 
 This ensures the cache file is never partially written.
@@ -165,7 +172,7 @@ for chunk in iter(lambda: f.read(8192), b""):
 
 ## Testing
 
-See `/tmp/test_cache_basic.py` for comprehensive tests covering:
+See `tests/test_cache.py` for comprehensive tests covering:
 
 - ✅ Basic operations (get, set, invalidate, clear)
 - ✅ Hash-based validation

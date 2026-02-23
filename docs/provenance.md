@@ -18,7 +18,7 @@ Added support for distinguishing between different import types in the rule engi
 
 ### 1. Updated `RuleMatchCriteria` Type
 
-**File**: `exportify/common/types.py`
+**File**: `src/exportify/common/types.py`
 
 Added `provenance` field to `RuleMatchCriteria`:
 
@@ -39,7 +39,7 @@ class RuleMatchCriteria:
 
 ### 2. Updated Rule Engine
 
-**File**: `exportify/export_manager/rules.py`
+**File**: `src/exportify/export_manager/rules.py`
 
 #### Added provenance checking in `_matches_criteria()`
 
@@ -74,7 +74,7 @@ from exportify.common.types import (
 
 ### 3. Updated Documentation
 
-**File**: `exportify/rules/README.md`
+**File**: `src/exportify/rules/README.md`
 
 #### Added provenance to match criteria examples
 
@@ -82,7 +82,7 @@ from exportify.common.types import (
 match:
   name_exact: "SymbolName"
   name_pattern: "^public_.*"
-  module_exact: "codeweaver.core"
+  module_exact: "mypackage.core"
   module_pattern: ".*\\.types$"
   member_type: class
   provenance: imported  # NEW
@@ -117,7 +117,7 @@ rules:
 
 ### 4. Created Comprehensive Tests
 
-**File**: `exportify/tests/test_rules.py` (new)
+**File**: `tests/test_rules.py`
 
 Created test suite with 10 test cases covering:
 
@@ -196,7 +196,7 @@ All tests pass ✅
 
 ## Integration with AST Parser
 
-The AST parser (`exportify/analysis/ast_parser.py`) already sets provenance correctly:
+The AST parser (`src/exportify/analysis/ast_parser.py`) already sets provenance correctly:
 
 - **DEFINED_HERE**: Classes, functions, constants, variables defined in the file
 - **IMPORTED**: Regular imports (`from x import y`)
@@ -223,11 +223,11 @@ While the core feature is complete, potential future enhancements:
 
 ## Related Files
 
-- `exportify/common/types.py` - Type definitions
-- `exportify/export_manager/rules.py` - Rule engine
-- `exportify/analysis/ast_parser.py` - AST parser (sets provenance)
-- `exportify/rules/README.md` - Rule schema documentation
-- `exportify/tests/test_rules.py` - Test suite
+- `src/exportify/common/types.py` - Type definitions
+- `src/exportify/export_manager/rules.py` - Rule engine
+- `src/exportify/analysis/ast_parser.py` - AST parser (sets provenance)
+- `src/exportify/rules/README.md` - Rule schema documentation
+- `tests/test_rules.py` - Test suite
 
 ## Requirements Satisfied
 

@@ -6,9 +6,15 @@ SPDX-License-Identifier: MIT OR Apache-2.0
 
 # exportify
 
-**exportify** is a CLI tool and library for managing Python package exports: generating `__init__.py` files with lazy imports, managing `__all__` declarations, and validating import consistency.
+**exportify** is a CLI tool and library for managing Python package exports: generating `__init__.py` files with lazy imports (using [`lateimport`](https://github.com/knitli/lateimport)), managing `__all__` declarations, and validating import consistency.
 
-It offers a simple rule-based system for enforcing `__all__` and `__init__` patterns across a codebase with optional per-file overrides. Comes with sane defaults. 
+Exportify was previously developed as an internal dev tool to assist with our [CodeWeaver](https://github.com/knitli/codeweaver) project; it slowly grew in function until it didn't make sense to keep it as part of that project. Here it is for anyone to use.
+
+## What it Does
+
+Exportify **solves the problem of managing consistency and updates in export patterns across a codebase.** It ensures module and package-level `__all__` exports are consistent, accurate, and complete. It can also validate 
+
+Exportify offers a simple rule-based system for enforcing `__all__` and `__init__` patterns across a codebase with optional per-file overrides. Comes with sane defaults.
 
 ## Features
 
@@ -17,7 +23,6 @@ It offers a simple rule-based system for enforcing `__all__` and `__init__` patt
 - **Export propagation** — symbols exported from submodules automatically propagate up the package hierarchy
 - **Code preservation** — manually written code above the `# === MANAGED EXPORTS ===` sentinel is preserved across regeneration
 - **Validation** — checks that lazy import calls are well-formed and that `__all__` declarations are consistent
-- **Analysis** — dry-run mode shows what would be generated without writing files
 - **Cache** — SHA-256-based analysis cache for fast incremental updates
 
 ## Installation
@@ -26,28 +31,65 @@ It offers a simple rule-based system for enforcing `__all__` and `__init__` patt
 pip install exportify
 ```
 
+Python 3.12+ required.
+
 ## Quick Start
 
 ```bash
-# Create a default config file (.exportify.yaml)
+# Create a default config file (.exportify/config.yaml)
 exportify init
 
-# Analyze what exportify would generate (dry run)
-exportify analyze --source src/mypackage
+# Check current state — runs all checks by default
+exportify check
 
-# Generate __init__.py files
-exportify generate --source src/mypackage
+# Bootstrap __init__.py files for packages that don't have one
+exportify generate
 
-# Validate existing lazy imports
-exportify validate --module src/mypackage/core
+# Preview what fix would change without writing anything
+exportify fix --dry-run
 
-# Check overall package status
+# Sync exports and __all__ to match rules
+exportify fix
+
+# Show overall export/import health
 exportify status
 ```
 
+## Documentation
+
+### For new users
+
+| Document | Description |
+|----------|-------------|
+| [Getting Started](docs/getting-started.md) | Step-by-step tutorial for new projects |
+
+### Reference
+
+| Document | Description |
+|----------|-------------|
+| [CLI Reference](docs/cli-reference.md) | Complete command reference with all flags |
+| [Rule Engine](src/exportify/rules/README.md) | Rule syntax, priorities, match criteria, provenance |
+| [Configuration](docs/init.md) | Initialising and configuring exportify |
+
+### Guides
+
+| Document | Description |
+|----------|-------------|
+| [Troubleshooting & FAQ](docs/troubleshooting.md) | Common issues and answers |
+| [Contributing](docs/contributing.md) | Development setup and how to contribute |
+
+### Internals (for contributors)
+
+| Document | Description |
+|----------|-------------|
+| [Caching](docs/caching.md) | Cache implementation and API |
+| [Overload Handling](docs/overload-handling.md) | `@overload` decorator support |
+| [Provenance Support](docs/provenance.md) | Symbol provenance in rules |
+| [Schema Versioning](docs/schema-versioning.md) | Config schema version management |
+
 ## Configuration
 
-Rules live in `.exportify.yaml` (created by `exportify migrate` or written manually). Exportify searches for the config file in this order:
+Rules live in `.exportify/config.yaml` (created by `exportify init` or written manually). Exportify searches for the config file in this order:
 
 1. `EXPORTIFY_CONFIG` environment variable (any path)
 2. `.exportify/config.yaml`
@@ -95,6 +137,8 @@ rules:
 | 300–400 | Special cases |
 | 0–200 | Defaults/fallbacks |
 
+See the [Rule Engine docs](src/exportify/rules/README.md) for the full rule syntax including logical combinations, match criteria, and advanced propagation options.
+
 ### Propagation Levels
 
 - `none` — export only in the defining module
@@ -140,7 +184,7 @@ def __dir__() -> list[str]:
 ```
 
 > [!IMPORTANT]
-> To use exportify for lazy __init__ management, you must add `lateimport` as a runtime dependency.
+> To use exportify for lazy `__init__` management, you must add `lateimport` as a runtime dependency.
 
 ## Code Preservation
 
@@ -155,17 +199,21 @@ from .compat import legacy_function  # kept across regeneration
 # ... generated section below (managed by exportify)
 ```
 
+Everything above the sentinel is left untouched on every `fix` or `generate` run.
+
 ## CLI Reference
 
-```
-exportify init      Create a default .exportify.yaml config file
-exportify analyze   Dry-run analysis showing what would be generated
-exportify generate  Generate __init__.py files
-exportify validate  Validate existing lazy import calls
-exportify status    Show package export status
-exportify doctor    Diagnose configuration issues
-exportify clear-cache  Clear the analysis cache
-```
+| Command | Description |
+|---------|-------------|
+| `exportify check` | Check exports and `__all__` declarations for consistency |
+| `exportify fix` | Sync exports and `__all__` to match rules |
+| `exportify generate` | Bootstrap new `__init__.py` files for packages missing one |
+| `exportify status` | Show current export/import health status |
+| `exportify doctor` | Run health checks and provide actionable advice |
+| `exportify init` | Initialise exportify with a default config file |
+| `exportify clear-cache` | Clear the analysis cache |
+
+See the [full CLI reference](docs/cli-reference.md) for all flags and options.
 
 ## Requirements
 

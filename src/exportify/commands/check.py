@@ -3,7 +3,7 @@
 # SPDX-FileContributor: Adam Poulemanos <adam@knit.li>
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
-"""Module for the `check` command."""
+"""Implementation of the ``check`` command for validating exports and ``__all__`` declarations."""
 
 from __future__ import annotations
 
@@ -230,19 +230,21 @@ def _print_final_status(total_errors: int, total_warnings: int, *, strict: bool)
 
 @CheckCommand.default
 def check(
-    *paths: Annotated[Path, Parameter(help="Paths to check (default: whole project)")],
+    *paths: Annotated[Path, Parameter(help="Files or directories to check")],
     source: Annotated[Path | None, Parameter(help="Source root directory")] = None,
     lateimports: Annotated[
-        bool | None, Parameter(help="Check lateimport() / LateImport calls")
+        bool | None, Parameter(help="Validate lateimport() / LateImport call targets")
     ] = None,
     dynamic_imports: Annotated[
         bool | None,
         Parameter(
-            name="dynamic-imports", help="Check _dynamic_imports entries in __init__.py files"
+            name="dynamic-imports",
+            help="Check _dynamic_imports entries resolve and match __all__",
         ),
     ] = None,
     module_all: Annotated[
-        bool | None, Parameter(name="module-all", help="Check __all__ in regular modules")
+        bool | None,
+        Parameter(name="module-all", help="Check __all__ against export rules in modules"),
     ] = None,
     package_all: Annotated[
         bool | None,
@@ -252,17 +254,17 @@ def check(
     json_output: Annotated[bool, Parameter(name="json", help="Output results as JSON")] = False,
     verbose: Annotated[bool, Parameter(help="Show detailed output")] = False,
 ) -> None:
-    """Check exports and __all__ declarations for consistency.
+    """Validate exports and __all__ declarations for consistency.
 
     Checks:
     - lateimport() / LateImport calls resolve to real modules (--lateimports)
-    - _dynamic_imports entries in __init__.py files are consistent (--dynamic-imports)
-    - __all__ in regular modules matches export rules (--module-all)
-    - __all__ and exports in __init__.py files are consistent (--package-all)
+    - _dynamic_imports entries in __init__.py files resolve correctly and match __all__ (--dynamic-imports)
+    - __all__ in regular modules matches configured export rules (--module-all)
+    - __all__ and exports in __init__.py files are consistent with each other (--package-all)
 
-    If ANY flag is explicitly set to True, only those checks are run.
-    Use --no-X flags to exclude specific checks while running the rest.
-    If no flags are given, all checks are run.
+    Pass one or more flags explicitly to run only those checks.
+    Use --no-X flags to skip specific checks while running the rest.
+    Omit all flags to run every check.
 
     Note: The lateimports check is automatically skipped if 'lateimport' is not
     listed as a project dependency (it's an opt-in library).

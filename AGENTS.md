@@ -81,7 +81,7 @@ Rule priority bands:
 - **300–400**: Special cases
 - **0–200**: Defaults/fallbacks
 
-Override files (`overrides/*.yaml`) bypass all rules — use sparingly.
+Manual overrides via `RuleEngine.set_overrides()` bypass all rules — use sparingly.
 
 ## Code Preservation in Generated Files
 

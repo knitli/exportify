@@ -147,27 +147,22 @@ def func():  # Duplicate without @overload
 
 ## Real-World Usage
 
-### In CodeWeaver
-
-Overloaded functions found:
-- `kind_from_delimiter_tuple` - 2 overloads in `engine/chunker/delimiters/patterns.py`
-- `_setup_server` - 2 overloads in `server/mcp/server.py`
-- `_time_operation` - 6+ overloads in `server/mcp/middleware/statistics.py`
-- `__init__` methods in various classes
-
 ### Export Behavior
 
-```python
-# File: patterns.py
-__all__ = [
-    "kind_from_delimiter_tuple",  # Appears ONCE
-    # ... other exports
-]
+All overload variants of a function are deduplicated to a single entry in generated
+`__init__.py` files:
 
-_dynamic_imports = {
-    "kind_from_delimiter_tuple": ("codeweaver.engine.chunker.delimiters.patterns", "kind_from_delimiter_tuple"),
+```python
+# Generated __init__.py (lazy style)
+__all__ = (
+    "process",  # Appears ONCE even with multiple @overload variants
+    # ... other exports
+)
+
+_dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({
+    "process": (__spec__.parent, "mymodule"),
     # Single entry, not tripled
-}
+})
 ```
 
 ## Testing
@@ -199,7 +194,7 @@ Comprehensive test suite in `test_overload_handling.py`:
    - Duplicate functions without @overload
 
 5. **Real Files**
-   - Tested with actual CodeWeaver files
+   - Tested with real Python files containing overloads
    - Verified correct export counts
 
 ## Benefits
