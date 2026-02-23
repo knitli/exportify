@@ -1,0 +1,157 @@
+#:tombi schema.strict = false
+# SPDX-FileCopyrightText: 2025 Knitli Inc.
+# SPDX-FileContributor: Adam Poulemanos <adam@knit.li>
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[project]
+name = "exportify"
+description = "Export, __all__, and lazy import management for Python projects."
+requires-python = ">=3.12"
+license-files = ["LICENSE-Apache-2.0", "LICENSE-MIT", "LICENSES/*"]
+authors = [
+  { name = "Knitli Inc." },
+  { name = "Adam Poulemanos", email = "adam@knit.li" },
+]
+dependencies = [
+  "cyclopts>=4.0.0",
+  "pyyaml>=6.0.3",
+  "rich>=14.0.0",
+  "textcase>=0.4.5"
+]
+
+[project.scripts]
+exportify = "src.exportify.cli:main"
+
+[dependency-groups]
+dev = [
+  "pytest>=9.0.0",
+  "pytest-cov>=7.0.0",
+  "pytest-env>=1.5.0",
+  "pytest-mock>=3.15.1",
+  "ruff>0.15.0",
+  "ty>=0.0.18",
+  "uv>=0.10.4"
+]
+
+[tool.hatch.build.hooks.version]
+additionalProperties = true
+path = "src/exportify/_version.py"
+# The reuse statements prevent REUSE from considering this snippet for license compliance, which would error
+# REUSE-IgnoreStart
+template = '''# SPDX-FileCopyrightText: 2026 Knitli Inc.
+# SPDX-License-Identifier: MIT OR Apache-2.0
+"""Version information for Exportify."""
+from typing import Final
+
+
+__version__: Final[str] = "{version}"
+
+__all__ = ("__version__",)
+'''
+# REUSE-IgnoreEnd
+
+[tool.hatch.build.targets.wheel]
+artifacts = ["*.so", "src/**", "vendored/**", "packages/**"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"LICENSES" = "LICENSES"
+"typings" = "typings"
+"README.md" = "README.md"
+"SECURITY.md" = "SECURITY.md"
+"sbom.spdx" = "sbom.spdx"
+"LICENSE-Apache-2.0" = "LICENSE-APACHE-2.0"
+"LICENSE-MIT" = "LICENSE-MIT"
+"src/exportify" = "exportify"
+"packages" = "packages"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "src/**",
+  "README.md",
+  "SECURITY.md",
+  "LICENSES",
+  "sbom.spdx",
+  "LICENSE-APACHE-2.0",
+  "LICENSE-MIT",
+]
+exclude = [
+  ".claude/**",
+  ".roo/**",
+  ".serena/**",
+  ".specify/**",
+  ".vscode/**",
+  "claudedocs/**",
+  "data/**",
+  "docker/**",
+  "docs-site/**",
+  "mise-tasks/**",
+  "overrides/**",
+  "plans/**",
+  "scripts/**",
+  "specs/**",
+]
+
+[tool.pytest]
+addopts = [
+  "--cov-fail-under=50",
+  "--cov-report=html",
+  "--cov-report=term-missing",
+  "--cov=exportify",
+  "-ra",
+  "-v",
+]
+filterwarnings = [
+  "error",
+  "ignore::DeprecationWarning",
+  "ignore::UserWarning",
+]
+minversion = "9.0"
+python_classes = ["Test*"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+testpaths = ["tests"]
+
+[tool.ty.environment]
+python-version = "3.12"
+root = ["./src", "./tests", "./scripts"]
+python = "./.venv"
+extra-paths = ["./typings"]
+
+[tool.ty.rules]
+# === Core Type Safety Rules (kept strict for src/) ===
+# These remain as errors by default and will catch real bugs in production code
+
+# === Test Framework Limitations ===
+# ty doesn't understand pytest mocks/fixtures - these are inherent limitations, not real bugs
+possibly-missing-attribute = "ignore"  # Pytest fixtures don't have static attributes
+unresolved-attribute = "warn"  # Test mocks may have dynamic attributes
+unknown-argument = "warn"  # Pytest fixtures injected dynamically
+unresolved-reference = "warn"  # Test references may be dynamic
+# === Type Inference Limitations ===
+# ty is overly strict with Literal inference in dict lookups and dynamic patterns
+invalid-argument-type = "warn"  # Many false positives in capabilities dicts and code gen
+missing-typed-dict-key = "warn"  # Often false positive with dynamic TypedDict construction (e.g., **dict comprehension)
+# === Style and Refactoring Suggestions ===
+redundant-cast = "ignore"  # Informational only, not bugs
+# === Optional Dependencies ===
+# Scripts may import optional dependencies (e.g., mkdocs_gen_files, black)
+unresolved-import = "warn"  # Downgrade to warn for optional dependencies
+
+[tool.ty.src]
+include = ["./src", "./tests", "./scripts", "./mise-tasks", "./packages"]
+# Exclude vendored code, typings, and intentionally malformed test fixtures
+exclude = ["./typings", "./tests/**/malformed.py", "./vendored"]
+
+[tool.uv]
+package = true
+cache-keys = [{ file = "uv.lock" }, { file = "pyproject.toml" }]
+preview = true
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "pep440"
+bump = true
+dirty = false  # Disabled .dirty suffix to maintain PEP 440 compliance
+# tag-branch = "main"  # Commented out to allow building on feature branches
+commit-prefix = "g"
