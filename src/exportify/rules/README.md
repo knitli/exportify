@@ -107,7 +107,7 @@ Rules are evaluated in priority order (highest first):
 | Priority Range | Purpose | Examples |
 |---------------|---------|----------|
 | 1000 | Critical exclusions | Private symbols, dunders |
-| 900 | Infrastructure exclusions | lazy_importer components |
+| 900 | Infrastructure exclusions | lateimporter components |
 | 800 | Framework exclusions | Test fixtures, dev utilities |
 | 700 | Defined symbols (exports) | Classes, functions, constants |
 | 600 | Import handling | Aliased imports |
@@ -124,7 +124,7 @@ The `default_rules.yaml` file contains the standard rule set:
 
 1. **ExcludePrivateSymbols** (1000): Skip `_private` symbols
 2. **ExcludeDunderSymbols** (1000): Skip `__dunder__` symbols
-3. **ExcludeLazyImporter** (900): Prevent circular dependency on lazy_importer
+3. **ExcludeLateImporter** (900): Prevent circular dependency on lateimporter
 4. **ExcludeTestFixtures** (800): Skip pytest fixtures
 5. **ExportDefinedClasses** (700): Export defined classes
 6. **ExportDefinedFunctions** (700): Export defined functions

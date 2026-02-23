@@ -101,7 +101,7 @@ def test_generate_empty_manifest(generator: CodeGenerator):
     assert SENTINEL in code.content
     assert "from __future__ import annotations" in code.content
     assert "MappingProxyType" in code.content
-    assert "create_lazy_getattr" in code.content
+    assert "create_late_getattr" in code.content
     assert "def __dir__() -> list[str]:" in code.content
     # Check SPDX headers
     assert "SPDX-FileCopyrightText: 2026 Knitli Inc." in code.content
@@ -125,7 +125,7 @@ def test_generate_single_export(generator: CodeGenerator):
     )
     assert '"MyClass": (__spec__.parent, "submodule"),' in code.content  # Relative module name
     assert (
-        "__getattr__ = create_lazy_getattr(_dynamic_imports, globals(), __name__)" in code.content
+        "__getattr__ = create_late_getattr(_dynamic_imports, globals(), __name__)" in code.content
     )
     assert "def __dir__() -> list[str]:" in code.content
 
@@ -657,12 +657,9 @@ def test_generated_code_create_without_markers():
 
 def test_generated_code_create_without_headers():
     """Test GeneratedCode.create with include_headers=False omits SPDX headers."""
-    from exportify.export_manager.generator import SPDX_HEADERS
 
     managed = "__all__ = ()\ndef __dir__(): return []"
-    code = GeneratedCode.create(
-        manual="", managed=managed, export_count=0, include_headers=False
-    )
+    code = GeneratedCode.create(manual="", managed=managed, export_count=0, include_headers=False)
 
     assert "SPDX-FileCopyrightText" not in code.content
 
@@ -672,7 +669,7 @@ def test_generated_code_create_without_headers():
 
 def test_write_file_raises_oserror_on_non_syntax_failure(generator, temp_dir, monkeypatch):
     """Test write_file raises OSError when file writing fails for non-syntax reasons."""
-    from exportify.export_manager.file_writer import FileWriter, WriteResult
+    from exportify.export_manager.file_writer import WriteResult
 
     # Create a FileWriter that returns a non-syntax error
     def failing_writer(target, content):
@@ -737,7 +734,7 @@ def test_generate_barrel_style(temp_dir):
     assert "from .sub import" in code.content
     assert "from .sub2 import" in code.content
     # No lateimport machinery
-    assert "create_lazy_getattr" not in code.content
+    assert "create_late_getattr" not in code.content
     assert "_dynamic_imports" not in code.content
 
 
@@ -791,7 +788,7 @@ def test_barrel_import_lines_aliased(temp_dir):
     generator_barrel = CodeGenerator(temp_dir, output_style="barrel")
     exports = [
         # aliased: from .sub import _OriginalClass as PublicClass
-        make_lazy_export("PublicClass", "test.module.sub", target_object="_OriginalClass"),
+        make_lazy_export("PublicClass", "test.module.sub", target_object="_OriginalClass")
     ]
     manifest = make_manifest("test.module", own_exports=exports)
     code = generator_barrel.generate(manifest)
@@ -830,9 +827,7 @@ def test_barrel_import_lines_multiple_from_same_module(temp_dir):
 
 def test_type_checking_import_aliased(generator):
     """Test TYPE_CHECKING block includes 'obj as alias' when names differ."""
-    exports = [
-        make_lazy_export("PublicAlias", "test.module.sub", target_object="InternalClass"),
-    ]
+    exports = [make_lazy_export("PublicAlias", "test.module.sub", target_object="InternalClass")]
     manifest = make_manifest("test.module", own_exports=exports)
     code = generator.generate(manifest)
 

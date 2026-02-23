@@ -4,17 +4,17 @@
 
 """Validator module for lazy imports.
 
-Provides validation of lazy_import calls, package consistency, and import resolution.
+Provides validation of lateimport calls, package consistency, and import resolution.
 """
 
 from __future__ import annotations
 
 from exportify.validator.consistency import ConsistencyChecker
 from exportify.validator.resolver import ImportResolver
-from exportify.validator.validator import LazyImportValidator
+from exportify.validator.validator import LateImportValidator
 
 
 # Alias for backward compatibility with tests
-ImportValidator = LazyImportValidator
+ImportValidator = LateImportValidator
 
-__all__ = ["ConsistencyChecker", "ImportResolver", "ImportValidator", "LazyImportValidator"]
+__all__ = ["ConsistencyChecker", "ImportResolver", "ImportValidator", "LateImportValidator"]

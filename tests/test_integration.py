@@ -405,7 +405,7 @@ class TestErrorHandling:
     @pytest.mark.integration
     def test_missing_module_validation(self, tmp_path: Path):
         """Should detect and report missing modules in validation."""
-        from exportify.validator.validator import LazyImportValidator
+        from exportify.validator.validator import LateImportValidator
 
         test_file = tmp_path / "test.py"
         test_file.write_text("""
@@ -414,7 +414,7 @@ from lateimport import lateimport
 Missing = lateimport("completely.nonexistent.module", "Class")
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         # Should detect missing module

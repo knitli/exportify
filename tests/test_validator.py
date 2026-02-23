@@ -10,15 +10,15 @@ from __future__ import annotations
 from pathlib import Path
 
 from exportify.common.types import ValidationError, ValidationWarning
-from exportify.validator.validator import LazyImportValidator
+from exportify.validator.validator import LateImportValidator
 
 
-class TestLazyImportValidator:
+class TestLateImportValidator:
     """Test suite for lazy import validator."""
 
-    def test_valid_lazy_import_call(self, tmp_path: Path):
-        """Valid lazy_import call should pass validation."""
-        # Create a test file with valid lazy_import using a real module
+    def test_valid_lateimport_call(self, tmp_path: Path):
+        """Valid lateimport call should pass validation."""
+        # Create a test file with valid lateimport using a real module
         test_file = tmp_path / "test.py"
         test_file.write_text("""
 from pathlib import Path
@@ -27,14 +27,14 @@ from pathlib import Path
 MyPath = Path
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
-        # Should have no errors (file has no lazy_import calls, so nothing to validate)
+        # Should have no errors (file has no lateimport calls, so nothing to validate)
         errors = [i for i in issues if isinstance(i, ValidationError)]
         assert not errors
 
-    def test_broken_lazy_import_module(self, tmp_path: Path):
+    def test_broken_lateimport_module(self, tmp_path: Path):
         """Broken module path should be detected."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
@@ -43,24 +43,24 @@ from lateimport import lateimport
 MyClass = lateimport("nonexistent.module", "MyClass")
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         errors = [i for i in issues if isinstance(i, ValidationError)]
         assert errors
         assert any("nonexistent.module" in e.message for e in errors)
 
-    def test_broken_lazy_import_object(self, tmp_path: Path):
+    def test_broken_lateimport_object(self, tmp_path: Path):
         """Missing object should be detected."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
-from codeweaver.common.utils import lazy_import
+from lateimport import lateimport
 
 # Module exists but object doesn't
-Obj = lazy_import("codeweaver.core", "NonExistentClass")
+Obj = lateimport("os", "NonExistentClass")
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         if errors := [i for i in issues if isinstance(i, ValidationError)]:
@@ -76,14 +76,14 @@ A = lateimport("nonexistent1", "Class1")
 B = lateimport("nonexistent2", "Class2")
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         errors = [i for i in issues if isinstance(i, ValidationError)]
         assert len(errors) >= 2
 
     def test_no_exportify(self, tmp_path: Path):
-        """File with no lazy_import calls should pass."""
+        """File with no lateimport calls should pass."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
 # Regular code, no lazy imports
@@ -92,7 +92,7 @@ class MyClass:
     pass
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         # Should have no errors (warnings about missing __all__ are acceptable)
@@ -106,7 +106,7 @@ class MyClass:
 def broken(
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         errors = [i for i in issues if isinstance(i, ValidationError)]
@@ -121,7 +121,7 @@ def broken(
         file2 = tmp_path / "file2.py"
         file2.write_text('lateimport("bad.module", "Class")')
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_files([file1, file2])
 
         # Should have issues from both files
@@ -290,7 +290,7 @@ class TestImportResolver:
 class TestComprehensiveValidation:
     """Test suite for comprehensive validation methods."""
 
-    def test_lazy_import_with_correct_arguments(self, tmp_path: Path):
+    def test_lateimport_with_correct_arguments(self, tmp_path: Path):
         """Valid lateimport call with correct arguments should pass."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
@@ -299,7 +299,7 @@ from lateimport import lateimport
 MyClass = lateimport("module.path", "MyClass")
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         # Should have no errors about call syntax (may have resolution errors)
@@ -311,7 +311,7 @@ MyClass = lateimport("module.path", "MyClass")
         ]
         assert not syntax_errors
 
-    def test_lazy_import_with_insufficient_arguments(self, tmp_path: Path):
+    def test_lateimport_with_insufficient_arguments(self, tmp_path: Path):
         """lateimport with < 2 arguments should error."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
@@ -320,7 +320,7 @@ from lateimport import lateimport
 MyClass = lateimport("module.path")  # Missing second arg
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         errors = [
@@ -329,7 +329,7 @@ MyClass = lateimport("module.path")  # Missing second arg
         assert errors
         assert any("at least 2 arguments" in e.message for e in errors)
 
-    def test_lazy_import_with_non_string_arguments(self, tmp_path: Path):
+    def test_lateimport_with_non_string_arguments(self, tmp_path: Path):
         """lateimport with non-string arguments should error."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
@@ -339,7 +339,7 @@ module_var = "module.path"
 MyClass = lateimport(module_var, "MyClass")  # Variable, not literal
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         errors = [
@@ -361,7 +361,7 @@ if TYPE_CHECKING:
     from module import Class2
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         # No warnings about TYPE_CHECKING structure
@@ -385,7 +385,7 @@ if TYPE_CHECKING:
     def helper(): pass  # Non-import statement
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         warnings = [
@@ -411,7 +411,7 @@ def my_function():
 MY_CONSTANT = 42
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         # No errors about undefined names
@@ -430,7 +430,7 @@ class MyClass:
     pass
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         errors = [
@@ -450,7 +450,7 @@ def my_function():
     pass
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         warnings = [
@@ -469,7 +469,7 @@ class MyClass:
     pass
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         # No warnings about import organization
@@ -492,7 +492,7 @@ import os  # Import after code
 from pathlib import Path  # Import after code
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         warnings = [
@@ -511,7 +511,7 @@ def broken(
     # Missing closing parenthesis
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         errors = [i for i in issues if isinstance(i, ValidationError) and i.code == "SYNTAX_ERROR"]
@@ -522,7 +522,7 @@ def broken(
         test_file = tmp_path / "test.py"
         test_file.write_text("")
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         # Should just warn about missing __all__
@@ -534,7 +534,7 @@ def broken(
         test_file = tmp_path / "test.py"
         test_file.write_text('"""Module docstring."""')
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         # Should just warn about missing __all__
@@ -562,7 +562,7 @@ BadImport = lateimport("module")  # Should error - insufficient args
 import late_import  # Should warn - import after code
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         # Should have errors and warnings
@@ -584,7 +584,7 @@ lateimport("bad")  # Error
 lateimport("also", "bad", "extra")  # Should still validate
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         # All issues should be in a single list
@@ -595,7 +595,7 @@ lateimport("also", "bad", "extra")  # Should still validate
         has_errors = any(isinstance(i, ValidationError) for i in issues)
         has_warnings = any(isinstance(i, ValidationWarning) for i in issues)
 
-        assert has_errors  # From lazy_import and __all__
+        assert has_errors  # From lateimport and __all__
         assert has_warnings  # From late import and missing TYPE_CHECKING block
 
 
@@ -678,7 +678,7 @@ class TestValidateMethod:
 class Good: pass
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         report = validator.validate(file_paths=[test_file])
 
         assert report.metrics.files_validated == 1
@@ -694,7 +694,7 @@ A = lateimport("pathlib", "Path")
 B = lateimport("os", "getcwd")
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         report = validator.validate(file_paths=[test_file])
 
         assert report.metrics.imports_checked == 2
@@ -710,7 +710,7 @@ _dynamic_imports = {
 }
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         report = validator.validate(file_paths=[init_file])
 
         # Should detect consistency issue (B missing from _dynamic_imports)
@@ -724,7 +724,7 @@ __all__ = ["Missing"]
 _dynamic_imports = {}
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         report = validator.validate(file_paths=[init_file])
 
         assert any("Missing" in e.message for e in report.errors)
@@ -740,7 +740,7 @@ _dynamic_imports = {
 }
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         report = validator.validate(file_paths=[init_file])
 
         # Extra in _dynamic_imports is a warning
@@ -751,12 +751,10 @@ _dynamic_imports = {
         test_file = tmp_path / "bad.py"
         test_file.write_text("class X: pass")
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
 
         # Monkeypatch ast.parse to raise an unexpected error
         import ast
-
-        original_parse = ast.parse
 
         def bad_parse(source, *args, **kwargs):
             raise RuntimeError("unexpected parse failure")
@@ -772,11 +770,11 @@ _dynamic_imports = {
         """_check_structure_and_imports returns (False, False) for non-Module AST."""
         import ast
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
 
         # Pass a non-Module AST node (get the Constant value from the assignment)
         assign_stmt = ast.parse("x = 1").body[0]
-        expr_node = assign_stmt.value  # Constant node
+        expr_node = assign_stmt.value  # Constant node  # ty:ignore[unresolved-attribute]
         issues: list = []
         result = validator._check_structure_and_imports(tmp_path / "x.py", expr_node, issues)
 
@@ -791,7 +789,7 @@ obj_var = "Path"
 MyClass = lateimport("pathlib", obj_var)
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         errors = [
@@ -829,8 +827,6 @@ class TestConsistencyCheckerErrors:
         init_file = tmp_path / "__init__.py"
         init_file.write_text("__all__ = ['A']\n")
 
-        original_parse = ast.parse
-
         def bad_parse(source, *args, **kwargs):
             raise RuntimeError("unexpected failure")
 
@@ -867,9 +863,7 @@ class TestImportResolverEdgeCases:
         import importlib
 
         def fake_find(name):
-            if name == "fake_importable_module":
-                return fake_spec
-            return original_find(name)
+            return fake_spec if name == "fake_importable_module" else original_find(name)
 
         def fake_import(name):
             if name == "fake_importable_module":
@@ -927,7 +921,7 @@ class TestRemainingValidatorPaths:
         # Create a Python file in the project root
         (tmp_path / "mymodule.py").write_text("class Foo: pass\n")
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         # Pass file_paths=None — should autodiscover from project_root
         report = validator.validate(file_paths=None)
 
@@ -945,7 +939,7 @@ class MyClass:
     pass
 """)
 
-        validator = LazyImportValidator(project_root=tmp_path)
+        validator = LateImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         # No UNDEFINED_IN_ALL errors should be raised when __all__ is a tuple

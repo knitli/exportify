@@ -119,7 +119,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from types import MappingProxyType
 
-from lateimport import create_lazy_getattr
+from lateimport import create_late_getattr
 
 if TYPE_CHECKING:
     from mypackage.core import MyClass
@@ -130,7 +130,7 @@ _dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({
     "helper_function": (__spec__.parent, "utils"),
 })
 
-__getattr__ = create_lazy_getattr(_dynamic_imports, globals(), __name__)
+__getattr__ = create_late_getattr(_dynamic_imports, globals(), __name__)
 
 __all__ = ("MyClass", "helper_function")
 

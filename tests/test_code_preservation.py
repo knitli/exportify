@@ -115,7 +115,7 @@ class TestSectionParser:
                 "MyClass": (__spec__.parent, "impl"),
             })
 
-            __getattr__ = create_lazy_getattr(_dynamic_imports, globals(), __name__)
+            __getattr__ = create_late_getattr(_dynamic_imports, globals(), __name__)
 
             __all__ = ("MyClass", "my_function")
 
@@ -219,7 +219,7 @@ class TestSectionParser:
         """Detect __getattr__ function assignment."""
         content = dedent(
             """
-            __getattr__ = create_lazy_getattr(_dynamic_imports, globals(), __name__)
+            __getattr__ = create_late_getattr(_dynamic_imports, globals(), __name__)
             """
         ).strip()
 

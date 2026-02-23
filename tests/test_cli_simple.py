@@ -84,10 +84,10 @@ def test_validation_placeholder():
     from pathlib import Path
 
     from exportify.common.cache import AnalysisCache
-    from exportify.validator import LazyImportValidator
+    from exportify.validator import LateImportValidator
 
     cache = AnalysisCache()
-    validator = LazyImportValidator(cache=cache)
+    validator = LateImportValidator(cache=cache)
 
     # Validate with no files (should return successful empty report)
     report = validator.validate(file_paths=[])

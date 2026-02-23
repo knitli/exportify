@@ -207,10 +207,10 @@ def test_atomic_write():
 ### Validator
 
 ```python
-def test_valid_lazy_import_call():
-    """Valid lazy_import passes validation."""
+def test_valid_lateimport_call():
+    """Valid lateimport passes validation."""
 
-def test_broken_lazy_import_module():
+def test_broken_lateimport_module():
     """Broken module path detected."""
 
 def test_consistency_checking():

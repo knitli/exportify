@@ -298,9 +298,9 @@ class SectionParser:
         if isinstance(node, ast.ImportFrom) and node.module == "types":
             return any(alias.name == "MappingProxyType" for alias in node.names)
 
-        # from lateimport import create_lazy_getattr
+        # from lateimport import create_late_getattr
         if isinstance(node, ast.ImportFrom) and node.module == "lateimport":
-            return any(alias.name == "create_lazy_getattr" for alias in node.names)
+            return any(alias.name == "create_late_getattr" for alias in node.names)
 
         return False
 

@@ -356,8 +356,6 @@ class TestFileWriterEdgeCases:
         content = "# Test\n__all__ = []\n"
 
         # Monkeypatch Path.replace to raise PermissionError
-        original_replace = Path.replace
-
         def patched_replace(self, other):
             raise PermissionError("Permission denied")
 

@@ -20,6 +20,25 @@ rules:
   match:
     name_pattern: ^_.*
   action: exclude
+- name: ensure-command-classes-exported
+  priority: 850
+  description: Ensure Command classes are included and propagated from commands package
+  match:
+    anyOf:
+      member_type:
+        - class
+        - type_alias
+    name_pattern: .*Command$
+    module_name_pattern: .*\.commands(\.(?!utils)[a-z_][a-z0-9_]+\.py$)
+  action: include
+  propagate: parent
+- name: block-all-other-members-from-commands-package
+  priority: 825
+  description: Exclude all other members from commands package to prevent accidental exports
+  match:
+    module_name_pattern: .*\.commands(\.(?!utils)[a-z_][a-z0-9_]+\.py$)
+    name_pattern: .* # Since it runs second, it will only match if the previous rule didn't match (i.e. non-Command members)
+  action: exclude
 - name: propagate-exceptions
   priority: 800
   description: Propagate exception classes to root package

@@ -41,8 +41,8 @@ The `IS_EXCEPTION` list (16+ items) becomes manual overrides:
 overrides:
   include:
     codeweaver.core.utils:
-      - LazyImport
-      - create_lazy_getattr
+      - LateImport
+      - create_late_getattr
     codeweaver.providers.agent:
       - AgentProfile
       - AgentProfileSpec
@@ -53,7 +53,7 @@ overrides:
 ### Basic Migration
 
 ```bash
-# Run migration (writes to .codeweaver/lazy_import_rules.yaml)
+# Run migration (writes to .codeweaver/lateimport_rules.yaml)
 python -m exportify.migration
 
 # Or use dry-run mode
@@ -62,7 +62,7 @@ from exportify import migrate_to_yaml
 from pathlib import Path
 
 result = migrate_to_yaml(
-    output_path=Path('.codeweaver/lazy_import_rules.yaml'),
+    output_path=Path('.codeweaver/lateimport_rules.yaml'),
     dry_run=True  # Don't write files
 )
 
@@ -96,7 +96,7 @@ from pathlib import Path
 from exportify import verify_migration
 
 success, errors = verify_migration(
-    yaml_path=Path('.codeweaver/lazy_import_rules.yaml')
+    yaml_path=Path('.codeweaver/lateimport_rules.yaml')
 )
 
 if success:
@@ -110,7 +110,7 @@ else:
 
 The migration generates two files:
 
-### 1. `lazy_import_rules.yaml`
+### 1. `lateimport_rules.yaml`
 
 The main YAML configuration:
 
@@ -141,11 +141,11 @@ rules:
 overrides:
   include:
     codeweaver.core.utils:
-      - LazyImport
-      - create_lazy_getattr
+      - LateImport
+      - create_late_getattr
 ```
 
-### 2. `lazy_import_rules.migration.md`
+### 2. `lateimport_rules.migration.md`
 
 A detailed equivalence report showing:
 - What rules were extracted
@@ -174,7 +174,7 @@ The migration tool ensures the new system behaves identically to the old:
 | `_private_func` | Excluded by `startswith('_')` | Excluded by `exclude-private-members` rule |
 | `MAX_SIZE` | Included by `isupper()` | Included by `include-constants` rule |
 | `ValidationError` | Propagated to root | Propagated by `propagate-exceptions` rule |
-| `LazyImport` | In `IS_EXCEPTION` list | In `overrides.include` |
+| `LateImport` | In `IS_EXCEPTION` list | In `overrides.include` |
 
 ## Testing the Migration
 
@@ -186,7 +186,7 @@ from pathlib import Path
 
 # Test with default cases
 success, errors = verify_migration(
-    yaml_path=Path('.codeweaver/lazy_import_rules.yaml')
+    yaml_path=Path('.codeweaver/lateimport_rules.yaml')
 )
 
 # Test with custom cases
@@ -197,7 +197,7 @@ test_cases = [
 ]
 
 success, errors = verify_migration(
-    yaml_path=Path('.codeweaver/lazy_import_rules.yaml'),
+    yaml_path=Path('.codeweaver/lateimport_rules.yaml'),
     test_cases=test_cases
 )
 ```
@@ -245,8 +245,8 @@ if not success:
 
 ## Next Steps After Migration
 
-1. **Review the generated YAML**: Check `.codeweaver/lazy_import_rules.yaml`
-2. **Read the report**: Review `.codeweaver/lazy_import_rules.migration.md`
+1. **Review the generated YAML**: Check `.codeweaver/lateimport_rules.yaml`
+2. **Read the report**: Review `.codeweaver/lateimport_rules.migration.md`
 3. **Run verification**: Ensure behavioral equivalence
 4. **Test with your codebase**: Run the new system
 5. **Customize rules**: Add project-specific rules as needed

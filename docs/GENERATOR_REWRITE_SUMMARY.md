@@ -27,7 +27,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from types import MappingProxyType
 
-from codeweaver.core.utils.lazy_importer import create_lazy_getattr
+from codeweaver.core.utils.lateimporter import create_late_getattr
 ```
 
 ### 3. TYPE_CHECKING Block (Section 1.2)
@@ -92,7 +92,7 @@ def __getattr__(name: str):
 
 **After:**
 ```python
-__getattr__ = create_lazy_getattr(_dynamic_imports, globals(), __name__)
+__getattr__ = create_late_getattr(_dynamic_imports, globals(), __name__)
 ```
 
 ### 6. __all__ Tuple (Section 1.5)
@@ -267,7 +267,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from types import MappingProxyType
 
-from codeweaver.core.utils.lazy_importer import create_lazy_getattr
+from codeweaver.core.utils.lateimporter import create_late_getattr
 
 if TYPE_CHECKING:
     from codeweaver.somepath.bar import (
@@ -278,7 +278,7 @@ _dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({
     "FooType": (__spec__.parent, "bar"),
 })
 
-__getattr__ = create_lazy_getattr(_dynamic_imports, globals(), __name__)
+__getattr__ = create_late_getattr(_dynamic_imports, globals(), __name__)
 
 __all__ = (
     "FooType",

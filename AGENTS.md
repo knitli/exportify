@@ -55,7 +55,7 @@ The core workflow is a **5-stage pipeline** (`pipeline.py`):
 4. **Propagation Graph** (`export_manager/graph.py`) — Builds the module hierarchy as a DAG and propagates export decisions upward, generating `ExportManifest` objects per module
 5. **Code Generation** (`export_manager/generator.py`) — Converts manifests to `__init__.py` files using lazy `__getattr__` pattern; preserves manually written code above the `# === MANAGED EXPORTS ===` sentinel
 
-**Validation** (`validator/`) runs independently: `LazyImportValidator` uses `ImportResolver` and `ConsistencyChecker` to verify that existing lazy import calls resolve correctly and that `__all__` declarations match `_dynamic_imports`.
+**Validation** (`validator/`) runs independently: `LateImportValidator` uses `ImportResolver` and `ConsistencyChecker` to verify that existing lazy import calls resolve correctly and that `__all__` declarations match `_dynamic_imports`.
 
 **Cache** (`common/cache.py`) — `JSONAnalysisCache` stores `AnalysisResult` objects keyed by file path + SHA-256 hash, stored at `.codeweaver/cache/analysis_cache.json`.
 
@@ -89,7 +89,7 @@ The generator uses a **sentinel-based section system**: code above `# === MANAGE
 
 ## CLI (`cli.py`)
 
-Built with [Cyclopts](https://github.com/BrianPugh/cyclopts). Commands: `validate`, `generate`, `analyze`, `doctor`, `migrate`, `status`, `clear-cache`. The `generate` command loads rules from `.codeweaver/lazy_import_rules.yaml` by default (falling back to built-in defaults if absent).
+Built with [Cyclopts](https://github.com/BrianPugh/cyclopts). Commands: `validate`, `generate`, `analyze`, `doctor`, `migrate`, `status`, `clear-cache`. The `generate` command loads rules from `.codeweaver/lateimport_rules.yaml` by default (falling back to built-in defaults if absent).
 
 ## Code Style
 

@@ -284,7 +284,7 @@ class CodeGenerator:
             "from typing import TYPE_CHECKING",
             "from types import MappingProxyType",
             "",
-            "from lateimport import create_lazy_getattr",
+            "from lateimport import create_late_getattr",
             "",
             "if TYPE_CHECKING:",
         ]
@@ -314,7 +314,7 @@ class CodeGenerator:
 
         parts.extend([
             "",
-            "__getattr__ = create_lazy_getattr(_dynamic_imports, globals(), __name__)",
+            "__getattr__ = create_late_getattr(_dynamic_imports, globals(), __name__)",
             "",
             self._generate_all_tuple(exports),
             "",

@@ -113,7 +113,7 @@ The following components need full implementation:
 
 ### 2. Import Validator (`validator/__init__.py`)
 - Python file parsing
-- lazy_import() call validation
+- lateimport() call validation
 - __all__ consistency checking
 - TYPE_CHECKING import validation
 
@@ -136,7 +136,7 @@ The following components need full implementation:
 
 ### 6. Code Generator (`export_manager/generator.py`)
 - __init__.py file generation
-- lazy_import() call generation
+- lateimport() call generation
 - Code formatting
 - File writing with atomic operations
 

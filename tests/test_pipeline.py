@@ -239,8 +239,8 @@ class TestCodeGeneration:
 
         result = pipeline.run(temp_source, dry_run=False)
 
-        # Should generate files
-        assert result.metrics.files_generated > 0
+        # The fixture pre-creates __init__.py files, so they come back as updated
+        assert result.metrics.files_generated + result.metrics.files_updated > 0
 
     def test_generates_valid_python(self, pipeline, temp_source) -> None:
         """Generated files should be valid Python."""
@@ -422,6 +422,8 @@ class TestErrorHandling:
 
         src = tmp_path / "src"
         src.mkdir()
+        # Need an __init__.py so src is treated as a package and generation runs
+        (src / "__init__.py").write_text("")
         (src / "mod.py").write_text("class A: pass")
 
         # Let the graph build succeed, but make generator.generate always raise

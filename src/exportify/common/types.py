@@ -24,7 +24,7 @@ from pathlib import Path
 class OutputStyle(StrEnum):
     """Output style for generated __init__.py files."""
 
-    LAZY = "lazy"  # create_lazy_getattr / _dynamic_imports / TYPE_CHECKING pattern
+    LAZY = "lazy"  # create_late_getattr / _dynamic_imports / TYPE_CHECKING pattern
     BARREL = "barrel"  # plain `from .module import Symbol` pattern
 
 
@@ -395,7 +395,7 @@ class CoordinatedResult:
 
 
 @dataclass(frozen=True)
-class LazyImportConfig:
+class LateImportConfig:
     """Configuration for lazy import system."""
 
     enabled: bool
@@ -411,7 +411,7 @@ class LazyImportConfig:
 class ValidationConfig:
     """Configuration for validation."""
 
-    check_lazy_import_calls: bool
+    check_lateimport_calls: bool
     check_package_consistency: bool
     check_broken_imports: bool
     check_type_checking_imports: bool
@@ -454,7 +454,7 @@ class ConsistencyIssue:
 
 @dataclass(frozen=True)
 class CallError:
-    """Error in a lazy_import() call."""
+    """Error in a lateimport() call."""
 
     file: Path
     line: int
@@ -477,8 +477,8 @@ __all__ = (
     "GeneratedFile",
     "GenerationMetrics",
     "ImportResolution",
+    "LateImportConfig",
     "LazyExport",
-    "LazyImportConfig",
     "MemberType",
     "OutputStyle",
     "OutputStyle",

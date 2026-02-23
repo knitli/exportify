@@ -86,6 +86,11 @@ class Pipeline:
         # Statistics
         self.stats = PipelineStats()
 
+        # Track which module paths are packages (sourced from __init__.py files).
+        # Leaf modules (.py files) are added to the graph for export propagation
+        # purposes only — they must not get their own __init__.py generated.
+        self._package_modules: set[str] = set()
+
     def run(
         self, source_root: Path, *, dry_run: bool = False, module: Path | None = None
     ) -> ExportGenerationResult:
@@ -100,6 +105,9 @@ class Pipeline:
             ExportGenerationResult with complete results
         """
         start_time = time.time()
+
+        # Reset per-run state
+        self._package_modules = set()
 
         # Update generator output directory to match source root
         self.generator.output_dir = source_root
@@ -134,6 +142,10 @@ class Pipeline:
         skipped_files = []
 
         for manifest in manifests.values():
+            # Only generate __init__.py for actual packages, not leaf modules.
+            # Leaf modules (.py files) exist in the graph for propagation only.
+            if manifest.module_path not in self._package_modules:
+                continue
             try:
                 code = self.generator.generate(manifest)
 
@@ -214,11 +226,17 @@ class Pipeline:
         # If filename is __init__.py, use parent directory
         if relative.name == "__init__.py":
             parts = parts[:-1]  # Remove __init__.py
+            is_package = True
         else:
             # Remove .py and use as last part
             parts[-1] = relative.stem
+            is_package = False
 
         module_path = ".".join(parts) if parts else "root"
+
+        # Track package modules so the generator only writes __init__.py for them.
+        if is_package:
+            self._package_modules.add(module_path)
 
         # Calculate parent module
         parent_module = self._get_parent_module(module_path)

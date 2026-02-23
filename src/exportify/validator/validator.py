@@ -25,7 +25,7 @@ from exportify.validator.consistency import ConsistencyChecker
 from exportify.validator.resolver import ImportResolver
 
 
-class LazyImportValidator:
+class LateImportValidator:
     """Validates lazy import usage and module structure.
 
     Checks:
@@ -528,4 +528,4 @@ class LazyImportValidator:
         )
 
 
-__all__ = ["LazyImportValidator"]
+__all__ = ["LateImportValidator"]

@@ -113,41 +113,6 @@ class TestCLIFixCommand:
 
 
 @pytest.mark.integration
-class TestCLIAnalyzeCommand:
-    """Test analyze command (backward compatibility)."""
-
-    def test_analyze_runs_successfully(self, tmp_path: Path):
-        """Analyze command executes without error."""
-        pkg = tmp_path / "pkg"
-        pkg.mkdir()
-        (pkg / "__init__.py").write_text("")
-        (pkg / "mod.py").write_text("class Foo: pass")
-        exit_code, stdout, stderr = run_cli("analyze", "--source", str(pkg))
-
-        assert exit_code == 0, f"Failed: {stderr}"
-        assert "analyz" in (stdout + stderr).lower()
-
-    def _create_module(self, tmp_path, package, filename, content):
-        pkg = tmp_path / package
-        pkg.mkdir()
-        (pkg / filename).write_text(content)
-
-    def test_analyze_with_nonexistent_path(self, tmp_path: Path):
-        """Analyze handles nonexistent paths gracefully."""
-        nonexistent = tmp_path / "nonexistent"
-
-        exit_code, stdout, stderr = run_cli("analyze", "--source", str(nonexistent))
-
-        # Should either fail or complete with warning
-        # Implementation may create the directory or warn
-        assert (
-            exit_code != 0
-            or "not found" in (stdout + stderr).lower()
-            or "does not exist" in (stdout + stderr).lower()
-        )
-
-
-@pytest.mark.integration
 class TestCLIGenerateCommand:
     """Test generate command."""
 
@@ -275,35 +240,6 @@ _private = "secret"
             content = init_file.read_text()
             assert len(content) > 0
 
-    def test_analyze_then_generate(self, tmp_path: Path):
-        """Complete workflow: analyze → generate (backward compat)."""
-        pkg = tmp_path / "pkg"
-        pkg.mkdir()
-        (pkg / "__init__.py").write_text("")
-        (pkg / "mod.py").write_text("""
-class Public:
-    pass
-
-def public_func():
-    return 42
-
-_private = "secret"
-""")
-
-        # Step 1: Analyze (target the package dir directly)
-        exit1, _stdout1, stderr1 = run_cli("analyze", "--source", str(pkg))
-        assert exit1 == 0, f"Analyze failed: {stderr1}"
-
-        # Step 2: Generate
-        exit2, _stdout2, stderr2 = run_cli("generate", "--source", str(tmp_path))
-        assert exit2 == 0, f"Generate failed: {stderr2}"
-
-        # Verify file created
-        init_file = pkg / "__init__.py"
-        if init_file.exists():
-            content = init_file.read_text()
-            assert len(content) > 0
-
     def test_generated_file_is_valid_python(self, tmp_path: Path):
         """Generated files are syntactically valid."""
         # Create module
@@ -345,26 +281,11 @@ class TestCLIErrorHandling:
         (pkg / "mod.py").write_text("class Foo: pass")
 
         # Ensure find_config_file() returns None regardless of working directory.
-        monkeypatch.setattr("exportify.cli.find_config_file", lambda: None)
+        monkeypatch.setattr("exportify.common.config.find_config_file", lambda: None)
 
         exit_code, _stdout, _stderr = run_cli("fix", "--dry-run", "--source", str(pkg))
 
         assert exit_code == 0
-
-    def test_missing_rules_uses_defaults_analyze(self, tmp_path: Path, monkeypatch):
-        """Missing rules file uses defaults for analyze (backward compat)."""
-        pkg = tmp_path / "pkg"
-        pkg.mkdir()
-        (pkg / "__init__.py").write_text("")
-        (pkg / "mod.py").write_text("class Foo: pass")
-
-        # Ensure find_config_file() returns None regardless of working directory.
-        monkeypatch.setattr("exportify.cli.find_config_file", lambda: None)
-
-        exit_code, stdout, _stderr = run_cli("analyze", "--source", str(pkg))
-
-        assert exit_code == 0
-        assert "Using default rules" in stdout or "No config file found" in stdout
 
     def test_syntax_error_handled(self, tmp_path: Path):
         """Syntax errors in source files are handled gracefully."""
@@ -375,7 +296,7 @@ class TestCLIErrorHandling:
 
         # Create rules
         (tmp_path / ".codeweaver").mkdir()
-        (tmp_path / ".codeweaver/lazy_import_rules.yaml").write_text("""
+        (tmp_path / ".codeweaver/lateimport_rules.yaml").write_text("""
 schema_version: "1.0"
 rules: []
 """)
@@ -412,13 +333,6 @@ class TestCLIHelp:
         assert exit_code == 0
         assert "dry-run" in stdout.lower() or "fix" in stdout.lower()
 
-    def test_analyze_help(self):
-        """Analyze command help works (backward compat)."""
-        exit_code, stdout, _stderr = run_cli("analyze", "--help")
-
-        assert exit_code == 0
-        assert "source" in stdout.lower() or "analyze" in stdout.lower()
-
     def test_generate_help(self):
         """Generate command help works."""
         exit_code, stdout, _stderr = run_cli("generate", "--help")
@@ -444,7 +358,7 @@ class TestKnownIssues:
 
         # Create rules
         (tmp_path / ".codeweaver").mkdir()
-        (tmp_path / ".codeweaver/lazy_import_rules.yaml").write_text("""
+        (tmp_path / ".codeweaver/lateimport_rules.yaml").write_text("""
 schema_version: "1.0"
 rules:
   - name: "include-all"

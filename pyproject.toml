@@ -141,9 +141,8 @@ testpaths = ["tests"]
 
 [tool.ty.environment]
 python-version = "3.12"
-root = ["./src", "./tests", "./scripts"]
+root = ["./src", "./tests"]
 python = "./.venv"
-extra-paths = ["./typings"]
 
 [tool.ty.rules]
 # === Core Type Safety Rules (kept strict for src/) ===
@@ -171,13 +170,20 @@ include = ["./src", "./tests", "./scripts", "./mise-tasks", "./packages"]
 exclude = ["./typings", "./tests/**/malformed.py", "./vendored"]
 
 [[tool.ty.overrides]]
-include = ["./src/exportify/__init__.py"]
+include = ["./src/exportify/__init__.py", "./src/exportify/*/__init__.py"]
 
 [tool.ty.overrides.rules]
 # Our version resolution strategy dynamically determines the version, but only during development.
 # If the _version.py is present, ty raises `invalid-assignment` because _version.py marks __version__ as a Final[str] but the value is assigned dynamically.
 # For release builds, _version.py will always exist, so it's static and compliant with the Final[str] declaration. During development, we accept that __version__ is dynamic and ignore the invalid-assignment error.
 invalid-assignment = "ignore"
+unresolved-attribute = "ignore"  # this stems from the fact that technically __spec__.parent can return None, but in practice it won't in our __init__.py context
+
+[[tool.ty.overrides]]
+include = ["tests/test_migration.py"]
+
+[tool.ty.overrides.rules]
+invalid-argument-type = "ignore"  # Many false positives in test_migration due to dynamic test patterns and complex validation logic
 
 [tool.uv]
 package = true
