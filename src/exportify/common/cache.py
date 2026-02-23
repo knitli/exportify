@@ -1,3 +1,4 @@
+# sourcery skip: avoid-trivial-properties
 # SPDX-FileCopyrightText: 2025 Knitli Inc.
 # SPDX-FileContributor: Adam Poulemanos <adam@knit.li>
 #
@@ -9,6 +10,7 @@ Provides caching of file analysis results to improve performance.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 
@@ -18,6 +20,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from exportify.common.config import DEFAULT_CACHE_SUBDIR
 from exportify.types import CacheStatistics
 
 
@@ -27,6 +30,17 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+
+
+def _add_ignore_to_cache(cache_dir: Path) -> None:
+    """Add .gitignore entry for cache file."""
+    if not cache_dir.exists():
+        cache_dir.mkdir(parents=True, exist_ok=True)
+    if cache_dir != DEFAULT_CACHE_SUBDIR:
+        return  # Only add ignore for default cache directory
+    gitignore_path = cache_dir.parent / ".gitignore"
+    if not gitignore_path.exists():
+        gitignore_path.write_text(str(cache_dir) + "/\n")
 
 
 class CircuitState(StrEnum):
@@ -186,10 +200,8 @@ class JSONAnalysisCache:
             cache_dir: Directory to store cache files. Defaults to .exportify/cache
             circuit_breaker: Circuit breaker for fault tolerance. Creates default if None
         """
-        from exportify.common.config import DEFAULT_CACHE_SUBDIR
-
         self._cache_dir = cache_dir or DEFAULT_CACHE_SUBDIR
-        self._cache_dir.mkdir(parents=True, exist_ok=True)
+        _add_ignore_to_cache(self._cache_dir)
         self._cache: dict[Path, dict] = {}
         self.circuit_breaker = circuit_breaker or CircuitBreaker()
         self._load_from_disk()
@@ -397,14 +409,11 @@ class JSONAnalysisCache:
     def _save_to_disk(self) -> None:
         """Save cache to disk."""
         cache_file = self._get_cache_file()
-        try:
+        with contextlib.suppress(OSError, TypeError):
             # Convert Path keys to strings for JSON serialization
             data = {str(k): v for k, v in self._cache.items()}
             with cache_file.open("w") as f:
                 json.dump(data, f, indent=2, default=str)
-        except (OSError, TypeError):
-            # If we can't save, continue without persistence
-            pass
 
 
 # Keep backwards compatibility
