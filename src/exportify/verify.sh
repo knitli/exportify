@@ -14,7 +14,9 @@ echo "==================================================================="
 echo
 
 # Set PYTHONPATH
-export PYTHONPATH="$(cd "$(dirname "$0")/../../../.." && pwd)/src"
+declare -g PYTHONPATH
+PYTHONPATH="$(cd "$(dirname "$0")/../../../.." && pwd)/src"
+export PYTHONPATH
 
 echo "PYTHONPATH: $PYTHONPATH"
 echo

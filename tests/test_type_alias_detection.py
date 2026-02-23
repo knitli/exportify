@@ -225,43 +225,40 @@ config: dict = {}
         assert types.get("config") == MemberType.VARIABLE
 
 
-class TestRealCodeweaverFiles:
-    """Test with actual type aliases from codeweaver codebase."""
+class TestRealProjectFiles:
+    """Test with actual project fixture files."""
 
-    @pytest.mark.skipif(
-        not Path("src/codeweaver/engine/dependencies.py").exists(),
-        reason="Codeweaver source not available",
-    )
-    def test_real_dependencies_file(self, parser: ASTParser) -> None:
-        """Test with real dependencies.py file."""
-        real_file = Path("src/codeweaver/engine/dependencies.py")
-        result = parser.parse_file(real_file, "codeweaver.engine.dependencies")
+    def test_real_fixture_file_has_both_alias_styles(self, parser: ASTParser) -> None:
+        """Test with the project fixture file that has both pre-3.12 and 3.12+ aliases."""
+        real_file = Path(__file__).parent / "fixtures" / "sample_type_aliases.py"
+        result = parser.parse_file(real_file, "tests.fixtures.sample_type_aliases")
 
-        # Should detect Python 3.12+ type aliases
         aliases = [e for e in result.symbols if e.member_type == MemberType.TYPE_ALIAS]
 
-        # Verify we found some aliases
+        # Should detect multiple aliases
         assert len(aliases) > 0
 
-        # Check they're all Python 3.12+ style
-        assert all(a.metadata.get("style") == "python3.12+" for a in aliases)
+        # Should have both styles
+        styles = {a.metadata.get("style") for a in aliases}
+        assert "python3.12+" in styles
+        assert "pre-python3.12" in styles
 
-        # Check for specific known aliases
-        alias_names = {a.name for a in aliases}
-        assert "IndexerSettingsDep" in alias_names or len(aliases) > 5
+    def test_real_fixture_file_detects_all_known_aliases(self, parser: ASTParser) -> None:
+        """Test that all named type aliases in the fixture file are detected."""
+        real_file = Path(__file__).parent / "fixtures" / "sample_type_aliases.py"
+        result = parser.parse_file(real_file, "tests.fixtures.sample_type_aliases")
 
-    @pytest.mark.skipif(
-        not Path("src/codeweaver/core/types/aliases.py").exists(),
-        reason="Type aliases file not available",
-    )
-    def test_real_type_aliases_file(self, parser: ASTParser) -> None:
-        """Test with real type aliases file if it exists."""
-        real_file = Path("src/codeweaver/core/types/aliases.py")
-        result = parser.parse_file(real_file, "codeweaver.core.types.aliases")
+        alias_names = {e.name for e in result.symbols if e.member_type == MemberType.TYPE_ALIAS}
 
-        # Should detect type aliases
-        aliases = [e for e in result.symbols if e.member_type == MemberType.TYPE_ALIAS]
-        assert len(aliases) > 0
+        # Pre-3.12 style aliases
+        assert "FilePath" in alias_names
+        assert "ModuleName" in alias_names
+        assert "ConfigDict" in alias_names
+
+        # Python 3.12+ style aliases
+        assert "FileContent" in alias_names
+        assert "LineNumber" in alias_names
+        assert "SymbolName" in alias_names
 
 
 class TestTypeAliasEdgeCases:

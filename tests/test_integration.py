@@ -409,9 +409,9 @@ class TestErrorHandling:
 
         test_file = tmp_path / "test.py"
         test_file.write_text("""
-from codeweaver.common.utils import lazy_import
+from lateimport import lateimport
 
-Missing = lazy_import("completely.nonexistent.module", "Class")
+Missing = lateimport("completely.nonexistent.module", "Class")
 """)
 
         validator = LazyImportValidator(project_root=tmp_path)

@@ -18,6 +18,7 @@ sections while preserving formatting and comments.
 from __future__ import annotations
 
 import ast
+import contextlib
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -163,7 +164,7 @@ class SectionParser:
 
         # Extract docstring from preserved section
         docstring: str | None = None
-        try:
+        with contextlib.suppress(SyntaxError):
             tree = ast.parse(preserved)
             if (
                 tree.body
@@ -172,9 +173,6 @@ class SectionParser:
                 and isinstance(tree.body[0].value.value, str)
             ):
                 docstring = tree.body[0].value.value
-        except SyntaxError:
-            pass
-
         # Count lines for debugging
         preserved_lines_count = preserved.count("\n") + 1
         managed_lines = [(preserved_lines_count + 1, content.count("\n") + 1)]
@@ -300,8 +298,8 @@ class SectionParser:
         if isinstance(node, ast.ImportFrom) and node.module == "types":
             return any(alias.name == "MappingProxyType" for alias in node.names)
 
-        # from codeweaver.core.utils.lazy_importer import create_lazy_getattr
-        if isinstance(node, ast.ImportFrom) and node.module and "lazy_importer" in node.module:
+        # from lateimport import create_lazy_getattr
+        if isinstance(node, ast.ImportFrom) and node.module == "lateimport":
             return any(alias.name == "create_lazy_getattr" for alias in node.names)
 
         return False
@@ -385,8 +383,7 @@ class SectionParser:
             start = node.lineno - 1  # ty: ignore[unsupported-operator]
             end = node.end_lineno or node.lineno
 
-            node_lines = lines[start:end]
-            if node_lines:
+            if node_lines := lines[start:end]:
                 extracted_sections.append("\n".join(node_lines))
 
         # Join sections with double newline for readability

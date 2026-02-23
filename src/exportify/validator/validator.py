@@ -4,7 +4,7 @@
 
 """Main validator for lazy imports.
 
-Validates lazy_import calls and Python module structure.
+Validates lateimport calls and Python module structure.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ class LazyImportValidator:
     """Validates lazy import usage and module structure.
 
     Checks:
-    - lazy_import() call syntax and arguments
+    - lateimport() call syntax and arguments
     - Import resolution (module and object exist)
     - __all__ declarations match definitions
     - TYPE_CHECKING block structure
@@ -87,7 +87,7 @@ class LazyImportValidator:
 
         issues: list[ValidationError | ValidationWarning] = []
         has_all_declaration = self._collect_all_declaration_issues(file_path, tree, issues)
-        has_type_checking_block, has_lazy_import_calls = self._check_structure_and_imports(
+        has_type_checking_block, has_lateimport_calls = self._check_structure_and_imports(
             file_path, tree, issues
         )
         issues.extend(
@@ -96,7 +96,7 @@ class LazyImportValidator:
                 tree,
                 has_all_declaration=has_all_declaration,
                 has_type_checking_block=has_type_checking_block,
-                has_lazy_import_calls=has_lazy_import_calls,
+                has_lateimport_calls=has_lateimport_calls,
             )
         )
         return issues
@@ -104,6 +104,7 @@ class LazyImportValidator:
     def _collect_all_declaration_issues(
         self, file_path: Path, tree: ast.AST, issues: list[ValidationError | ValidationWarning]
     ) -> bool:
+        """Check for __all__ declaration and validate it."""
         has_all_declaration = False
         for node in ast.walk(tree):
             if not isinstance(node, ast.Assign):
@@ -117,9 +118,13 @@ class LazyImportValidator:
     def _check_structure_and_imports(
         self, file_path: Path, tree: ast.AST, issues: list[ValidationError | ValidationWarning]
     ) -> tuple[bool, bool]:
+        """Check import organization and collect lateimport issues."""
         seen_code = False
         has_type_checking_block = False
-        has_lazy_import_calls = False
+        has_lateimport_calls = False
+
+        if not isinstance(tree, ast.Module):
+            return has_type_checking_block, has_lateimport_calls
 
         for i, node in enumerate(tree.body):
             is_import = isinstance(node, (ast.Import, ast.ImportFrom))
@@ -142,39 +147,40 @@ class LazyImportValidator:
                 has_type_checking_block = True
                 issues.extend(self._validate_type_checking_block(file_path, node))
 
-            has_lazy_import_calls |= self._collect_lazy_import_issues(file_path, node, issues)
+            has_lateimport_calls |= self._collect_lateimport_issues(file_path, node, issues)
 
-        return has_type_checking_block, has_lazy_import_calls
+        return has_type_checking_block, has_lateimport_calls
 
     def _is_code_statement(self, node: ast.stmt, *, is_import: bool) -> bool:
+        """Check if a statement is considered "code" (not import or docstring)."""
         if is_import:
             return False
         if isinstance(node, ast.Expr):
             return not isinstance(node.value, ast.Constant)
         return not isinstance(node, ast.Pass)
 
-    def _collect_lazy_import_issues(
+    def _collect_lateimport_issues(
         self, file_path: Path, node: ast.stmt, issues: list[ValidationError | ValidationWarning]
     ) -> bool:
         if isinstance(node, ast.Assign):
-            return self._collect_lazy_import_calls_from_value(file_path, node.value, issues)
+            return self._collect_lateimport_calls_from_value(file_path, node.value, issues)
         if (
             isinstance(node, ast.Expr)
             and isinstance(node.value, ast.Call)
-            and self._is_lazy_import_call(node.value)
+            and self._is_lateimport_call(node.value)
         ):
-            issues.extend(self._validate_lazy_import_call(file_path, node.value))
+            issues.extend(self._validate_lateimport_call(file_path, node.value))
             return True
         return False
 
-    def _collect_lazy_import_calls_from_value(
+    def _collect_lateimport_calls_from_value(
         self, file_path: Path, value: ast.AST, issues: list[ValidationError | ValidationWarning]
     ) -> bool:
         found = False
         for item in ast.walk(value):
-            if isinstance(item, ast.Call) and self._is_lazy_import_call(item):
+            if isinstance(item, ast.Call) and self._is_lateimport_call(item):
                 found = True
-                issues.extend(self._validate_lazy_import_call(file_path, item))
+                issues.extend(self._validate_lateimport_call(file_path, item))
         return found
 
     def _finalize_warnings(
@@ -184,7 +190,7 @@ class LazyImportValidator:
         *,
         has_all_declaration: bool,
         has_type_checking_block: bool,
-        has_lazy_import_calls: bool,
+        has_lateimport_calls: bool,
     ) -> list[ValidationError | ValidationWarning]:
         issues: list[ValidationError | ValidationWarning] = []
 
@@ -198,12 +204,12 @@ class LazyImportValidator:
                 )
             )
 
-        if has_lazy_import_calls and not has_type_checking_block:
+        if has_lateimport_calls and not has_type_checking_block:
             issues.append(
                 ValidationWarning(
                     file=file_path,
                     line=1,
-                    message="File uses lazy_import but has no TYPE_CHECKING block",
+                    message="File uses lateimport but has no TYPE_CHECKING block",
                     suggestion="Add TYPE_CHECKING block with type imports for better type checking",
                 )
             )
@@ -263,10 +269,10 @@ class LazyImportValidator:
             all_errors.extend(errors)
             all_warnings.extend(warnings)
 
-            # Count lazy_import calls checked
+            # Count lateimport calls checked
             with contextlib.suppress(Exception):
                 content = file_path.read_text()
-                imports_checked += content.count("lazy_import(")
+                imports_checked += content.count("lateimport(")
 
         # Run consistency checks on __init__.py files
         init_files = [f for f in file_paths if f.name == "__init__.py"]
@@ -310,30 +316,30 @@ class LazyImportValidator:
                 consistency_checks=consistency_checks,
                 validation_time_ms=validation_time_ms,
             ),
-            success=len(all_errors) == 0,
+            success=not all_errors,
         )
 
-    def _is_lazy_import_call(self, node: ast.Call) -> bool:
-        """Check if node is a lazy_import() call.
+    def _is_lateimport_call(self, node: ast.Call) -> bool:
+        """Check if node is a lateimport() call.
 
         Args:
             node: AST Call node
 
         Returns:
-            True if this is a lazy_import call
+            True if this is a lateimport call
         """
-        if isinstance(node.func, ast.Name) and node.func.id == "lazy_import":
+        if isinstance(node.func, ast.Name) and node.func.id == "lateimport":
             return True
-        return bool(isinstance(node.func, ast.Attribute) and node.func.attr == "lazy_import")
+        return isinstance(node.func, ast.Attribute) and node.func.attr == "lateimport"
 
-    def _validate_lazy_import_call(
+    def _validate_lateimport_call(
         self, file_path: Path, node: ast.Call
     ) -> list[ValidationError | ValidationWarning]:
-        """Validate a lazy_import() call.
+        """Validate a lateimport() call.
 
         Args:
             file_path: Path to file containing the call
-            node: AST Call node for lazy_import
+            node: AST Call node for lateimport call
 
         Returns:
             List of validation issues
@@ -346,9 +352,9 @@ class LazyImportValidator:
                 ValidationError(
                     file=file_path,
                     line=node.lineno,
-                    message="lazy_import() requires at least 2 arguments (module, object)",
+                    message="lateimport() requires at least 2 arguments (module, object)",
                     suggestion="Add missing arguments",
-                    code="INVALID_LAZY_IMPORT",
+                    code="INVALID_LATEIMPORT",
                 )
             )
             return issues
@@ -362,9 +368,9 @@ class LazyImportValidator:
                 ValidationError(
                     file=file_path,
                     line=node.lineno,
-                    message="lazy_import() module argument must be a string literal",
+                    message="lateimport() module argument must be a string literal",
                     suggestion="Use a string literal instead of a variable",
-                    code="NON_LITERAL_LAZY_IMPORT",
+                    code="NON_LITERAL_LATEIMPORT",
                 )
             )
             return issues
@@ -374,9 +380,9 @@ class LazyImportValidator:
                 ValidationError(
                     file=file_path,
                     line=node.lineno,
-                    message="lazy_import() object argument must be a string literal",
+                    message="lateimport() object argument must be a string literal",
                     suggestion="Use a string literal instead of a variable",
-                    code="NON_LITERAL_LAZY_IMPORT",
+                    code="NON_LITERAL_LATEIMPORT",
                 )
             )
             return issues

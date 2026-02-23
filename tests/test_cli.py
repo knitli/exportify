@@ -19,7 +19,7 @@ class TestLazyImportsCLI:
 
         assert app is not None
         # Cyclopts apps have name as a tuple
-        assert "lazy-imports" in app.name or app.name == ("lazy-imports",)
+        assert "exportify" in app.name or app.name == ("exportify",)
 
     def test_types_module_imports(self):
         """Test that types module can be imported."""

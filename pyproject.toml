@@ -13,15 +13,43 @@ authors = [
   { name = "Knitli Inc." },
   { name = "Adam Poulemanos", email = "adam@knit.li" },
 ]
+keywords = [
+  "__all__",
+  "code-generation",
+  "exports",
+  "lazy-imports",
+  "package-management"
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Code Generators",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Typing :: Typed",
+]
 dependencies = [
-  "cyclopts>=4.0.0",
+  "cyclopts>=4.5.0",
+  "lateimport>=0.1.0",
   "pyyaml>=6.0.3",
-  "rich>=14.0.0",
+  "rich>=14.3.0",
   "textcase>=0.4.5"
 ]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/knitli/exportify"
+Issues = "https://github.com/knitli/exportify/issues"
+Repository = "https://github.com/knitli/exportify"
 
 [project.scripts]
-exportify = "src.exportify.cli:main"
+exportify = "exportify.cli:main"
 
 [dependency-groups]
 dev = [
@@ -29,10 +57,17 @@ dev = [
   "pytest-cov>=7.0.0",
   "pytest-env>=1.5.0",
   "pytest-mock>=3.15.1",
-  "ruff>0.15.0",
+  "ruff>=0.15.0",
   "ty>=0.0.18",
   "uv>=0.10.4"
 ]
+
+[build-system]
+requires = ["hatchling", "uv-dynamic-versioning"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
 
 [tool.hatch.build.hooks.version]
 additionalProperties = true
@@ -54,26 +89,10 @@ __all__ = ("__version__",)
 [tool.hatch.build.targets.wheel]
 artifacts = ["*.so", "src/**", "vendored/**", "packages/**"]
 
-[tool.hatch.build.targets.wheel.force-include]
-"LICENSES" = "LICENSES"
-"typings" = "typings"
-"README.md" = "README.md"
-"SECURITY.md" = "SECURITY.md"
-"sbom.spdx" = "sbom.spdx"
-"LICENSE-Apache-2.0" = "LICENSE-APACHE-2.0"
-"LICENSE-MIT" = "LICENSE-MIT"
-"src/exportify" = "exportify"
-"packages" = "packages"
-
 [tool.hatch.build.targets.sdist]
 include = [
   "src/**",
   "README.md",
-  "SECURITY.md",
-  "LICENSES",
-  "sbom.spdx",
-  "LICENSE-APACHE-2.0",
-  "LICENSE-MIT",
 ]
 exclude = [
   ".claude/**",
@@ -94,7 +113,7 @@ exclude = [
 
 [tool.pytest]
 addopts = [
-  "--cov-fail-under=50",
+  "--cov-fail-under=80",
   "--cov-report=html",
   "--cov-report=term-missing",
   "--cov=exportify",
@@ -151,6 +170,7 @@ preview = true
 [tool.uv-dynamic-versioning]
 vcs = "git"
 style = "pep440"
+fallback-version = "0.0.0"
 bump = true
 dirty = false  # Disabled .dirty suffix to maintain PEP 440 compliance
 # tag-branch = "main"  # Commented out to allow building on feature branches

@@ -237,40 +237,70 @@ def process(x: int | str) -> int | str:
 
 
 class TestRealWorldOverloads:
-    """Test with real overloaded functions from codeweaver."""
+    """Test complex, real-world overload patterns using temporary files."""
 
-    def test_real_codeweaver_overloads(self, parser) -> None:
-        """Test with actual overloaded functions from codeweaver."""
-        # Use the real file from codeweaver
-        real_file = Path("src/codeweaver/engine/chunker/delimiters/patterns.py")
+    def test_two_overload_signatures(self, parser, tmp_path) -> None:
+        """Test function with two overloads — common real-world pattern."""
+        content = '''from typing import overload
 
-        if not real_file.exists():
-            pytest.skip("Real file not found")
+@overload
+def convert(value: int) -> str: ...
 
-        result = parser.parse_file(real_file, "codeweaver.engine.chunker.delimiters.patterns")
+@overload
+def convert(value: str) -> int: ...
 
-        # Should find kind_from_delimiter_tuple as overloaded
-        funcs = [e for e in result.symbols if e.name == "kind_from_delimiter_tuple"]
-        assert len(funcs) == 1  # Only one export despite multiple definitions
+def convert(value: int | str) -> int | str:
+    """Convert between int and str."""
+    if isinstance(value, int):
+        return str(value)
+    return int(value)
+'''
+        file_path = tmp_path / "module.py"
+        file_path.write_text(content)
+        result = parser.parse_file(file_path, "mypackage.module")
+
+        funcs = [e for e in result.symbols if e.name == "convert"]
+        assert len(funcs) == 1  # Only one export despite two overloads + implementation
         func = funcs[0]
         assert func.metadata.get("is_overloaded") is True
         assert func.metadata.get("overload_count") == 2
+        assert func.metadata.get("has_implementation") is True
 
-    def test_real_middleware_overloads(self, parser) -> None:
-        """Test with middleware statistics overloads."""
-        real_file = Path("src/codeweaver/server/mcp/middleware/statistics.py")
+    def test_many_overload_signatures(self, parser, tmp_path) -> None:
+        """Test function with 6+ overloads — like middleware statistics patterns."""
+        content = '''from typing import overload
 
-        if not real_file.exists():
-            pytest.skip("Real file not found")
+@overload
+def _process(x: int) -> int: ...
 
-        result = parser.parse_file(real_file, "codeweaver.server.mcp.middleware.statistics")
+@overload
+def _process(x: str) -> str: ...
 
-        # Should find _time_operation as overloaded
-        funcs = [e for e in result.symbols if e.name == "_time_operation"]
-        if funcs:  # May be filtered as private
+@overload
+def _process(x: float) -> float: ...
+
+@overload
+def _process(x: bytes) -> bytes: ...
+
+@overload
+def _process(x: list) -> list: ...
+
+@overload
+def _process(x: dict) -> dict: ...
+
+def _process(x):
+    """Process any value."""
+    return x
+'''
+        file_path = tmp_path / "module.py"
+        file_path.write_text(content)
+        result = parser.parse_file(file_path, "mypackage.module")
+
+        # _process is private but should still be detected by the parser
+        funcs = [e for e in result.symbols if e.name == "_process"]
+        if funcs:  # Private symbols may be filtered by rules, but parser should find them
             func = funcs[0]
             assert func.metadata.get("is_overloaded") is True
-            # Has many overloads (6+)
             assert func.metadata.get("overload_count", 0) >= 6
 
 

@@ -479,14 +479,14 @@ def _is_private(member_name: str) -> bool:
 
 def _is_constant(member_name: str, member_kind: MemberType) -> bool:
     """Check if member is a constant."""
-    return member_kind == MemberType.CONSTANT and re.match(r"^[A-Z][A-Z0-9_]*$", member_name)
+    return member_kind == MemberType.CONSTANT and bool(re.match(r"^[A-Z][A-Z0-9_]*$", member_name))
 
 
 def _is_exception_class(member_name: str, member_kind: MemberType) -> bool:
     """Check if member is an exception class."""
-    return member_kind == MemberType.CLASS and re.match(
+    return member_kind == MemberType.CLASS and bool(re.match(
         r".*Error$|.*Exception$|.*Warning$", member_name
-    )
+    ))
 
 
 def verify_migration(

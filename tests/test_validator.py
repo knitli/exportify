@@ -38,9 +38,9 @@ MyPath = Path
         """Broken module path should be detected."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
-from codeweaver.common.utils import lazy_import
+from lateimport import lateimport
 
-MyClass = lazy_import("nonexistent.module", "MyClass")
+MyClass = lateimport("nonexistent.module", "MyClass")
 """)
 
         validator = LazyImportValidator(project_root=tmp_path)
@@ -70,10 +70,10 @@ Obj = lazy_import("codeweaver.core", "NonExistentClass")
         """Multiple issues should all be detected."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
-from codeweaver.common.utils import lazy_import
+from lateimport import lateimport
 
-A = lazy_import("nonexistent1", "Class1")
-B = lazy_import("nonexistent2", "Class2")
+A = lateimport("nonexistent1", "Class1")
+B = lateimport("nonexistent2", "Class2")
 """)
 
         validator = LazyImportValidator(project_root=tmp_path)
@@ -116,10 +116,10 @@ def broken(
         """Can validate multiple files."""
         # Create multiple test files
         file1 = tmp_path / "file1.py"
-        file1.write_text('lazy_import("good.module", "Class")')
+        file1.write_text('lateimport("good.module", "Class")')
 
         file2 = tmp_path / "file2.py"
-        file2.write_text('lazy_import("bad.module", "Class")')
+        file2.write_text('lateimport("bad.module", "Class")')
 
         validator = LazyImportValidator(project_root=tmp_path)
         issues = validator.validate_files([file1, file2])
@@ -291,12 +291,12 @@ class TestComprehensiveValidation:
     """Test suite for comprehensive validation methods."""
 
     def test_lazy_import_with_correct_arguments(self, tmp_path: Path):
-        """Valid lazy_import call with correct arguments should pass."""
+        """Valid lateimport call with correct arguments should pass."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
-from codeweaver.common.utils import lazy_import
+from lateimport import lateimport
 
-MyClass = lazy_import("module.path", "MyClass")
+MyClass = lateimport("module.path", "MyClass")
 """)
 
         validator = LazyImportValidator(project_root=tmp_path)
@@ -307,36 +307,36 @@ MyClass = lazy_import("module.path", "MyClass")
             i
             for i in issues
             if isinstance(i, ValidationError)
-            and i.code in ("INVALID_LAZY_IMPORT", "NON_LITERAL_LAZY_IMPORT")
+            and i.code in ("INVALID_LATEIMPORT", "NON_LITERAL_LATEIMPORT")
         ]
         assert not syntax_errors
 
     def test_lazy_import_with_insufficient_arguments(self, tmp_path: Path):
-        """lazy_import with < 2 arguments should error."""
+        """lateimport with < 2 arguments should error."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
-from codeweaver.common.utils import lazy_import
+from lateimport import lateimport
 
-MyClass = lazy_import("module.path")  # Missing second arg
+MyClass = lateimport("module.path")  # Missing second arg
 """)
 
         validator = LazyImportValidator(project_root=tmp_path)
         issues = validator.validate_file(test_file)
 
         errors = [
-            i for i in issues if isinstance(i, ValidationError) and i.code == "INVALID_LAZY_IMPORT"
+            i for i in issues if isinstance(i, ValidationError) and i.code == "INVALID_LATEIMPORT"
         ]
         assert errors
         assert any("at least 2 arguments" in e.message for e in errors)
 
     def test_lazy_import_with_non_string_arguments(self, tmp_path: Path):
-        """lazy_import with non-string arguments should error."""
+        """lateimport with non-string arguments should error."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
-from codeweaver.common.utils import lazy_import
+from lateimport import lateimport
 
 module_var = "module.path"
-MyClass = lazy_import(module_var, "MyClass")  # Variable, not literal
+MyClass = lateimport(module_var, "MyClass")  # Variable, not literal
 """)
 
         validator = LazyImportValidator(project_root=tmp_path)
@@ -345,7 +345,7 @@ MyClass = lazy_import(module_var, "MyClass")  # Variable, not literal
         errors = [
             i
             for i in issues
-            if isinstance(i, ValidationError) and i.code == "NON_LITERAL_LAZY_IMPORT"
+            if isinstance(i, ValidationError) and i.code == "NON_LITERAL_LATEIMPORT"
         ]
         assert errors
         assert any("string literal" in e.message for e in errors)
@@ -546,7 +546,7 @@ def broken(
         test_file = tmp_path / "test.py"
         test_file.write_text("""
 from typing import TYPE_CHECKING
-from codeweaver.common.utils import lazy_import
+from lateimport import lateimport
 
 __all__ = ["MyClass", "UndefinedExport"]
 
@@ -557,7 +557,7 @@ if TYPE_CHECKING:
     from module import Type1
     x = 5  # Should warn
 
-BadImport = lazy_import("module")  # Should error - insufficient args
+BadImport = lateimport("module")  # Should error - insufficient args
 
 import late_import  # Should warn - import after code
 """)
@@ -576,12 +576,12 @@ import late_import  # Should warn - import after code
         """Test that validation results are properly aggregated."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
-from codeweaver.common.utils import lazy_import
+from lateimport import lateimport
 
 __all__ = ["Missing1", "Missing2"]
 
-lazy_import("bad")  # Error
-lazy_import("also", "bad", "extra")  # Should still validate
+lateimport("bad")  # Error
+lateimport("also", "bad", "extra")  # Should still validate
 """)
 
         validator = LazyImportValidator(project_root=tmp_path)

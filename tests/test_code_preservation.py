@@ -754,7 +754,7 @@ class TestFileWriter:
 
         # No backup files should exist
         backups = list(target.parent.glob("*.backup.*"))
-        assert len(backups) == 0
+        assert not backups
 
     def test_backup_policy_on_change(self, temp_dir: Path) -> None:
         """BackupPolicy.ON_CHANGE only creates backup when content differs."""
@@ -798,7 +798,7 @@ class TestFileWriter:
         result = file_writer.write_file(target, invalid_python, create_backup=False)
 
         assert not result.success
-        assert "Syntax error" in result.error
+        assert result.error is not None and "Syntax error" in result.error
         assert not target.exists()
 
 
@@ -834,12 +834,21 @@ class TestIntegration:
 
         init_file.write_text(user_code)
 
+        content1 = self._generate_and_verify_exported_code("Foo", code_generator, init_file)
+        assert "Foo" in content1
+        content2 = self._generate_and_verify_exported_code("Bar", code_generator, init_file)
+        # Old export should be gone from managed section
+        assert "Foo" not in content2 or content2.count("Foo") == 0
+
+    def _generate_and_verify_exported_code(
+        self, public_name: str, code_generator: CodeGenerator, init_file: Path
+    ):
         # First generation
         exports1 = [
             LazyExport(
-                public_name="Foo",
+                public_name=public_name,
                 target_module="test.module.impl",
-                target_object="Foo",
+                target_object=public_name,
                 is_type_only=False,
             )
         ]
@@ -855,45 +864,14 @@ class TestIntegration:
         assert result1.success
 
         # Verify user code preserved
-        content1 = init_file.read_text()
-        assert "import logging" in content1
-        assert "MyType: TypeAlias" in content1
-        assert "DEBUG = True" in content1
-        assert "def helper()" in content1
-        assert "Foo" in content1
+        result = init_file.read_text()
+        assert "import logging" in result
+        assert "MyType: TypeAlias" in result
+        assert "DEBUG = True" in result
+        assert "def helper()" in result
+        assert public_name in result
 
-        # Second generation with different exports
-        exports2 = [
-            LazyExport(
-                public_name="Bar",
-                target_module="test.module.impl",
-                target_object="Bar",
-                is_type_only=False,
-            )
-        ]
-        manifest2 = ExportManifest(
-            module_path="test.module",
-            own_exports=exports2,
-            propagated_exports=[],
-            all_exports=exports2,
-        )
-
-        generated2 = code_generator.generate(manifest2)
-        result2 = code_generator.write_file("test.module", generated2)
-        assert result2.success
-
-        # Verify user code STILL preserved after second generation
-        content2 = init_file.read_text()
-        assert "import logging" in content2
-        assert "MyType: TypeAlias" in content2
-        assert "DEBUG = True" in content2
-        assert "def helper()" in content2
-
-        # New export should be present
-        assert "Bar" in content2
-
-        # Old export should be gone from managed section
-        assert "Foo" not in content2 or content2.count("Foo") == 0
+        return result
 
     def test_multiple_regenerations_no_data_loss(
         self, code_generator: CodeGenerator, temp_dir: Path

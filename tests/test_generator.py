@@ -102,7 +102,7 @@ def test_generate_empty_manifest(generator: CodeGenerator):
     assert "create_lazy_getattr" in code.content
     assert "def __dir__() -> list[str]:" in code.content
     # Check SPDX headers
-    assert "SPDX-FileCopyrightText: 2025 Knitli Inc." in code.content
+    assert "SPDX-FileCopyrightText: 2026 Knitli Inc." in code.content
     assert "SPDX-License-Identifier: MIT OR Apache-2.0" in code.content
 
 
@@ -507,10 +507,8 @@ def test_spdx_headers_present(generator: CodeGenerator):
     manifest = make_manifest("test.module", own_exports=exports)
     code = generator.generate(manifest)
 
-    # Check all SPDX header lines
-    assert "# SPDX-FileCopyrightText: 2025 Knitli Inc." in code.content
-    assert "# SPDX-FileContributor: Adam Poulemanos <adam@knit.li>" in code.content
-    assert "#" in code.content
+    # Check SPDX header lines
+    assert "# SPDX-FileCopyrightText: 2026 Knitli Inc." in code.content
     assert "# SPDX-License-Identifier: MIT OR Apache-2.0" in code.content
 
     # Headers should be at the very beginning

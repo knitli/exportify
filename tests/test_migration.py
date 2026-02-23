@@ -74,16 +74,14 @@ class TestRuleMigrator:
         assert rule.member_type == MemberType.CLASS
 
     def test_extracts_module_exceptions(self):
-        """Test extraction of module overrides."""
+        """Test extraction of module overrides — EXCEPTION_MODULES is empty in standalone package."""
         migrator = RuleMigrator()
         migrator._extract_module_exceptions()
 
-        # Should have some overrides
-        assert len(migrator.overrides_include) > 0
-
-        # Check specific known override
-        assert "codeweaver.core.utils" in migrator.overrides_include
-        assert "LazyImport" in migrator.overrides_include["codeweaver.core.utils"]
+        # EXCEPTION_MODULES is empty in the standalone exportify package (no CodeWeaver-specific
+        # exceptions), so overrides_include should be empty after extraction
+        assert isinstance(migrator.overrides_include, dict)
+        assert len(migrator.overrides_include) == 0
 
     def test_generates_valid_yaml_structure(self):
         """Test YAML generation structure."""

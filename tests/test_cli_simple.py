@@ -16,7 +16,7 @@ def test_cli_imports():
     from exportify.cli import app
 
     assert app is not None
-    assert "lazy-imports" in app.name or app.name == ("lazy-imports",)
+    assert "exportify" in app.name or app.name == ("exportify",)
     print("✓ CLI app imported")
 
     # Test types
@@ -79,7 +79,7 @@ def test_component_initialization():
 
 def test_validation_placeholder():
     """Test that validator returns expected structure."""
-    print("\\nTesting validator behavior...")
+    print("\nTesting validator behavior...")
 
     from pathlib import Path
 

@@ -238,14 +238,23 @@ class CodeGenerator:
         Returns:
             Preserved code section (empty string if nothing to preserve)
         """
+        # Files without the sentinel have never been managed — preserve all content
+        # (including comments, which AST parsing would drop). Strip the
+        # from __future__ import annotations line since the managed section
+        # always provides it, to avoid duplication.
+        if SENTINEL not in existing:
+            lines = [
+                line
+                for line in existing.splitlines()
+                if line.strip() != "from __future__ import annotations"
+            ]
+            return "\n".join(lines).rstrip()
+
         try:
-            # Use AST-based parsing to extract preserved sections
-            parsed = self.section_parser.parse_file_content(existing)
+            # Use AST-based parsing to extract preserved sections above the sentinel
+            parsed = self.section_parser.parse_content(existing)
         except Exception:
-            # Fallback to simple sentinel split if AST parsing fails
-            # This handles edge cases like syntax errors in existing files
-            if SENTINEL not in existing:
-                return existing.rstrip()
+            # Fallback: split on sentinel directly
             return existing.split(SENTINEL)[0].rstrip()
         else:
             return parsed.preserved_code
@@ -261,7 +270,7 @@ class CodeGenerator:
             "from typing import TYPE_CHECKING",
             "from types import MappingProxyType",
             "",
-            "from codeweaver.core.utils.lazy_importer import create_lazy_getattr",
+            "from lateimport import create_lazy_getattr",
             "",
             "if TYPE_CHECKING:",
         ]

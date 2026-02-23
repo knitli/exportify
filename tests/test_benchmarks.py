@@ -37,7 +37,7 @@ class TestPerformanceBenchmarks:
             SymbolProvenance,
         )
         from exportify.export_manager.graph import PropagationGraph
-        from tools.tests.exportify.conftest import create_test_modules
+        from .conftest import create_test_modules
 
         # Create 500 test modules
         modules_dir = tmp_path / "test_package"
@@ -57,6 +57,7 @@ class TestPerformanceBenchmarks:
         graph.add_module("test_package", None)
 
         # Simulate processing all modules
+# sourcery skip: no-loop-in-tests
         for i, _module_file in enumerate(modules):
             # Register module
             graph.add_module(f"test_package.module_{i}", "test_package")
@@ -106,12 +107,14 @@ class TestPerformanceBenchmarks:
 
         # Create 100 test files
         files = []
+# sourcery skip: no-loop-in-tests
         for i in range(100):
             file = tmp_path / f"module{i}.py"
             file.write_text(f"class Class{i}: pass")
             files.append(file)
 
         # First run - populate cache
+# sourcery skip: no-loop-in-tests
         for i, file in enumerate(files):
             exports = [
                 DetectedSymbol(
@@ -139,6 +142,7 @@ class TestPerformanceBenchmarks:
         cache_hits = 0
         cache_misses = 0
 
+# sourcery skip: no-loop-in-tests
         for i, file in enumerate(files):
             cached = cache.get(file, f"hash{i}")
             if cached is not None:
@@ -167,6 +171,7 @@ class TestPerformanceBenchmarks:
 
         # Create many files and cache them
         files = []
+# sourcery skip: no-loop-in-tests
         for i in range(100):
             file = tmp_path / f"module{i}.py"
             file.write_text(f"class Class{i}: pass")
@@ -239,7 +244,7 @@ class TestPerformanceBenchmarks:
             SymbolProvenance,
         )
         from exportify.export_manager.graph import PropagationGraph
-        from tools.tests.exportify.conftest import create_test_modules
+        from .conftest import create_test_modules
 
         # Start memory tracking
         tracemalloc.start()
@@ -259,6 +264,7 @@ class TestPerformanceBenchmarks:
         graph.add_module("large_package", None)
 
         # Process all modules
+# sourcery skip: no-loop-in-tests
         for i, _module_file in enumerate(modules):
             # Register module
             graph.add_module(f"large_package.module_{i}", "large_package")
@@ -360,11 +366,12 @@ class TestScalability:
             SymbolProvenance,
         )
         from exportify.export_manager.graph import PropagationGraph
-        from tools.tests.exportify.conftest import create_test_modules
+        from .conftest import create_test_modules
 
         module_counts = [50, 100, 200]
         durations = []
 
+# sourcery skip: no-loop-in-tests
         for count in module_counts:
             modules_dir = tmp_path / f"package_{count}"
             modules_dir.mkdir()
@@ -429,6 +436,7 @@ class TestScalability:
         cache = JSONAnalysisCache(cache_dir=temp_cache_dir)
 
         # Test with increasing file counts
+# sourcery skip: no-loop-in-tests
         for count in [50, 100, 200]:
             files = []
             for i in range(count):
@@ -510,6 +518,7 @@ class TestConcurrency:
         )
 
         # Multiple operations in sequence (simulating concurrent access)
+# sourcery skip: no-loop-in-tests
         for _ in range(10):
             cache.put(Path("test.py"), "hash123", analysis)
 

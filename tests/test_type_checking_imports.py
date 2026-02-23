@@ -13,22 +13,26 @@ Verifies that:
 
 from __future__ import annotations
 
-import tempfile
-
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
 
 from exportify.analysis.ast_parser import ASTParser
-from exportify.common.types import PropagationLevel, Rule, RuleAction, RuleMatchCriteria
+from exportify.common.types import (
+    ExportManifest,
+    LazyExport,
+    PropagationLevel,
+    Rule,
+    RuleAction,
+    RuleMatchCriteria,
+)
 from exportify.export_manager.generator import CodeGenerator
-from exportify.export_manager.graph import PropagationGraph
 from exportify.export_manager.rules import RuleEngine
 
 
 if TYPE_CHECKING:
-    from exportify.common.types import AnalysisResult, ExportManifest
+    from exportify.common.types import AnalysisResult
 
 
 @pytest.fixture
@@ -191,88 +195,54 @@ class MyClass:
 
 
 class TestGeneratedDynamicImports:
-    """Test _dynamic_imports dict generation."""
+    """Test _dynamic_imports dict generation in CodeGenerator."""
 
-    @pytest.mark.skip(reason="_dynamic_imports generation not yet implemented")
-    def test_dynamic_imports_only_type_checking(self, temp_file: Path, rule_engine: RuleEngine):
-        """_dynamic_imports should only contain TYPE_CHECKING imports."""
-        temp_file.write_text("""
-import sys
-from pathlib import Path
-from typing import TYPE_CHECKING
+    def test_dynamic_imports_contains_lazy_exports(self, tmp_path: Path):
+        """_dynamic_imports should contain entries for each runtime export."""
+        exports = [
+            LazyExport(
+                public_name="MyClass",
+                target_module="mypackage.core",
+                target_object="MyClass",
+                is_type_only=False,
+            ),
+            LazyExport(
+                public_name="helper",
+                target_module="mypackage.utils",
+                target_object="helper",
+                is_type_only=False,
+            ),
+        ]
+        manifest = ExportManifest(
+            module_path="mypackage",
+            own_exports=exports,
+            propagated_exports=[],
+            all_exports=exports,
+        )
 
-if TYPE_CHECKING:
-    from typing import Any
-    from .models import User
+        generator = CodeGenerator(tmp_path)
+        code = generator.generate(manifest)
 
-class MyClass:
-    pass
-""")
+        # _dynamic_imports should be a MappingProxyType with entries
+        assert "_dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({" in code.content
+        assert '"MyClass": (__spec__.parent, "core")' in code.content
+        assert '"helper": (__spec__.parent, "utils")' in code.content
 
-        # Parse and generate code
-        parser = ASTParser()
-        result = parser.parse_file(temp_file, "mymodule")
+    def test_dynamic_imports_empty_when_no_exports(self, tmp_path: Path):
+        """_dynamic_imports should be an empty MappingProxyType when manifest has no exports."""
+        manifest = ExportManifest(
+            module_path="mypackage",
+            own_exports=[],
+            propagated_exports=[],
+            all_exports=[],
+        )
 
-        # Build propagation graph
-        graph = PropagationGraph(rule_engine)
-        graph.add_module("mymodule", None)
-        for export in result.exports:
-            graph.add_export(export)
+        generator = CodeGenerator(tmp_path)
+        code = generator.generate(manifest)
 
-        manifests = graph.build_manifests()
-        manifest: ExportManifest = manifests["mymodule"]
-
-        # Generate code
-        with tempfile.TemporaryDirectory() as tmpdir:
-            generator = CodeGenerator(Path(tmpdir))
-            code = generator.generate(manifest)
-
-            # Verify _dynamic_imports dict
-            assert "_dynamic_imports = {" in code.content
-
-            # Should contain User from TYPE_CHECKING
-            assert '"User": ("mymodule.models", "User")' in code.content
-
-            # Should NOT contain sys or Path (regular imports)
-            assert (
-                '"sys"' not in code.content
-                or "_dynamic_imports" not in code.content.split('"sys"')[1].split("\n")[0]
-            )
-            assert (
-                '"Path"' not in code.content
-                or "_dynamic_imports" not in code.content.split('"Path"')[1].split("\n")[0]
-            )
-
-    @pytest.mark.skip(reason="_dynamic_imports generation not yet implemented")
-    def test_empty_dynamic_imports_if_no_type_checking(
-        self, temp_file: Path, rule_engine: RuleEngine
-    ):
-        """_dynamic_imports should be empty if no TYPE_CHECKING imports."""
-        temp_file.write_text("""
-import sys
-from pathlib import Path
-
-class MyClass:
-    pass
-""")
-
-        parser = ASTParser()
-        result = parser.parse_file(temp_file, "mymodule")
-
-        graph = PropagationGraph(rule_engine)
-        graph.add_module("mymodule", None)
-        for export in result.exports:
-            graph.add_export(export)
-
-        manifests = graph.build_manifests()
-        manifest = manifests["mymodule"]
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            generator = CodeGenerator(Path(tmpdir))
-            code = generator.generate(manifest)
-
-            # _dynamic_imports should be empty
-            assert "_dynamic_imports = {}" in code.content
+        # _dynamic_imports should be present but empty
+        assert "_dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({" in code.content
+        assert "__all__ = ()" in code.content
 
 
 class TestRegularImportsInAll:

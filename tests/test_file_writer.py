@@ -116,7 +116,8 @@ class TestFileWriter:
     def test_restore_backup(self, writer, temp_dir):
         """Test backup restoration."""
         target = temp_dir / "test.py"
-        backup_path = target.with_suffix(".py.bak")
+        # Use the timestamped backup format: <stem>.py.backup.<timestamp>
+        backup_path = temp_dir / "test.py.backup.20260222-120000"
 
         backup_content = "# Backup content\n__all__ = []\n"
         backup_path.write_text(backup_content)
@@ -164,9 +165,7 @@ class TestFileWriter:
         """Test custom validation function."""
 
         def strict_validator(content: str) -> list[str]:
-            if "forbidden" in content:
-                return ["Content contains forbidden keyword"]
-            return []
+            return ["Content contains forbidden keyword"] if "forbidden" in content else []
 
         writer = FileWriter(validator=strict_validator)
         target = temp_dir / "test.py"
@@ -174,6 +173,7 @@ class TestFileWriter:
         # Should fail
         result = writer.write_file(target, "forbidden content")
         assert not result.success
+        assert isinstance(result.error, str)
         assert "forbidden" in result.error.lower()
 
         # Should succeed

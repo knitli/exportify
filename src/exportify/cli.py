@@ -22,7 +22,8 @@ from cyclopts import App, Parameter
 from rich.console import Console
 from rich.panel import Panel
 
-from exportify.common.types import MemberType, RuleAction, RuleEngine
+from exportify.common.types import MemberType, RuleAction
+from exportify.export_manager.rules import RuleEngine
 
 
 logger = logging.getLogger(__name__)
@@ -279,7 +280,7 @@ def validate(
     validator = LazyImportValidator(project_root=project_root, cache=cache)
 
     # Determine files to validate
-    file_paths = _resolve_validation_files(module, json_output)
+    file_paths = _resolve_validation_files(module, json_output=json_output)
 
     # Run validation
     results = validator.validate(file_paths=file_paths)
@@ -711,10 +712,10 @@ def _print_text_output(
     )
     console.print()
 
-    _print_symbols_section(all_symbols, verbose)
-    _print_decisions_section(all_decisions, verbose)
+    _print_symbols_section(all_symbols, verbose=verbose)
+    _print_decisions_section(all_decisions, verbose=verbose)
     _print_generation_section(target_manifest)
-    _print_preserved_code_section(preserved_code, verbose)
+    _print_preserved_code_section(preserved_code, verbose=verbose)
     _print_warnings_section(target_manifest)
     _print_ready_status(target_manifest)
 
@@ -792,7 +793,12 @@ def analyze(
         _print_json_output(module_path, all_symbols, all_decisions, target_manifest, preserved_code)
     else:
         _print_text_output(
-            module_path, all_symbols, all_decisions, target_manifest, preserved_code, verbose
+            module_path,
+            all_symbols,
+            all_decisions,
+            target_manifest,
+            preserved_code,
+            verbose=verbose,
         )
 
     console.print()
@@ -1031,7 +1037,12 @@ def clear_cache() -> None:
     console.print()
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Main entry point for the CLI."""
     app()
+
+
+if __name__ == "__main__":
+    main()
 
 __all__ = ("app",)
