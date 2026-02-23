@@ -498,22 +498,19 @@ class TestIncrementalUpdates:
 
 
 class TestMigrationValidation:
-    """Test migration from old to new system."""
+    """Test init/default config generation."""
 
     @pytest.mark.integration
     def test_migration_produces_equivalent_output(self, tmp_path: Path):
-        """New system should produce same output as old system."""
-        # This test verifies the migration produces valid YAML
+        """Init should produce valid YAML with expected rules."""
         from exportify.migration import migrate_to_yaml
 
         output_path = tmp_path / "rules.yaml"
-        fake_script = tmp_path / "nonexistent.py"
 
-        # Migrate (uses defaults)
-        result = migrate_to_yaml(output_path, old_script=fake_script, dry_run=False)
+        result = migrate_to_yaml(output_path, dry_run=False)
 
         # Should have created files
-        assert result.rules_extracted
+        assert result.rules_generated
         assert output_path.exists()
 
         # YAML should be valid and loadable
@@ -527,20 +524,12 @@ class TestMigrationValidation:
 
     @pytest.mark.integration
     def test_config_migration(self, tmp_path: Path):
-        """Old config should migrate to new format."""
-        # Create old-style config (not currently used by migration)
-        old_config = tmp_path / "exports_config.json"
-        old_config.write_text('{"exports": {"module": ["Class1", "Class2"]}}')
-
-        # Migration uses hardcoded rules, not old config files
-        # This test verifies basic migration works
+        """Init should produce a valid exportify config file."""
         from exportify.migration import migrate_to_yaml
 
         output_path = tmp_path / "rules.yaml"
-        fake_script = tmp_path / "nonexistent.py"
 
-        result = migrate_to_yaml(output_path, old_script=fake_script, dry_run=False)
+        result = migrate_to_yaml(output_path, dry_run=False)
 
-        # Should produce valid output
-        assert result.rules_extracted
+        assert result.rules_generated
         assert output_path.exists()

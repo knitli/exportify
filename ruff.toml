@@ -151,28 +151,12 @@ exclude = [
   "setuptools/_distutils",
   "setuptools/config/_validate_pyproject",
   "typings",
-  "tests/fixtures/malformed.py",
 ]
 
 [lint.pydocstyle]
 convention = "google"
 
 [lint.per-file-ignores]
-# Ignore specific rules for certain files
-"**/validation/**/*.py" = [
-  "S110",  # try-except-pass
-  "TRY301",  # abstract raise to an inner function
-  "S101",  # allow assert
-  "SLF001",  # Private member accessed
-  "D100",  # missing docstring in public module
-  "D102",  # missing docstring in public class
-  "D103",  # missing docstring in public function
-  "D104",  # missing docstring in public method
-  "D105",  # missing docstring in magic method
-  "D107",  # missing docstring in __init__
-  "G004",  # f-string in logging statement
-  "N806",  # incorrect case for function name
-]
 "tests/*.py" = [
   "ANN",
   "C901",  # too complex
@@ -210,72 +194,8 @@ convention = "google"
   "N806",  # incorrect case for function name
   "S108",  # Probable insecure usage of temporary file or directory
 ]
-"src/codeweaver/testing/**/*.py" = [
-  "ANN",
-  "C901",  # too complex
-  "D",
-  "DTZ",
-  "FBT001",  # boolean typed positional argument
-  "G004",  # f-string in logging statement
-  "N806",  # incorrect case for function name
-  "PTH",
-  "S",
-  "SIM",
-  "SLF001",  # Private member accessed
-]
-#! The wall of shame for complex files that need to be gradually improved
-# CLI commands are complex by nature due to argument parsing and validation
-"src/codeweaver/cli/commands/*.py" = [
-  "C901",  # too complex - CLI commands have inherent complexity
-]
-# Registry and provider management have complex configuration logic
-"src/codeweaver/common/registry/provider.py" = [
-  "C901",  # too complex - provider instantiation has complex branching
-]
-"src/codeweaver/common/statistics.py" = [
-  "C901",  # too complex - statistics updates have complex conditional logic
-]
-# Core metadata determination has many edge cases
-"src/codeweaver/core/metadata.py" = [
-  "C901",  # too complex - file extension detection has many cases
-]
-# Engine components have complex orchestration logic
-"src/codeweaver/engine/chunker/parallel.py" = [
-  "C901",  # too complex - parallel processing has complex error handling
-]
-"src/codeweaver/engine/failover.py" = [
-  "C901",  # too complex - failover logic has many edge cases
-]
-"src/codeweaver/engine/services/indexing_service.py" = [
-  "C901",  # too complex - indexing orchestration is inherently complex
-]
-"src/codeweaver/engine/resource_estimation.py" = [
-  "C901",  # too complex - file counting has many edge cases and depth handling
-]
-# Server components have complex lifecycle and health check logic
-"src/codeweaver/server/health_service.py" = [
-  "C901",  # too complex - health checks have many conditions
-]
-"src/codeweaver/server/server.py" = [
-  "C901",  # too complex - server lifecycle has complex orchestration
-]
-"src/codeweaver/engine/chunker/base.py" = [
-  "C901",  # too complex - `from_backup_profile` has complex branching
-]
-"src/codeweaver/providers/vector_stores/inmemory.py" = [
-  "C901",  # too complex - vector store initialization has many conditions
-]
-"tools/tests/**/*.py" = [
-  "ANN201",  # missing type annotation for self in method
-  "ANN002",
-  "S101",
-  "S108"
-]
-"tools/**/tests/**/*.py" = [
-  "ANN201",  # missing type annotation for self in method
-  "ANN002",
-  "S101",
-  "S108"
+"src/exportify/__init__.py" = [
+  "S603",  # This code only executes in development when _version.py is not present, and is safe because it does not use user input in the subprocess call.
 ]
 
 [lint.isort]

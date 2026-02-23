@@ -5,9 +5,48 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 """Lazy import system tools and CLI."""
 
-if __name__ == "__main__":
-    from exportify.cli import main
+from exportify.cli import main
 
+
+def get_version() -> str:
+    """Get the current version of Exportify.
+
+    Because our version is dynamically generated during build/release, we try several methods to get it. If you downloaded Exportify from PyPi, then the first will work, or the second if the file didn't get generated for some reason. If you're running from source, we try to get the version from git tags. If all else fails, we return "0.0.0".
+    """
+    try:
+        from exportify._version import __version__
+    except ImportError:
+        try:
+            import importlib.metadata
+
+            __version__ = importlib.metadata.version("exportify")
+        except importlib.metadata.PackageNotFoundError:
+            try:
+                import shutil
+                import subprocess
+
+                # Try to get version from git if available
+                # Git commands work from any directory within a repo, so no need to specify cwd
+                # The subprocess call is safe because we use the system to find the executable, not user input
+                if git := shutil.which("git"):
+                    git_describe = subprocess.run(
+                        [git, "describe", "--tags", "--always", "--dirty"],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    if git_describe.returncode == 0:
+                        __version__ = git_describe.stdout.strip()
+                    else:
+                        __version__ = "0.0.0"
+                else:
+                    __version__ = "0.0.0"
+            except Exception:
+                __version__ = "0.0.0"
+    return __version__
+
+
+if __name__ == "__main__":
     main()
 
-__all__ = ()
+__all__ = ("get_version", "main")

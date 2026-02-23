@@ -15,6 +15,7 @@ authors = [
 ]
 keywords = [
   "__all__",
+  "__init__",
   "code-generation",
   "exports",
   "lazy-imports",
@@ -161,6 +162,15 @@ unresolved-import = "warn"  # Downgrade to warn for optional dependencies
 include = ["./src", "./tests", "./scripts", "./mise-tasks", "./packages"]
 # Exclude vendored code, typings, and intentionally malformed test fixtures
 exclude = ["./typings", "./tests/**/malformed.py", "./vendored"]
+
+[[tool.ty.overrides]]
+include = ["./src/exportify/__init__.py"]
+
+[tool.ty.overrides.rules]
+# Our version resolution strategy dynamically determines the version, but only during development.
+# If the _version.py is present, ty raises `invalid-assignment` because _version.py marks __version__ as a Final[str] but the value is assigned dynamically.
+# For release builds, _version.py will always exist, so it's static and compliant with the Final[str] declaration. During development, we accept that __version__ is dynamic and ignore the invalid-assignment error.
+invalid-assignment = "ignore"
 
 [tool.uv]
 package = true

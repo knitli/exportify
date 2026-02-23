@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
-"""Tests for lazy import migration tool."""
+"""Tests for exportify default configuration generation (exportify init)."""
 
 # sourcery skip: require-return-annotation, require-parameter-annotation, no-relative-imports, avoid-loops-in-tests
 from __future__ import annotations
@@ -18,25 +18,23 @@ from exportify.migration import RuleMigrator, verify_migration
 
 
 class TestRuleMigrator:
-    """Test the rule migration system."""
+    """Test the default configuration generator."""
 
     def test_migrate_creates_valid_yaml(self, tmp_path: Path):
-        """Test that migration creates valid YAML."""
+        """Test that generation creates valid YAML."""
         migrator = RuleMigrator()
         result = migrator.migrate()
 
-        # Should succeed even if old script not found (uses defaults)
         assert result.success or result.errors  # Either works or has errors
 
         if result.success:
-            # YAML should be parseable
             parsed = yaml.safe_load(result.yaml_content)
             assert "schema_version" in parsed
             assert "rules" in parsed
             assert len(parsed["rules"]) > 0
 
     def test_extracts_private_exclusion_rule(self):
-        """Test extraction of private member exclusion."""
+        """Test generation of private member exclusion rule."""
         migrator = RuleMigrator()
         migrator._extract_private_exclusion_rule()
 
@@ -48,7 +46,7 @@ class TestRuleMigrator:
         assert rule.pattern == r"^_.*"
 
     def test_extracts_constant_detection_rule(self):
-        """Test extraction of constant detection."""
+        """Test generation of constant detection rule."""
         migrator = RuleMigrator()
         migrator._extract_constant_detection_rule()
 
@@ -61,7 +59,7 @@ class TestRuleMigrator:
         assert rule.member_type == MemberType.CONSTANT
 
     def test_extracts_exception_propagation_rule(self):
-        """Test extraction of exception propagation."""
+        """Test generation of exception propagation rule."""
         migrator = RuleMigrator()
         migrator._extract_exception_propagation_rule()
 
@@ -74,30 +72,26 @@ class TestRuleMigrator:
         assert rule.member_type == MemberType.CLASS
 
     def test_extracts_module_exceptions(self):
-        """Test extraction of module overrides — EXCEPTION_MODULES is empty in standalone package."""
+        """Test module overrides placeholder — empty by default."""
         migrator = RuleMigrator()
         migrator._extract_module_exceptions()
 
-        # EXCEPTION_MODULES is empty in the standalone exportify package (no CodeWeaver-specific
-        # exceptions), so overrides_include should be empty after extraction
         assert isinstance(migrator.overrides_include, dict)
         assert len(migrator.overrides_include) == 0
 
     def test_generates_valid_yaml_structure(self):
         """Test YAML generation structure."""
         migrator = RuleMigrator()
-        migrator._extract_hardcoded_rules(Path("fake"))  # Uses defaults
+        migrator._extract_default_rules()
         yaml_content = migrator._generate_yaml()
 
         parsed = yaml.safe_load(yaml_content)
 
-        # Check structure
         assert parsed["schema_version"] == "1.0"
         assert "metadata" in parsed
         assert "rules" in parsed
         assert len(parsed["rules"]) > 0
 
-        # Check first rule structure
         rule = parsed["rules"][0]
         assert "name" in rule
         assert "priority" in rule
@@ -106,41 +100,37 @@ class TestRuleMigrator:
         assert "action" in rule
 
     def test_rule_priority_ordering(self):
-        """Test rules are ordered by priority in generated YAML."""
+        """Test rules are ordered by priority (descending) in generated YAML."""
         migrator = RuleMigrator()
-        migrator._extract_hardcoded_rules(Path("fake"))
+        migrator._extract_default_rules()
         yaml_content = migrator._generate_yaml()
 
-        import yaml
+        import yaml as _yaml
 
-        parsed = yaml.safe_load(yaml_content)
+        parsed = _yaml.safe_load(yaml_content)
         priorities = [r["priority"] for r in parsed["rules"]]
 
-        # Should be in descending order
         assert priorities == sorted(priorities, reverse=True)
 
-    def test_generates_equivalence_report(self):
-        """Test equivalence report generation."""
+    def test_generates_summary(self):
+        """Test configuration summary generation."""
         migrator = RuleMigrator()
-        migrator._extract_hardcoded_rules(Path("fake"))
-        report = migrator._generate_equivalence_report()
+        migrator._extract_default_rules()
+        summary = migrator._generate_summary()
 
-        # Should contain key sections
-        assert "# Migration Equivalence Report" in report
-        assert "## Rule Conversions" in report
-        assert "## Validation Notes" in report
+        assert "# Exportify Configuration Summary" in summary
+        assert "## Rules" in summary
+        assert "## Priority Bands" in summary
 
-        # Should list rules
         for rule in migrator.rules:
-            assert rule.name in report
+            assert rule.name in summary
 
 
 class TestMigrationVerification:
-    """Test migration verification."""
+    """Test configuration verification."""
 
     def test_verify_private_exclusion(self, tmp_path: Path):
         """Test verification of private member exclusion."""
-        # Create a minimal YAML config
         yaml_content = """
 schema_version: "1.0"
 rules:
@@ -154,7 +144,6 @@ rules:
         yaml_path = tmp_path / "rules.yaml"
         yaml_path.write_text(yaml_content)
 
-        # Verify
         test_cases = [
             ("_private", "test.module", MemberType.FUNCTION),
             ("__dunder__", "test.module", MemberType.FUNCTION),
@@ -213,53 +202,41 @@ rules:
         assert success, f"Verification failed: {errors}"
 
 
-class TestEndToEndMigration:
-    """Test complete migration workflow."""
+class TestEndToEndInit:
+    """Test complete init workflow."""
 
-    def test_full_migration_workflow(self, tmp_path: Path):
-        """Test complete migration from extraction to verification."""
+    def test_full_init_workflow(self, tmp_path: Path):
+        """Test complete generation from defaults to verification."""
         from exportify.migration import migrate_to_yaml
 
-        output_path = tmp_path / "lazy_import_rules.yaml"
+        output_path = tmp_path / "exportify.yaml"
 
-        # Use a path that doesn't exist - migration should use defaults
-        fake_script = tmp_path / "nonexistent.py"
+        result = migrate_to_yaml(output_path, dry_run=True)
 
-        # Perform migration with fake script (uses defaults)
-        result = migrate_to_yaml(output_path, old_script=fake_script, dry_run=True)
-
-        # Migration should succeed with defaults even if script not found
-        # (It uses hardcoded default rules)
-        assert result.rules_extracted
+        assert result.rules_generated
         assert result.yaml_content
-        assert result.equivalence_report
+        assert result.summary
 
-        # Should have key rules (from defaults)
-        rule_names = {r.name for r in result.rules_extracted}
+        rule_names = {r.name for r in result.rules_generated}
         assert "exclude-private-members" in rule_names
         assert "include-constants" in rule_names
         assert "propagate-exceptions" in rule_names
 
-        # Verify YAML is valid
         parsed = yaml.safe_load(result.yaml_content)
         assert parsed["schema_version"] == "1.0"
         assert len(parsed["rules"]) > 0
 
-    def test_migration_with_write(self, tmp_path: Path):
-        """Test migration with file write."""
+    def test_init_with_write(self, tmp_path: Path):
+        """Test init writes the config file."""
         from exportify.migration import migrate_to_yaml
 
-        output_path = tmp_path / "lazy_import_rules.yaml"
+        output_path = tmp_path / "exportify.yaml"
 
-        # Perform migration
         result = migrate_to_yaml(output_path, dry_run=False)
 
         if result.success:
-            # Files should exist
             assert output_path.exists()
-            assert output_path.with_suffix(".migration.md").exists()
 
-            # Content should be valid
             content = output_path.read_text()
             parsed = yaml.safe_load(content)
             assert "rules" in parsed

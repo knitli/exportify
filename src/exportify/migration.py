@@ -3,26 +3,23 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
 # sourcery skip: no-relative-imports
-#!/usr/bin/env python3
-"""Migration tool to convert old hardcoded validation to new YAML-based rules.
+"""Default configuration generator for exportify.
 
-This module analyzes the legacy validate-lazy-imports.py script and generates
-equivalent YAML configuration that preserves all existing behavior.
+This module generates a starter `.exportify.yaml` with sensible default rules,
+suitable for most Python packages.
 
 Workflow:
-    1. Extract rules from hardcoded if/else logic
-    2. Convert to YAML rule definitions
-    3. Extract module-specific overrides
-    4. Generate migration report showing conversions
-    5. Validate equivalence between old and new systems
+    1. Build a default rule set (private exclusion, public members, exceptions, etc.)
+    2. Serialise to YAML
+    3. Optionally write to disk
+    4. Validate the generated config
 
 Usage:
-    exportify migrate [--output PATH] [--dry-run]
+    exportify init [--output PATH] [--dry-run]
 """
 
 from __future__ import annotations
 
-import ast
 import re
 
 from dataclasses import dataclass
@@ -34,18 +31,13 @@ import yaml
 from exportify.common.types import MemberType, PropagationLevel, RuleAction
 
 
-# Constants from old system
-OLD_SCRIPT = Path("mise-tasks/validate-lazy-imports.py")
-DEFAULT_OUTPUT = Path(".codeweaver/lazy_import_rules.yaml")
+DEFAULT_OUTPUT = Path.cwd() / ".exportify" / "config.yaml"
 SCHEMA_VERSION = "1.0"
-
-# Known exception patterns in old system
-EXCEPTION_MODULES = []
 
 
 @dataclass
 class ExtractedRule:
-    """A rule extracted from the old system."""
+    """A rule that will appear in the generated configuration."""
 
     name: str
     priority: int
@@ -60,85 +52,52 @@ class ExtractedRule:
 
 @dataclass
 class MigrationResult:
-    """Result of migration process."""
+    """Result of the configuration-generation process."""
 
     yaml_content: str
-    rules_extracted: list[ExtractedRule]
-    overrides_extracted: dict[str, dict[str, list[str]]]
-    equivalence_report: str
+    rules_generated: list[ExtractedRule]
+    overrides_generated: dict[str, dict[str, list[str]]]
+    summary: str
     success: bool
     errors: list[str]
 
 
 class RuleMigrator:
-    """Migrator to convert old hardcoded system to YAML rules."""
+    """Generates a default exportify YAML configuration."""
 
     def __init__(self) -> None:
-        """Initialize migrator with empty state."""
+        """Initialise with empty state."""
         self.rules: list[ExtractedRule] = []
         self.overrides_include: dict[str, list[str]] = {}
         self.overrides_exclude: dict[str, list[str]] = {}
         self.errors: list[str] = []
 
-    def migrate(self, old_script: Path = OLD_SCRIPT) -> MigrationResult:
-        """Perform complete migration from old to new system.
-
-        Args:
-            old_script: Path to old validation script
+    def migrate(self) -> MigrationResult:
+        """Generate a default exportify configuration.
 
         Returns:
-            MigrationResult with YAML content and migration details
+            MigrationResult with YAML content and generation details.
         """
-        # Note: If script doesn't exist, we use default rules (no error)
-        # This is intentional - the migration can extract hardcoded rules
-        # without needing the actual old script file
-
-        # Extract rules from old system (uses defaults if script doesn't exist)
-        self._extract_hardcoded_rules(old_script)
-
-        # Extract module exceptions
+        self._extract_default_rules()
         self._extract_module_exceptions()
 
-        # Generate YAML configuration
         yaml_content = self._generate_yaml()
-
-        # Create equivalence report
-        report = self._generate_equivalence_report()
+        summary = self._generate_summary()
 
         return MigrationResult(
             yaml_content=yaml_content,
-            rules_extracted=self.rules,
-            overrides_extracted={
+            rules_generated=self.rules,
+            overrides_generated={
                 "include": self.overrides_include,
                 "exclude": self.overrides_exclude,
             },
-            equivalence_report=report,
+            summary=summary,
             success=len(self.errors) == 0,
             errors=self.errors,
         )
 
-    def _extract_hardcoded_rules(self, script_path: Path) -> None:
-        """Extract rules from hardcoded logic in old script.
-
-        The old script contains hardcoded patterns for:
-        - Private member exclusion (starts with _)
-        - Exception/Error class propagation
-        - Type alias handling
-        - Constant detection (SCREAMING_SNAKE_CASE)
-        - Special module patterns
-
-        If the script doesn't exist or can't be parsed, still extracts default rules.
-        """
-        # Read and parse the old script if it exists
-        if script_path.exists():
-            try:
-                source = script_path.read_text(encoding="utf-8")
-                ast.parse(source)
-            except Exception as e:
-                self.errors.append(f"Failed to parse old script: {e}")
-                # Continue with default rules even if parsing fails
-
-        # Extract default rules (these are the known patterns from the old system)
+    def _extract_default_rules(self) -> None:
+        """Build the default set of exportify rules."""
         self._extract_private_exclusion_rule()
         self._extract_constant_detection_rule()
         self._extract_exception_propagation_rule()
@@ -146,7 +105,7 @@ class RuleMigrator:
         self._extract_function_class_inclusion_rule()
 
     def _extract_private_exclusion_rule(self) -> None:
-        """Extract the private member exclusion pattern."""
+        """Exclude private members (starting with underscore)."""
         self.rules.append(
             ExtractedRule(
                 name="exclude-private-members",
@@ -162,7 +121,7 @@ class RuleMigrator:
         )
 
     def _extract_constant_detection_rule(self) -> None:
-        """Extract constant detection pattern (SCREAMING_SNAKE_CASE)."""
+        """Include module-level constants (SCREAMING_SNAKE_CASE)."""
         self.rules.append(
             ExtractedRule(
                 name="include-constants",
@@ -178,7 +137,7 @@ class RuleMigrator:
         )
 
     def _extract_exception_propagation_rule(self) -> None:
-        """Extract exception class propagation pattern."""
+        """Propagate exception classes to the root package."""
         self.rules.append(
             ExtractedRule(
                 name="propagate-exceptions",
@@ -194,7 +153,7 @@ class RuleMigrator:
         )
 
     def _extract_type_alias_rule(self) -> None:
-        """Extract type alias handling pattern."""
+        """Include type aliases."""
         self.rules.append(
             ExtractedRule(
                 name="include-type-aliases",
@@ -210,8 +169,7 @@ class RuleMigrator:
         )
 
     def _extract_function_class_inclusion_rule(self) -> None:
-        """Extract default inclusion for public functions and classes."""
-        # Public functions
+        """Include public functions and classes."""
         self.rules.append(
             ExtractedRule(
                 name="include-public-functions",
@@ -226,7 +184,6 @@ class RuleMigrator:
             )
         )
 
-        # Public classes
         self.rules.append(
             ExtractedRule(
                 name="include-public-classes",
@@ -242,41 +199,21 @@ class RuleMigrator:
         )
 
     def _extract_module_exceptions(self) -> None:
-        """Extract module-specific exceptions from IS_EXCEPTION list."""
-        # Parse module paths and convert to overrides
-        for full_path in EXCEPTION_MODULES:
-            # Split module.name format
-            parts = full_path.rsplit(".", 1)
-            if len(parts) == 2:
-                module, name = parts
-                if module not in self.overrides_include:
-                    self.overrides_include[module] = []
-                self.overrides_include[module].append(name)
-            else:
-                # Whole module exception (rare)
-                self.overrides_include[full_path] = ["*"]
+        """Placeholder for per-module overrides. Override to add custom entries."""
 
     def _generate_yaml(self) -> str:
-        """Generate YAML configuration from extracted rules.
-
-        Returns:
-            YAML string with schema, rules, and overrides
-        """
-        # Sort rules by priority (descending)
+        """Serialise rules to a YAML configuration string."""
         sorted_rules = sorted(self.rules, key=lambda r: (-r.priority, r.name))
 
-        # Build YAML structure
         yaml_data: dict[str, Any] = {
             "schema_version": SCHEMA_VERSION,
             "metadata": {
-                "generated_by": "migration tool",
-                "source": str(OLD_SCRIPT),
-                "note": "Auto-generated from legacy validation script",
+                "generated_by": "exportify init",
+                "note": "Default configuration — edit rules to suit your project",
             },
             "rules": [],
         }
 
-        # Add rules
         for rule in sorted_rules:
             rule_mapping: dict[str, Any] = {
                 "name": rule.name,
@@ -286,21 +223,17 @@ class RuleMigrator:
                 "action": rule.action.value,
             }
 
-            # Add match criteria
             if rule.pattern:
                 rule_mapping["match"]["name_pattern"] = rule.pattern
             if rule.exact_match:
                 rule_mapping["match"]["name_exact"] = rule.exact_match
             if rule.member_type:
                 rule_mapping["match"]["member_type"] = rule.member_type.value
-
-            # Add propagation if specified
             if rule.propagate:
                 rule_mapping["propagate"] = rule.propagate.value
 
             yaml_data["rules"].append(rule_mapping)
 
-        # Add overrides if any
         if self.overrides_include or self.overrides_exclude:
             yaml_data["overrides"] = {}
         if self.overrides_include:
@@ -308,135 +241,89 @@ class RuleMigrator:
         if self.overrides_exclude:
             yaml_data["overrides"]["exclude"] = self.overrides_exclude
 
-        # Generate YAML with comments
-        serialized_yaml = yaml.dump(
+        serialized = yaml.dump(
             yaml_data, sort_keys=False, allow_unicode=True, default_flow_style=False, width=100
         )
 
-        # Add header comment
-        header = f"""# CodeWeaver Lazy Import Rules
-# Auto-generated from legacy validation script
+        header = f"""# Exportify Default Configuration
+# Generated by: exportify init
 #
-# This configuration replaces hardcoded rules with declarative YAML definitions.
-# Rules are evaluated in priority order (highest first).
+# Rules are evaluated in priority order (highest first); the first match wins.
+# Edit this file to customise export behaviour for your project.
 #
 # Schema: {SCHEMA_VERSION}
-# Source: {OLD_SCRIPT}
+# Docs:   https://github.com/knitli/exportify
 
 """
+        return header + serialized
 
-        return header + serialized_yaml
-
-    def _generate_equivalence_report(self) -> str:
-        """Generate report showing migration equivalence.
-
-        Returns:
-            Markdown report with rule mappings and validation
-        """
-        report_lines = [
-            "# Migration Equivalence Report",
+    def _generate_summary(self) -> str:
+        """Generate a human-readable summary of the generated configuration."""
+        lines = [
+            "# Exportify Configuration Summary",
             "",
-            f"**Source**: `{OLD_SCRIPT}`",
-            f"**Generated Rules**: {len(self.rules)}",
-            f"**Override Modules**: {len(self.overrides_include) + len(self.overrides_exclude)}",
+            f"**Generated rules**: {len(self.rules)}",
+            f"**Override modules**: {len(self.overrides_include) + len(self.overrides_exclude)}",
             "",
-            "## Rule Conversions",
+            "## Rules",
             "",
         ]
 
-        # Sort by priority for report
-        sorted_rules = sorted(self.rules, key=lambda r: (-r.priority, r.name))
-
-        for rule in sorted_rules:
-            self._assemble_report(report_lines, rule)
-        # Overrides section
-        if self.overrides_include or self.overrides_exclude:
-            report_lines.extend(("## Manual Overrides", ""))
-        if self.overrides_include:
-            report_lines.append("### Include Overrides")
-            report_lines.extend(
-                f"- **{module}**: {', '.join(sorted(names))}"
-                for module, names in sorted(self.overrides_include.items())
-            )
-            report_lines.append("")
-
-        if self.overrides_exclude:
-            report_lines.append("### Exclude Overrides")
-            report_lines.extend(
-                f"- **{module}**: {', '.join(sorted(names))}"
-                for module, names in sorted(self.overrides_exclude.items())
-            )
-            report_lines.append("")
-
-        # Validation notes
-        report_lines.extend([
-            "## Validation Notes",
+        for rule in sorted(self.rules, key=lambda r: (-r.priority, r.name)):
+            lines = self._build_rule_details(lines, rule)
+        lines += [
+            "## Priority Bands",
             "",
-            "### Pattern Equivalence",
-            "- Private exclusion: `^_.*` matches old `name.startswith('_')`",
-            "- Constants: `^[A-Z][A-Z0-9_]*$` matches old `name.isupper()`",
-            "- Exceptions: `.*Error$|.*Exception$|.*Warning$` matches old suffix check",
+            "| Priority | Purpose |",
+            "|----------|---------|",
+            "| 1000 | Absolute exclusions (private, dunders) |",
+            "| 900–800 | Infrastructure/framework exclusions |",
+            "| 700 | Primary export rules (classes, functions) |",
+            "| 600–500 | Import handling |",
+            "| 300–400 | Special cases |",
+            "| 0–200 | Defaults/fallbacks |",
             "",
-            "### Priority Assignment",
-            "Rules maintain behavioral equivalence through priority ordering:",
-            "- 900: Private exclusion (must run first)",
-            "- 800: Exception propagation (high priority)",
-            "- 700: Constant detection",
-            "- 650: Type alias handling",
-            "- 500: Default public member inclusion",
-            "",
-            "### Override Handling",
-            f"Converted {len(EXCEPTION_MODULES)} module exceptions to overrides.",
-            "These have implicit priority 9999 (highest).",
-            "",
-        ])
+        ]
 
-        return "\n".join(report_lines)
+        return "\n".join(lines)
 
-    def _assemble_report(self, report_lines: list[str], rule: ExtractedRule) -> None:
-        # sourcery skip: merge-list-appends-into-extend
-        report_lines.append(f"### {rule.name} (priority {rule.priority})")
-        report_lines.append(f"**Description**: {rule.description}")
-        report_lines.append(f"**Action**: `{rule.action.value}`")
-
+    def _build_rule_details(self, lines: list[str], rule: ExtractedRule) -> list[str]:
+        """Append detailed information about a rule to the summary."""
+        lines.extend((
+            f"### {rule.name} (priority {rule.priority})",
+            f"**Description**: {rule.description}",
+            f"**Action**: `{rule.action.value}`",
+        ))
         if rule.pattern:
-            report_lines.append(f"**Pattern**: `{rule.pattern}`")
+            lines.append(f"**Pattern**: `{rule.pattern}`")
         if rule.exact_match:
-            report_lines.append(f"**Exact Match**: `{rule.exact_match}`")
+            lines.append(f"**Exact match**: `{rule.exact_match}`")
         if rule.member_type:
-            report_lines.append(f"**Member Type**: `{rule.member_type.value}`")
+            lines.append(f"**Member type**: `{rule.member_type.value}`")
         if rule.propagate:
-            report_lines.append(f"**Propagation**: `{rule.propagate.value}`")
-
-        report_lines.append("")
+            lines.append(f"**Propagation**: `{rule.propagate.value}`")
+        lines.append("")
+        return lines
 
 
 def migrate_to_yaml(
-    output_path: Path = DEFAULT_OUTPUT, old_script: Path = OLD_SCRIPT, *, dry_run: bool = False
+    output_path: Path = DEFAULT_OUTPUT, *, dry_run: bool = False
 ) -> MigrationResult:
-    """Perform migration and optionally write output.
+    """Generate default exportify configuration and optionally write it.
 
     Args:
-        output_path: Where to write YAML config
-        old_script: Path to old validation script
-        dry_run: If True, don't write files
+        output_path: Destination for the YAML config file.
+        dry_run: If True, generate but do not write any files.
 
     Returns:
-        MigrationResult with YAML content and details
+        MigrationResult with YAML content and generation details.
     """
     migrator = RuleMigrator()
-    result = migrator.migrate(old_script)
+    result = migrator.migrate()
 
     if not dry_run and result.success:
-        # Ensure output directory exists
         output_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Write YAML config
         output_path.write_text(result.yaml_content, encoding="utf-8")
-
-        # Write equivalence report
-        report_path = output_path.with_suffix(".migration.md")
-        report_path.write_text(result.equivalence_report, encoding="utf-8")
 
     return result
 
@@ -473,67 +360,59 @@ def _validate_public_member(name: str, result) -> list[str]:
 
 
 def _is_private(member_name: str) -> bool:
-    """Check if member is private (starts with underscore)."""
+    """Return True if member name starts with an underscore."""
     return member_name.startswith("_")
 
 
 def _is_constant(member_name: str, member_kind: MemberType) -> bool:
-    """Check if member is a constant."""
+    """Return True if member is a SCREAMING_SNAKE_CASE constant."""
     return member_kind == MemberType.CONSTANT and bool(re.match(r"^[A-Z][A-Z0-9_]*$", member_name))
 
 
 def _is_exception_class(member_name: str, member_kind: MemberType) -> bool:
-    """Check if member is an exception class."""
-    return member_kind == MemberType.CLASS and bool(re.match(
-        r".*Error$|.*Exception$|.*Warning$", member_name
-    ))
+    """Return True if member is an exception/error/warning class."""
+    return member_kind == MemberType.CLASS and bool(
+        re.match(r".*Error$|.*Exception$|.*Warning$", member_name)
+    )
 
 
 def verify_migration(
     yaml_path: Path = DEFAULT_OUTPUT, test_cases: list[tuple[str, str, MemberType]] | None = None
 ) -> tuple[bool, list[str]]:
-    """Verify migration produces equivalent behavior.
+    """Verify that a generated config produces the expected behaviour.
 
     Args:
-        yaml_path: Path to generated YAML config
-        test_cases: Test cases (name, module, member_type) to validate
+        yaml_path: Path to the generated YAML config.
+        test_cases: Tuples of (symbol_name, module_path, member_type) to validate.
+            Defaults to a standard set covering common symbol patterns.
 
     Returns:
-        (success, errors) tuple
+        (success, errors) tuple.
     """
     from .export_manager.rules import RuleEngine
 
-    # Load new rule engine
     engine = RuleEngine()
     try:
         engine.load_rules([yaml_path])
     except Exception as e:
         return False, [f"Failed to load rules: {e}"]
 
-    # Default test cases representing old system behavior
     if test_cases is None:
         test_cases = [
-            # Private members should be excluded
-            ("_private_func", "codeweaver.core", MemberType.FUNCTION),
-            ("__dunder__", "codeweaver.core", MemberType.FUNCTION),
-            # Constants should be included
-            ("MAX_SIZE", "codeweaver.config", MemberType.CONSTANT),
-            # Exceptions should be included and propagated
-            ("ValidationError", "codeweaver.exceptions", MemberType.CLASS),
-            ("CustomException", "codeweaver.tools", MemberType.CLASS),
-            # Public functions should be included
-            ("public_function", "codeweaver.utils", MemberType.FUNCTION),
-            # Public classes should be included
-            ("PublicClass", "codeweaver.core", MemberType.CLASS),
+            ("_private_func", "mypackage.core", MemberType.FUNCTION),
+            ("__dunder__", "mypackage.core", MemberType.FUNCTION),
+            ("MAX_SIZE", "mypackage.config", MemberType.CONSTANT),
+            ("ValidationError", "mypackage.exceptions", MemberType.CLASS),
+            ("CustomException", "mypackage.tools", MemberType.CLASS),
+            ("public_function", "mypackage.utils", MemberType.FUNCTION),
+            ("PublicClass", "mypackage.core", MemberType.CLASS),
         ]
 
     errors: list[str] = []
 
-    from .common.types import DetectedSymbol, SourceLocation, SymbolProvenance
+    from exportify.common.types import DetectedSymbol, SourceLocation, SymbolProvenance
 
-    # Test each case
     for name, module, member_type in test_cases:
-        # Create a dummy symbol for evaluation
         symbol = DetectedSymbol(
             name=name,
             member_type=member_type,
@@ -558,36 +437,29 @@ def verify_migration(
     return not errors, errors
 
 
-# CLI integration helpers
-def cli_migrate(output: Path | None = None, *, dry_run: bool = False, verbose: bool = False) -> int:
-    """CLI command for migration.
+def cli_init(output: Path | None = None, *, dry_run: bool = False, verbose: bool = False) -> int:
+    """CLI helper for the init command.
 
     Args:
-        output: Output path for YAML config
-        dry_run: If True, show output but don't write
-        verbose: If True, show detailed output
+        output: Output path for the YAML config.
+        dry_run: If True, show output but don't write.
+        verbose: If True, show the full configuration summary.
 
     Returns:
-        Exit code (0 = success, 1 = failure)
+        Exit code (0 = success, 1 = failure).
     """
     output_path = output or DEFAULT_OUTPUT
 
-    # Perform migration
     result = migrate_to_yaml(output_path, dry_run=dry_run)
 
     if not result.success:
-        print("❌ Migration failed:")
+        print("❌ Init failed:")
         for error in result.errors:
             print(f"  - {error}")
         return 1
 
-    # Show results
-    print("✅ Migration successful!")
-    print(f"   Rules extracted: {len(result.rules_extracted)}")
-    print(
-        f"   Overrides: {len(result.overrides_extracted.get('include', {}))} include, "
-        f"{len(result.overrides_extracted.get('exclude', {}))} exclude"
-    )
+    print("✅ Configuration generated!")
+    print(f"   Rules: {len(result.rules_generated)}")
 
     if dry_run:
         print("\n📄 Generated YAML (dry run - not written):")
@@ -596,17 +468,15 @@ def cli_migrate(output: Path | None = None, *, dry_run: bool = False, verbose: b
         print("─" * 80)
     else:
         print(f"\n📝 Written to: {output_path}")
-        print(f"📄 Report: {output_path.with_suffix('.migration.md')}")
 
     if verbose:
-        print("\n" + result.equivalence_report)
+        print("\n" + result.summary)
 
-    # Verify migration
     if not dry_run:
-        print("\n🔍 Verifying migration...")
+        print("\n🔍 Verifying config...")
         success, errors = verify_migration(output_path)
         if success:
-            print("✅ Verification passed - new rules are equivalent!")
+            print("✅ Verification passed!")
         else:
             print("⚠️ Verification found issues:")
             for error in errors:

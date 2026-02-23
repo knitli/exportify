@@ -1,3 +1,4 @@
+# sourcery skip: avoid-global-variables
 # SPDX-FileCopyrightText: 2025 Knitli Inc.
 # SPDX-FileContributor: Adam Poulemanos <adam@knit.li>
 #
@@ -22,6 +23,7 @@ from cyclopts import App, Parameter
 from rich.console import Console
 from rich.panel import Panel
 
+from exportify.common.config import CONFIG_ENV_VAR, find_config_file
 from exportify.common.types import MemberType, RuleAction
 from exportify.export_manager.rules import RuleEngine
 
@@ -38,6 +40,9 @@ app = App(
 )
 
 console = Console(markup=True)
+
+
+DEFAULT_CONFIG_PATH = Path.cwd() / ".exportify" / "config.yaml"
 
 
 def _print_success(message: str) -> None:
@@ -58,6 +63,63 @@ def _print_warning(message: str) -> None:
 def _print_info(message: str) -> None:
     """Print info message."""
     console.print(f"[cyan]ℹ[/cyan] {message}")  # noqa: RUF001
+
+
+def _detect_source_root() -> Path:
+    """Detect the Python source root for the current project.
+
+    Resolution order:
+    1. ``pyproject.toml`` – common build-backend conventions (Hatch, Setuptools, Flit)
+    2. ``src/`` directory exists → return ``Path("src")``
+    3. Fall back to ``Path(".")`` (project root / flat layout)
+    """
+    import tomllib
+
+    pyproject = Path("pyproject.toml")
+    if pyproject.exists():
+        try:
+            with pyproject.open("rb") as f:
+                data = tomllib.load(f)
+        except Exception:
+            data = {}
+
+        tool = data.get("tool", {})
+
+        # Hatch: [tool.hatch.build.targets.wheel] packages = ["src/mypkg"]
+        hatch_pkgs = (
+            tool.get("hatch", {})
+            .get("build", {})
+            .get("targets", {})
+            .get("wheel", {})
+            .get("packages", [])
+        )
+        if hatch_pkgs:
+            candidate = Path(hatch_pkgs[0]).parent
+            if str(candidate) != "." and candidate.exists():
+                return candidate
+
+        # Setuptools: [tool.setuptools.packages.find] where = ["src"]
+        sf_where = tool.get("setuptools", {}).get("packages", {}).get("find", {}).get("where", [])
+        if sf_where:
+            candidate = Path(sf_where[0])
+            if candidate.exists():
+                return candidate
+
+        # Setuptools: [tool.setuptools.package-dir] "" = "src"
+        pkg_dir_root = tool.get("setuptools", {}).get("package-dir", {}).get("", "")
+        if pkg_dir_root:
+            candidate = Path(pkg_dir_root)
+            if candidate.exists():
+                return candidate
+
+        # Flit / PDM / Poetry – typically flat layout; fall through
+
+    # Conventional src/ layout fallback
+    src = Path("src")
+    if src.exists():
+        return src
+
+    return Path(".")
 
 
 def _print_generation_results(result: ExportGenerationResult) -> None:
@@ -263,7 +325,7 @@ def validate(
         exportify validate
         exportify validate --fix
         exportify validate --strict
-        exportify validate --module src/codeweaver/core
+        exportify validate --module src/mypackage/core
         exportify validate --json
         exportify validate --verbose
     """
@@ -315,7 +377,7 @@ def validate(
 def generate(
     dry_run: Annotated[bool, Parameter(help="Show changes without writing files")] = False,
     module: Annotated[Path | None, Parameter(help="Generate for specific module")] = None,
-    source: Annotated[Path, Parameter(help="Source root directory")] = Path("src"),
+    source: Annotated[Path | None, Parameter(help="Source root directory")] = None,
     output: Annotated[
         Path | None, Parameter(help="Output directory (default: same as source)")
     ] = None,
@@ -330,8 +392,8 @@ def generate(
     Examples:
         exportify generate
         exportify generate --dry-run
-        exportify generate --module src/codeweaver/core
-        exportify generate --source exportify --output /tmp/test
+        exportify generate --module src/mypackage/core
+        exportify generate --source src/mypackage --output /tmp/test
     """
 
     def _raise_system_exit(message: str) -> NoReturn:
@@ -342,16 +404,18 @@ def generate(
     from exportify.export_manager import RuleEngine
     from exportify.pipeline import Pipeline
 
+    source_root = source or _detect_source_root()
+
     _print_info("Generating exports...")
     console.print()
 
     # Load rules
     _print_info("Loading export rules...")
     rules = RuleEngine()
-    rules_path = Path(".codeweaver/lazy_import_rules.yaml")
+    rules_path = find_config_file()
 
-    if not rules_path.exists():
-        _print_warning(f"Rules file not found: {rules_path}")
+    if rules_path is None:
+        _print_warning(f"No config file found (set {CONFIG_ENV_VAR} or create .exportify.yaml)")
         _print_info("Using default rules")
     else:
         rules.load_rules([rules_path])
@@ -361,14 +425,12 @@ def generate(
 
     # Set up cache and output directory
     cache = JSONAnalysisCache()
-    output_dir = output or source
+    output_dir = output or source_root
 
     # Create pipeline
     _print_info("Initializing pipeline...")
     pipeline = Pipeline(rule_engine=rules, cache=cache, output_dir=output_dir)
 
-    # Determine source root
-    source_root = source
     if not source_root.exists():
         _print_error(f"Source directory not found: {source_root}")
         raise SystemExit(1)
@@ -412,16 +474,35 @@ def _analyze_target_path(module: Path | None, source_root: Path) -> tuple[Path, 
 
     Returns: (target_path, target_file, module_path)
     """
-    # Parse target module or package
     if module:
         target_path = module
         if not target_path.exists():
             _print_error(f"Module not found: {target_path}")
             raise SystemExit(1)
     else:
-        target_path = source_root
+        # No module specified — try to auto-detect the package under source_root.
+        # source_root itself (e.g. `src/`) is typically a container, not a package.
+        init_file = source_root / "__init__.py"
+        if init_file.exists():
+            target_path = source_root
+        else:
+            # Scan for immediate sub-directories that are Python packages.
+            packages = sorted(
+                p for p in source_root.iterdir() if p.is_dir() and (p / "__init__.py").exists()
+            )
+            if len(packages) == 1:
+                target_path = packages[0]
+            elif len(packages) > 1:
+                _print_error(
+                    f"Multiple packages found under {source_root}; "
+                    "please specify one with --module:"
+                )
+                for pkg in packages:
+                    _print_info(f"  {pkg}")
+                raise SystemExit(1)
+            else:
+                _analyze_missing_init_and_exit(source_root)
 
-    # For simplicity, analyze a single module for now
     if target_path.is_dir():
         init_file = target_path / "__init__.py"
         if not init_file.exists():
@@ -436,21 +517,10 @@ def _analyze_target_path(module: Path | None, source_root: Path) -> tuple[Path, 
 
 
 def _analyze_missing_init_and_exit(target_path) -> NoReturn:
-    _print_warning(f"No __init__.py found in {target_path}")
-    _print_info("Searching for Python modules...")
-
-    # Find all Python files in directory
-    python_files = list(target_path.rglob("*.py"))
-    if not python_files:
-        _print_error("No Python files found")
-        raise SystemExit(1)
-
-    _print_info(f"Found {len(python_files)} Python files")
-    console.print()
-
-    # For now, just show summary
-    _print_warning("Multi-module analysis not yet fully implemented")
-    _print_info("Please specify a specific module with __init__.py")
+    _print_warning(f"No Python package found in {target_path}")
+    _print_info("Searched for directories containing an __init__.py but found none.")
+    _print_info("Specify a package explicitly with --module, e.g.:")
+    _print_info(f"  exportify analyze --module {target_path}/<package>")
     raise SystemExit(1)
 
 
@@ -723,7 +793,7 @@ def _print_text_output(
 @app.command
 def analyze(
     module: Annotated[Path | None, Parameter(help="Analyze specific module")] = None,
-    source: Annotated[Path, Parameter(help="Source directory to analyze")] = Path("src"),
+    source: Annotated[Path | None, Parameter(help="Source directory to analyze")] = None,
     verbose: Annotated[bool, Parameter(help="Show detailed analysis")] = False,
     format: Annotated[  # noqa: A002
         str, Parameter(help="Output format: text, json")
@@ -740,7 +810,7 @@ def analyze(
 
     Examples:
         exportify analyze
-        exportify analyze --module src/codeweaver/core/types
+        exportify analyze --module src/mypackage/core
         exportify analyze --verbose
         exportify analyze --format json
     """
@@ -753,10 +823,10 @@ def analyze(
     # Load rules
     _print_info("Loading export rules...")
     rules = RuleEngine()
-    rules_path = Path(".codeweaver/lazy_import_rules.yaml")
+    rules_path = find_config_file()
 
-    if not rules_path.exists():
-        _print_warning(f"Rules file not found: {rules_path}")
+    if rules_path is None:
+        _print_warning(f"No config file found (set {CONFIG_ENV_VAR} or create .exportify.yaml)")
         _print_info("Using default rules")
     else:
         rules.load_rules([rules_path])
@@ -765,7 +835,7 @@ def analyze(
     console.print()
 
     # Determine target path
-    source_root = source
+    source_root = source or _detect_source_root()
     if not source_root.exists():
         _print_error(f"Source directory not found: {source_root}")
         raise SystemExit(1)
@@ -851,13 +921,15 @@ def doctor() -> None:
 
     # Check rules
     _print_info("Checking rule configuration...")
-    rules_path = Path(".codeweaver/lazy_import_rules.yaml")
+    rules_path = find_config_file()
 
-    if rules_path.exists():
+    if rules_path is not None:
         _print_success(f"Rules file found: {rules_path}")
     else:
-        _print_warning(f"Rules file not found: {rules_path}")
-        console.print("  [dim]Recommendation: Run 'exportify migrate'[/dim]")
+        _print_warning("No config file found")
+        console.print(
+            f"  [dim]Recommendation: Create .exportify.yaml or set {CONFIG_ENV_VAR}[/dim]"
+        )
 
     console.print()
 
@@ -872,89 +944,69 @@ def doctor() -> None:
 
 
 @app.command
-def migrate(
-    backup: Annotated[bool, Parameter(help="Create backup before migration")] = True,
-    rules_output: Annotated[Path, Parameter(help="Output path for rules YAML")] = Path(
-        ".codeweaver/lazy_import_rules.yaml"
-    ),
-    dry_run: Annotated[bool, Parameter(help="Show changes without writing files")] = False,
-    verbose: Annotated[bool, Parameter(help="Show detailed migration report")] = False,
+def init(
+    output: Annotated[
+        Path, Parameter(help="Output path for the config YAML")
+    ] = DEFAULT_CONFIG_PATH,
+    dry_run: Annotated[bool, Parameter(help="Show generated config without writing files")] = False,
+    force: Annotated[bool, Parameter(help="Overwrite existing config file")] = False,
+    verbose: Annotated[bool, Parameter(help="Show full configuration summary")] = False,
 ) -> None:
-    """Migrate from old hardcoded system to new YAML rules.
+    """Initialise exportify with a default configuration file.
 
-    Converts the old validate-lazy-imports.py script to:
-    - Declarative YAML rules
-    - Configuration files
-    - New system format
-
-    Creates backups of old configuration for rollback.
+    Creates `.exportify.yaml` in the current directory with sensible default
+    rules that work for most Python packages.  Edit the file afterwards to
+    customise which symbols are exported and how they propagate.
 
     Examples:
-        exportify migrate
-        exportify migrate --dry-run
-        exportify migrate --no-backup
-        exportify migrate --rules-output custom/path.yaml
-        exportify migrate --verbose
+        exportify init
+        exportify init --dry-run
+        exportify init --output path/to/rules.yaml
+        exportify init --force
+        exportify init --verbose
     """
     from exportify.migration import migrate_to_yaml
 
-    _print_info("Starting migration to new lazy import system...")
+    if not dry_run and output.exists() and not force:
+        _print_error(f"Config file already exists: {output}")
+        _print_info("Use --force to overwrite, or --dry-run to preview.")
+        console.print()
+        raise SystemExit(1)
+
+    _print_info("Generating default exportify configuration...")
     console.print()
 
-    old_script = Path("mise-tasks/validate-lazy-imports.py")
-
-    # Create backup if old script exists and backup is requested
-    if backup and old_script.exists():
-        backup_path = old_script.with_suffix(".py.backup")
-        _print_info(f"Creating backup at {backup_path}...")
-        import shutil
-
-        shutil.copy2(old_script, backup_path)
-        _print_success(f"Backup created: {backup_path}")
-        console.print()
-
-    # Run migration
-    _print_info("Performing migration...")
-    result = migrate_to_yaml(rules_output, old_script=old_script, dry_run=dry_run)
+    result = migrate_to_yaml(output, dry_run=dry_run)
 
     if not result.success:
-        _print_error("Migration failed:")
+        _print_error("Init failed:")
         for error in result.errors:
             console.print(f"  [red]•[/red] {error}")
         console.print()
         raise SystemExit(1)
 
-    # Show results
     console.print()
-    _print_success("Migration completed successfully!")
-    console.print(f"  Rules extracted: [cyan]{len(result.rules_extracted)}[/cyan]")
-
-    include_overrides = len(result.overrides_extracted.get("include", {}))
-    exclude_overrides = len(result.overrides_extracted.get("exclude", {}))
-    console.print(
-        f"  Overrides: [cyan]{include_overrides}[/cyan] include, "
-        f"[cyan]{exclude_overrides}[/cyan] exclude"
-    )
+    _print_success("Configuration generated!")
+    console.print(f"  Rules: [cyan]{len(result.rules_generated)}[/cyan]")
     console.print()
 
     if dry_run:
-        _print_info("Dry run mode - no files written")
+        _print_info("Dry run mode — no files written")
         console.print()
         console.print("[bold]Generated YAML:[/bold]")
         console.print("─" * 80)
         console.print(result.yaml_content)
         console.print("─" * 80)
     else:
-        _print_success(f"Rules written to: {rules_output}")
-        report_path = rules_output.with_suffix(".migration.md")
-        _print_success(f"Migration report: {report_path}")
+        _print_success(f"Config written to: {output}")
+        _print_info("Edit this file to customise export rules for your project.")
 
     console.print()
 
-    if verbose and result.equivalence_report:
-        console.print("[bold]Migration Report:[/bold]")
+    if verbose and result.summary:
+        console.print("[bold]Configuration Summary:[/bold]")
         console.print()
-        console.print(result.equivalence_report)
+        console.print(result.summary)
         console.print()
 
 
@@ -989,12 +1041,12 @@ def status(verbose: Annotated[bool, Parameter(help="Show detailed information")]
 
     # Configuration status
     console.print("[bold]Configuration:[/bold]")
-    rules_path = Path(".codeweaver/lazy_import_rules.yaml")
+    rules_path = find_config_file()
 
-    if rules_path.exists():
+    if rules_path is not None:
         console.print(f"  Rules: [green]✓[/green] {rules_path}")
     else:
-        console.print("  Rules: [red]✗[/red] Not found")
+        console.print("  Rules: [yellow]–[/yellow] Not found (using defaults)")
 
     console.print()
 

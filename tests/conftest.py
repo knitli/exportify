@@ -17,7 +17,7 @@ import pytest
 @pytest.fixture
 def temp_cache_dir(tmp_path: Path) -> Path:
     """Temporary directory for cache."""
-    cache_dir = tmp_path / ".codeweaver" / "cache"
+    cache_dir = tmp_path / ".exportify" / "cache"
     cache_dir.mkdir(parents=True)
     return cache_dir
 
@@ -276,7 +276,7 @@ class AnotherModel:
 @pytest.fixture(scope="session", autouse=True)
 def cleanup_shared_cache():
     """Clean up shared cache before and after test session."""
-    cache_file = Path(".codeweaver/cache/analysis_cache.json")
+    cache_file = Path(".exportify/cache/analysis_cache.json")
 
     # Clean before tests
     if cache_file.exists():
@@ -292,7 +292,7 @@ def cleanup_shared_cache():
 @pytest.fixture(scope="module", autouse=True)
 def cleanup_cache_per_module():
     """Clean up cache before each test module."""
-    cache_file = Path(".codeweaver/cache/analysis_cache.json")
+    cache_file = Path(".exportify/cache/analysis_cache.json")
 
     # Clean before module
     if cache_file.exists():

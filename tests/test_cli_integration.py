@@ -53,10 +53,6 @@ class TestCLIAnalyzeCommand:
         pkg.mkdir()
         (pkg / "__init__.py").write_text("")
         (pkg / "mod.py").write_text("class Foo: pass")
-        (tmp_path / ".codeweaver").mkdir()
-        (tmp_path / ".codeweaver" / "lazy_import_rules.yaml").write_text(
-            "schema_version: '1.0'\nrules: []\n"
-        )
         exit_code, stdout, stderr = run_cli("analyze", "--source", str(pkg))
 
         assert exit_code == 0, f"Failed: {stderr}"
@@ -93,18 +89,6 @@ class TestCLIGenerateCommand:
         pkg.mkdir()
         (pkg / "mod.py").write_text("class Foo: pass")
 
-        # Create rules
-        (tmp_path / ".codeweaver").mkdir()
-        (tmp_path / ".codeweaver/lazy_import_rules.yaml").write_text("""
-schema_version: "1.0"
-rules:
-  - name: "include-all"
-    priority: 500
-    match:
-      name_pattern: ".*"
-    action: include
-""")
-
         init_file = pkg / "__init__.py"
         existed_before = init_file.exists()
 
@@ -128,19 +112,6 @@ class Foo:
 
 def bar():
     pass
-""")
-
-        # Create rules
-        (tmp_path / ".codeweaver").mkdir()
-        (tmp_path / ".codeweaver/lazy_import_rules.yaml").write_text("""
-schema_version: "1.0"
-rules:
-  - name: "include-all"
-    priority: 500
-    match:
-      name_pattern: ".*"
-    action: include
-    propagate: parent
 """)
 
         exit_code, _stdout, stderr = run_cli("generate", "--source", str(tmp_path))
@@ -170,18 +141,6 @@ from .other import Manual
 __all__ = ["Manual"]
 '''
         init_file.write_text(manual_content)
-
-        # Create rules
-        (tmp_path / ".codeweaver").mkdir()
-        (tmp_path / ".codeweaver/lazy_import_rules.yaml").write_text("""
-schema_version: "1.0"
-rules:
-  - name: "include-all"
-    priority: 500
-    match:
-      name_pattern: ".*"
-    action: include
-""")
 
         exit_code, _stdout, stderr = run_cli("generate", "--source", str(tmp_path))
 
@@ -235,23 +194,6 @@ def public_func():
 _private = "secret"
 """)
 
-        (tmp_path / ".codeweaver").mkdir()
-        (tmp_path / ".codeweaver/lazy_import_rules.yaml").write_text("""
-schema_version: "1.0"
-rules:
-  - name: "exclude-private"
-    priority: 900
-    match:
-      name_pattern: "^_"
-    action: exclude
-  - name: "include-public"
-    priority: 500
-    match:
-      name_pattern: "^[a-zA-Z]"
-    action: include
-    propagate: parent
-""")
-
         # Step 1: Analyze (target the package dir directly)
         exit1, _stdout1, stderr1 = run_cli("analyze", "--source", str(pkg))
         assert exit1 == 0, f"Analyze failed: {stderr1}"
@@ -279,18 +221,6 @@ def test_func():
     pass
 """)
 
-        # Create rules
-        (tmp_path / ".codeweaver").mkdir()
-        (tmp_path / ".codeweaver/lazy_import_rules.yaml").write_text("""
-schema_version: "1.0"
-rules:
-  - name: "include-all"
-    priority: 500
-    match:
-      name_pattern: ".*"
-    action: include
-""")
-
         # Generate
         exit_code, _stdout, stderr = run_cli("generate", "--source", str(tmp_path))
         assert exit_code == 0, f"Failed: {stderr}"
@@ -311,17 +241,20 @@ rules:
 class TestCLIErrorHandling:
     """Test error handling."""
 
-    def test_missing_rules_uses_defaults(self, tmp_path: Path):
+    def test_missing_rules_uses_defaults(self, tmp_path: Path, monkeypatch):
         """Missing rules file uses defaults."""
         pkg = tmp_path / "pkg"
         pkg.mkdir()
         (pkg / "__init__.py").write_text("")
         (pkg / "mod.py").write_text("class Foo: pass")
 
+        # Ensure find_config_file() returns None regardless of working directory.
+        monkeypatch.setattr("exportify.cli.find_config_file", lambda: None)
+
         exit_code, stdout, _stderr = run_cli("analyze", "--source", str(pkg))
 
         assert exit_code == 0
-        assert "Using default rules" in stdout or "Rules file not found" in stdout
+        assert "Using default rules" in stdout or "No config file found" in stdout
 
     def test_syntax_error_handled(self, tmp_path: Path):
         """Syntax errors in source files are handled gracefully."""

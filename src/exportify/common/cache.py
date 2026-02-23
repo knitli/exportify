@@ -183,10 +183,12 @@ class JSONAnalysisCache:
         """Initialize cache.
 
         Args:
-            cache_dir: Directory to store cache files. Defaults to .codeweaver/cache
+            cache_dir: Directory to store cache files. Defaults to .exportify/cache
             circuit_breaker: Circuit breaker for fault tolerance. Creates default if None
         """
-        self._cache_dir = cache_dir or Path(".codeweaver/cache")
+        from exportify.common.config import DEFAULT_CACHE_SUBDIR
+
+        self._cache_dir = cache_dir or DEFAULT_CACHE_SUBDIR
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         self._cache: dict[Path, dict] = {}
         self.circuit_breaker = circuit_breaker or CircuitBreaker()

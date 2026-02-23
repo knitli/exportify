@@ -404,7 +404,6 @@ When schema versions change, the rule engine handles migration automatically:
 ## Additional Resources
 
 - **Main documentation**: `../README.md`
-- **Requirements spec**: `../.specify/deliverables/exportify-requirements-v1.0.md`
 - **Type definitions**: `../common/types.py`
 - **Rule engine**: `../export_manager/rules.py`
 

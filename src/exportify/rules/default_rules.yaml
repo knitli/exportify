@@ -47,32 +47,32 @@ rules:
   # Prevent self-referential or infrastructure issues
   # ===================================================================
 
-  - name: "ExcludeLazyImporter"
+  - name: "ExcludeLateImportComponents"
     priority: 900
-    description: "Never lazily export lazy_importer components (prevents circular dependency)"
+    description: "Never lazily export lateimport components (prevents circular dependency)"
     match:
-      module_pattern: ".*\\.lazy_importer$"
+      module_pattern: ".*\\.lateimport$"
     action: exclude
 
-  - name: "ExcludeLazyImportFunction"
+  - name: "ExcludeLateImportFunction"
     priority: 900
-    description: "Don't lazily export the lazy_import function itself"
+    description: "Don't lazily export the lateimport function itself"
     match:
-      name_exact: "lazy_import"
+      name_exact: "lateimport"
     action: exclude
 
-  - name: "ExcludeCreateLazyGetattr"
+  - name: "ExcludeCreateLateGetattr"
     priority: 900
-    description: "Don't lazily export create_lazy_getattr (infrastructure)"
+    description: "Don't lazily export create_late_getattr (infrastructure)"
     match:
-      name_exact: "create_lazy_getattr"
+      name_exact: "create_late_getattr"
     action: exclude
 
-  - name: "ExcludeLazyImportClass"
+  - name: "ExcludeLateImportClass"
     priority: 900
-    description: "Don't lazily export LazyImport class (infrastructure)"
+    description: "Don't lazily export LateImport class (infrastructure)"
     match:
-      name_exact: "LazyImport"
+      name_exact: "LateImport"
     action: exclude
 
   # ===================================================================
@@ -135,6 +135,7 @@ rules:
     description: "Export constants (SCREAMING_SNAKE_CASE variables)"
     match:
       member_type: constant
+      name_pattern: "^[A-Z0-9_]+$"
     action: include
     propagate: parent
 
@@ -173,12 +174,15 @@ rules:
     description: "Exclude public variables (snake_case module-level assignments)"
     match:
       member_type: variable
+      name_pattern: "^[a-z0-9_]+$"
     action: exclude
     propagate: none
 
   # ===================================================================
   # Priority 300: Propagation overrides
   # Special handling for specific patterns
+  #
+  # These rules are mostly CodeWeaver specific, but they demonstrate how to use the propagate field to control symbol visibility in the package hierarchy. For example, we want certain core utilities and types to be accessible directly from the package root, even if they are defined in submodules. By setting propagate to root, we ensure that these symbols are included in the __init__.py exports of the package, making them available at the top level of the package namespace. This allows users to import these key symbols directly from the package without needing to know their specific submodule locations, while still keeping the internal module structure organized and maintainable.
   # ===================================================================
 
   - name: "CoreUtilsPropagateToRoot"

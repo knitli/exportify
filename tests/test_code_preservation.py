@@ -556,6 +556,8 @@ class TestCodeGenerator:
         # Debug value should be preserved (comments are attached to nodes)
         assert "DEBUG = True" in generated.manual_section
 
+    # We need to tell reuse that these are not actual headers, otherwise it'll throw an error.
+    # REUSE-IgnoreStart
     def test_spdx_headers_regenerated(
         self, code_generator: CodeGenerator, sample_manifest: ExportManifest, temp_dir: Path
     ) -> None:
@@ -584,6 +586,7 @@ class TestCodeGenerator:
         # Old headers not in preserved section
         assert "Old copyright notice" in generated.manual_section  # But user comment preserved
 
+    # REUSE-IgnoreEnd
     def test_managed_sections_regenerated(
         self, code_generator: CodeGenerator, sample_manifest: ExportManifest, temp_dir: Path
     ) -> None:

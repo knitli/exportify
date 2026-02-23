@@ -217,17 +217,16 @@ server.json
 server.json.license
 server.yaml
 server.yaml.license
-src/codeweaver/_version.py
 test-results.xml
 
 .jj/
 
 # Finally, stuff we *really* don't want to let leak
 .local.env
-.codeweaver.local.env
-.codeweaver/local.env
 mise.local.toml
 mise.local.env
 
 .gemini/
 gha-creds-*.json
+
+src/exportify/_version.py

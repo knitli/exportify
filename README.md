@@ -8,6 +8,8 @@ SPDX-License-Identifier: MIT OR Apache-2.0
 
 **exportify** is a CLI tool and library for managing Python package exports: generating `__init__.py` files with lazy imports, managing `__all__` declarations, and validating import consistency.
 
+It offers a simple rule-based system for enforcing `__all__` and `__init__` patterns across a codebase with optional per-file overrides. Comes with sane defaults. 
+
 ## Features
 
 - **Lazy `__init__.py` generation** — generates `__init__.py` files using a lazy `__getattr__` pattern powered by [`lateimport`](https://pypi.org/project/lateimport/), keeping package imports fast and circular-import-free
@@ -27,6 +29,9 @@ pip install exportify
 ## Quick Start
 
 ```bash
+# Create a default config file (.exportify.yaml)
+exportify init
+
 # Analyze what exportify would generate (dry run)
 exportify analyze --source src/mypackage
 
@@ -42,7 +47,15 @@ exportify status
 
 ## Configuration
 
-Rules live in `.codeweaver/lazy_import_rules.yaml` (created by `exportify migrate` or written manually):
+Rules live in `.exportify.yaml` (created by `exportify migrate` or written manually). Exportify searches for the config file in this order:
+
+1. `EXPORTIFY_CONFIG` environment variable (any path)
+2. `.exportify/config.yaml`
+3. `.exportify/config.yml`
+4. `.exportify.yaml` in the current working directory
+5. `.exportify.yml`
+6. `exportify.yaml`
+7. `exportify.yml`
 
 ```yaml
 schema_version: "1.0"
@@ -145,12 +158,12 @@ from .compat import legacy_function  # kept across regeneration
 ## CLI Reference
 
 ```
+exportify init      Create a default .exportify.yaml config file
 exportify analyze   Dry-run analysis showing what would be generated
 exportify generate  Generate __init__.py files
 exportify validate  Validate existing lazy import calls
 exportify status    Show package export status
 exportify doctor    Diagnose configuration issues
-exportify migrate   Migrate from legacy lazy import patterns
 exportify clear-cache  Clear the analysis cache
 ```
 

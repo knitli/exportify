@@ -145,15 +145,6 @@ def public_function():
     return 42
 """)
 
-        config_dir = self._create_package_structure(
-            tmp_path,
-            ".codeweaver",
-            "lazy_import_rules.yaml",
-            """
-schema_version: "1.0"
-rules: []
-""",
-        )
         _exit_code, _stdout, stderr = run_cli("analyze", "--source", str(tmp_path))
 
         # Should complete (may warn about implementation but shouldn't crash)
@@ -177,14 +168,6 @@ rules: []
         (root / "__init__.py").write_text("")
         (core / "__init__.py").write_text("")
         (core / "models.py").write_text("class Model: pass")
-
-        # Create rules file
-        config_dir = tmp_path / ".codeweaver"
-        config_dir.mkdir()
-        (config_dir / "lazy_import_rules.yaml").write_text("""
-schema_version: "1.0"
-rules: []
-""")
 
         _exit_code, _stdout, stderr = run_cli("analyze", "--source", str(tmp_path))
 

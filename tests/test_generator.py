@@ -88,6 +88,8 @@ def make_manifest(
 # Basic generation tests
 
 
+# We need to tell reuse that these are not actual headers, otherwise it'll throw an error.
+# REUSE-IgnoreStart
 def test_generate_empty_manifest(generator: CodeGenerator):
     """Test generating code from empty manifest."""
     manifest = make_manifest("test.module", own_exports=[])
@@ -514,6 +516,9 @@ def test_spdx_headers_present(generator: CodeGenerator):
     # Headers should be at the very beginning
     lines = code.content.split("\n")
     assert lines[0].startswith("# SPDX-FileCopyrightText:")
+
+
+# REUSE-IgnoreEnd
 
 
 def test_mapping_proxy_type_annotation(generator: CodeGenerator):
