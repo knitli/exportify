@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 Knitli Inc.
+
+SPDX-License-Identifier: MIT OR Apache-2.0
+-->
+
 # Export Rules Configuration
 
 This directory contains YAML configuration files that define the rules for determining which Python symbols should be exported from `__init__.py` files using the lazy loading pattern.
