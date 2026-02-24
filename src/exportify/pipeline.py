@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from exportify.analysis.ast_parser import ASTParser
+from exportify.commands.utils import format_file
 from exportify.common.cache import JSONAnalysisCache
 from exportify.common.types import (
     ExportGenerationResult,
@@ -155,6 +156,7 @@ class Pipeline:
 
                 if not dry_run:
                     self.generator.write_file(manifest.module_path, code)
+                    format_file(target, verbose=False)
                     self.stats.files_written += 1
 
                 # Record generation

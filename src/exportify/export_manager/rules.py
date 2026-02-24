@@ -134,12 +134,19 @@ class RuleEngine:
     def _matches_criteria(
         self, symbol: DetectedSymbol, module_path: str, criteria: RuleMatchCriteria
     ) -> bool:
-        """Check if match criteria are satisfied."""
-        if criteria.any_of:
-            return any(self._matches_criteria(symbol, module_path, sub) for sub in criteria.any_of)
-        if criteria.all_of:
-            return all(self._matches_criteria(symbol, module_path, sub) for sub in criteria.all_of)
+        """Check if match criteria are satisfied.
 
+        Parent-level criteria (name_pattern, module_pattern, member_type, etc.)
+        are always evaluated first.  ``any_of`` and ``all_of`` are then applied
+        as additional combiners on top of those checks — they do **not**
+        short-circuit the parent criteria.
+
+        Example: a rule with ``name_pattern: .*Command$`` plus
+        ``any_of: [{member_type: class}, {member_type: variable}]`` only matches
+        symbols whose name ends in "Command" AND whose type is class or variable.
+        Without this ordering, ``any_of`` would bypass the name check entirely.
+        """
+        # --- Parent-level criteria (all must pass) ---
         if criteria.name_exact and symbol.name != criteria.name_exact:
             return False
 
@@ -159,7 +166,16 @@ class RuleEngine:
         if criteria.member_type and symbol.member_type != criteria.member_type:
             return False
 
-        return not (criteria.provenance and symbol.provenance != criteria.provenance)
+        if criteria.provenance and symbol.provenance != criteria.provenance:
+            return False
+
+        # --- Combiners (applied after parent criteria pass) ---
+        if criteria.any_of:
+            return any(self._matches_criteria(symbol, module_path, sub) for sub in criteria.any_of)
+        if criteria.all_of:
+            return all(self._matches_criteria(symbol, module_path, sub) for sub in criteria.all_of)
+
+        return True
 
     def _get_compiled_pattern(self, pattern_str: str) -> re.Pattern:
         """Get or compile a regex pattern (with caching)."""

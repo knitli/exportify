@@ -15,6 +15,7 @@ from cyclopts import App, Parameter
 from exportify.commands.utils import (
     CONSOLE,
     collect_py_files,
+    format_file,
     load_rules,
     path_to_module,
     print_error,
@@ -89,6 +90,7 @@ def _fix_module_all_files(
         if dry_run:
             _report_module_all_dry_run(py_file, result)
         else:
+            format_file(py_file, verbose=verbose)
             _report_module_all_applied(py_file, result, verbose=verbose)
     return count
 
@@ -153,8 +155,7 @@ def fix(
     dynamic_imports: Annotated[
         bool | None,
         Parameter(
-            name="dynamic-imports",
-            help="Rewrite _dynamic_imports in __init__.py to match rules",
+            name="dynamic-imports", help="Rewrite _dynamic_imports in __init__.py to match rules"
         ),
     ] = None,
     module_all: Annotated[
@@ -163,9 +164,7 @@ def fix(
     ] = None,
     package_all: Annotated[
         bool | None,
-        Parameter(
-            name="package-all", help="Update __all__ and exports in __init__.py files"
-        ),
+        Parameter(name="package-all", help="Update __all__ and exports in __init__.py files"),
     ] = None,
     dry_run: Annotated[
         bool, Parameter(name="dry-run", help="Show what would change without writing")
@@ -224,7 +223,4 @@ def fix(
 if __name__ == "__main__":
     FixCommand()
 
-__all__ = (
-    "FixCommand",
-    "fix",
-)
+__all__ = ("FixCommand", "fix")

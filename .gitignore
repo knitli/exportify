@@ -214,6 +214,7 @@ __pycache__/
 coverage.xml
 docs-site/dist/
 htmlcov/
+coverage.json
 lcov-report/
 server.json
 server.json.license

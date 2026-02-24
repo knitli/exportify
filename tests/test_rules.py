@@ -1156,3 +1156,89 @@ class TestRuleEngineAdditionalCoverage:
         assert result.reason == "No rule matched"
         assert result.priority == 0
         assert result.propagation == PropagationLevel.NONE
+
+    # -------------------------------------------------------------------------
+    # any_of combined with parent criteria (name_pattern + module_pattern)
+    # -------------------------------------------------------------------------
+
+    def test_any_of_does_not_bypass_parent_name_pattern(self):
+        """any_of must not short-circuit name_pattern on the parent criteria.
+
+        A rule with both ``name_pattern: .*Command$`` AND
+        ``any_of: [{member_type: variable}]`` should only match symbols whose
+        name ends in 'Command' AND whose type is variable.  Before the fix,
+        any_of caused an early return that ignored name_pattern, so any variable
+        in any module would match.
+        """
+        engine = RuleEngine()
+        engine.add_rule(Rule(
+            name="commands-only",
+            priority=850,
+            description="Export *Command variables from commands modules",
+            match=RuleMatchCriteria(
+                name_pattern=r".*Command$",
+                module_pattern=r".*\.commands\.[a-z_]+$",
+                any_of=[
+                    RuleMatchCriteria(member_type=MemberType.CLASS),
+                    RuleMatchCriteria(member_type=MemberType.VARIABLE),
+                ],
+            ),
+            action=RuleAction.INCLUDE,
+            propagate=PropagationLevel.PARENT,
+        ))
+
+        # ✓ Matches: right name, right module, right member type
+        fix_command = self._create_symbol("FixCommand", member_type=MemberType.VARIABLE)
+        decision = engine.evaluate(fix_command, "myapp.commands.fix")
+        assert decision.action == RuleAction.INCLUDE
+
+        # ✗ Name doesn't end in Command — must NOT match despite being a variable
+        other_var = self._create_symbol("some_helper", member_type=MemberType.VARIABLE)
+        decision = engine.evaluate(other_var, "myapp.commands.fix")
+        assert decision.action == RuleAction.NO_DECISION
+
+        # ✗ Right name but wrong module — must NOT match
+        wrong_module = self._create_symbol("FixCommand", member_type=MemberType.VARIABLE)
+        decision = engine.evaluate(wrong_module, "myapp.unrelated.module")
+        assert decision.action == RuleAction.NO_DECISION
+
+        # ✗ Right name and module but wrong member type (FUNCTION) — must NOT match
+        func_symbol = self._create_symbol("FixCommand", member_type=MemberType.FUNCTION)
+        decision = engine.evaluate(func_symbol, "myapp.commands.fix")
+        assert decision.action == RuleAction.NO_DECISION
+
+    def test_all_of_does_not_bypass_parent_criteria(self):
+        """all_of must not short-circuit parent criteria either."""
+        engine = RuleEngine()
+        engine.add_rule(Rule(
+            name="complex-rule",
+            priority=500,
+            description="Match public classes defined here",
+            match=RuleMatchCriteria(
+                name_pattern=r"^[A-Z].*",
+                all_of=[
+                    RuleMatchCriteria(member_type=MemberType.CLASS),
+                    RuleMatchCriteria(provenance=SymbolProvenance.DEFINED_HERE),
+                ],
+            ),
+            action=RuleAction.INCLUDE,
+            propagate=PropagationLevel.PARENT,
+        ))
+
+        # ✓ Matches all conditions
+        public_class = self._create_symbol(
+            "MyClass", member_type=MemberType.CLASS, provenance=SymbolProvenance.DEFINED_HERE
+        )
+        assert engine.evaluate(public_class, "myapp.mod").action == RuleAction.INCLUDE
+
+        # ✗ Name starts with lowercase — parent name_pattern fails
+        private_class = self._create_symbol(
+            "myClass", member_type=MemberType.CLASS, provenance=SymbolProvenance.DEFINED_HERE
+        )
+        assert engine.evaluate(private_class, "myapp.mod").action == RuleAction.NO_DECISION
+
+        # ✗ Imported, not defined here — all_of provenance check fails
+        imported_class = self._create_symbol(
+            "PublicClass", member_type=MemberType.CLASS, provenance=SymbolProvenance.IMPORTED
+        )
+        assert engine.evaluate(imported_class, "myapp.mod").action == RuleAction.NO_DECISION
