@@ -43,6 +43,9 @@ DEFAULT_CONFIG_NAMES: list[str] = [
 DEFAULT_CACHE_SUBDIR: Path = Path(".exportify") / "cache"
 """Default cache directory relative to the working directory."""
 
+DEFAULT_SNAPSHOT_DIR: Path = Path(".exportify") / "snapshots" / "last"
+"""Default snapshot directory relative to the working directory."""
+
 
 def find_config_file() -> Path | None:
     """Find the exportify config file.
@@ -211,6 +214,7 @@ __all__ = [
     "CONFIG_ENV_VAR",
     "DEFAULT_CACHE_SUBDIR",
     "DEFAULT_CONFIG_NAMES",
+    "DEFAULT_SNAPSHOT_DIR",
     "ExportifyConfig",
     "detect_lateimport_dependency",
     "find_config_file",
