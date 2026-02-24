@@ -7,8 +7,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Annotated, NoReturn
+from typing import TYPE_CHECKING, Annotated, NoReturn
+
+
+if TYPE_CHECKING:
+    from exportify.common.cache import JSONAnalysisCache
+    from exportify.common.config import SpdxConfig
+    from exportify.export_manager import RuleEngine
 
 from cyclopts import App, Parameter
 from rich.panel import Panel
@@ -62,6 +69,60 @@ def _print_generation_results(result: ExportGenerationResult) -> None:
     CONSOLE.print()
 
 
+def _run_pipeline_for_root(
+    *,
+    root: Path,
+    source_root: Path,
+    output: Path | None,
+    module: Path | None,
+    rules: RuleEngine,
+    cache: JSONAnalysisCache,
+    output_style_value: str,
+    spdx_config: SpdxConfig | None,
+    dry_run: bool,
+    raise_exit: Callable[[str], NoReturn],
+) -> None:
+    """Run the generation pipeline for a single source root."""
+    from exportify.pipeline import Pipeline
+
+    if root != source_root:
+        CONSOLE.print()
+        print_info(f"Processing additional source: {root}...")
+    else:
+        print_info(f"Processing {root}...")
+    CONSOLE.print()
+
+    if not root.exists():
+        print_error(f"Source directory not found: {root}")
+        raise SystemExit(1)
+
+    root_pipeline = Pipeline(
+        rule_engine=rules,
+        cache=cache,
+        output_dir=(output or source_root) if root == source_root else root,
+        output_style=output_style_value,
+        spdx_config=spdx_config,
+    )
+
+    try:
+        result = root_pipeline.run(
+            source_root=root, dry_run=dry_run, module=module if root == source_root else None
+        )
+        _print_generation_results(result)
+        if not result.success:
+            raise_exit("Export generation failed - see above for details")
+    except SystemExit:
+        raise
+    except Exception as e:
+        print_error(f"Pipeline execution failed: {e}")
+        CONSOLE.print()
+        import traceback
+
+        CONSOLE.print("[dim]Full traceback:[/dim]")
+        CONSOLE.print(traceback.format_exc())
+        raise SystemExit(1) from e
+
+
 @GenerateCommand.default
 def generate(
     module: Annotated[Path | None, Parameter(help="Limit generation to this path")] = None,
@@ -98,8 +159,7 @@ def generate(
         raise SystemExit(1)
 
     from exportify.common.cache import JSONAnalysisCache
-    from exportify.common.config import load_config
-    from exportify.pipeline import Pipeline
+    from exportify.common.config import ExportifyConfig, load_config
 
     source_root = source or detect_source_root()
 
@@ -111,6 +171,7 @@ def generate(
     rules = RuleEngine()
     rules_path = find_config_file()
 
+    config: ExportifyConfig | None = None
     spdx_config: SpdxConfig | None = None
     if rules_path is None:
         print_warning(f"No config file found (set {CONFIG_ENV_VAR} or create .exportify.yaml)")
@@ -125,56 +186,36 @@ def generate(
 
     CONSOLE.print()
 
-    # Set up cache and output directory
+    # Collect all source roots: primary + any additional from config
+    additional_source_roots: list[Path] = config.project.additional_source_paths if config else []
+    all_source_roots = [source_root, *additional_source_roots]
+
+    # Set up shared cache
     cache = JSONAnalysisCache()
-    output_dir = output or source_root
-
-    # Create pipeline
-    print_info("Initializing pipeline...")
-    pipeline = Pipeline(
-        rule_engine=rules,
-        cache=cache,
-        output_dir=output_dir,
-        output_style=output_style_value,
-        spdx_config=spdx_config,
-    )
-
-    if not source_root.exists():
-        print_error(f"Source directory not found: {source_root}")
-        raise SystemExit(1)
-
-    CONSOLE.print()
 
     # Show dry-run status
     if dry_run:
         print_info("Dry run mode - no files will be written")
         CONSOLE.print()
 
-    # Execute pipeline
-    print_info(f"Processing {source_root}...")
+    # Execute pipeline for each source root
     if module:
         print_info(f"Filtering to module: {module}")
-
-    CONSOLE.print()
-
-    try:
-        result = pipeline.run(source_root=source_root, dry_run=dry_run, module=module)
-
-        # Display results
-        _print_generation_results(result)
-
-        # Exit with error if generation failed
-        if not result.success:
-            _raise_system_exit("Export generation failed - see above for details")
-
-    except Exception as e:
-        print_error(f"Pipeline execution failed: {e}")
         CONSOLE.print()
-        import traceback
 
-        CONSOLE.print("[dim]Full traceback:[/dim]")
-        CONSOLE.print(traceback.format_exc())
-        raise SystemExit(1) from e
+    for root in all_source_roots:
+        _run_pipeline_for_root(
+            root=root,
+            source_root=source_root,
+            output=output,
+            module=module,
+            rules=rules,
+            cache=cache,
+            output_style_value=output_style_value,
+            spdx_config=spdx_config,
+            dry_run=dry_run,
+            raise_exit=_raise_system_exit,
+        )
 
 
 if __name__ == "__main__":

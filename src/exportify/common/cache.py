@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from exportify.common.config import DEFAULT_CACHE_SUBDIR
 from exportify.types import CacheStatistics
+from exportify.utils import write_gitignore_patterns
 
 
 if TYPE_CHECKING:
@@ -38,9 +39,7 @@ def _add_ignore_to_cache(cache_dir: Path) -> None:
         cache_dir.mkdir(parents=True, exist_ok=True)
     if cache_dir != DEFAULT_CACHE_SUBDIR:
         return  # Only add ignore for default cache directory
-    gitignore_path = cache_dir.parent / ".gitignore"
-    if not gitignore_path.exists():
-        gitignore_path.write_text(str(cache_dir) + "/\n")
+    write_gitignore_patterns(cache_dir.parent)
 
 
 class CircuitState(StrEnum):

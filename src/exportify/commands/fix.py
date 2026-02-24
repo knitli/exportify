@@ -207,30 +207,53 @@ def fix(
     CONSOLE.print()
 
     source_root = source or detect_source_root()
-    py_files = collect_py_files(paths, source)
     rules = load_rules(verbose=verbose)
 
+    # Load config for spdx and additional source roots
     spdx_config: SpdxConfig | None = None
+    additional_source_roots: list[Path] = []
     config_path = find_config_file()
     if config_path is not None:
-        spdx_config = load_config(config_path).spdx
+        loaded_config = load_config(config_path)
+        spdx_config = loaded_config.spdx
+        additional_source_roots = loaded_config.project.additional_source_paths
+
+    all_source_roots = [source_root, *additional_source_roots]
+
+    # Collect all files upfront (for snapshot and per-root routing)
+    if paths:
+        all_py_files = collect_py_files(paths, source)
+    else:
+        all_py_files = [f for root in all_source_roots for f in root.rglob("*.py")]
 
     if not dry_run:
-        SnapshotManager(locate_project_root()).capture(py_files)
+        SnapshotManager(locate_project_root()).capture(all_py_files)
         if verbose:
-            print_info(f"Snapshot captured ({len(py_files)} file(s))")
+            print_info(f"Snapshot captured ({len(all_py_files)} file(s))")
 
     total = 0
 
-    if "module_all" in fixes_to_run:
-        total += _fix_module_all_files(
-            py_files, source_root, rules, dry_run=dry_run, verbose=verbose
-        )
+    for root in all_source_roots:
+        if root != source_root and verbose:
+            CONSOLE.print()
+            print_info(f"Processing additional source: {root}...")
 
-    if "dynamic_imports" in fixes_to_run or "package_all" in fixes_to_run:
-        total += _fix_init_files(
-            py_files, source_root, rules, dry_run=dry_run, verbose=verbose, spdx_config=spdx_config
-        )
+        root_py_files = [f for f in all_py_files if f.is_relative_to(root)]
+
+        if "module_all" in fixes_to_run:
+            total += _fix_module_all_files(
+                root_py_files, root, rules, dry_run=dry_run, verbose=verbose
+            )
+
+        if "dynamic_imports" in fixes_to_run or "package_all" in fixes_to_run:
+            total += _fix_init_files(
+                root_py_files,
+                root,
+                rules,
+                dry_run=dry_run,
+                verbose=verbose,
+                spdx_config=spdx_config,
+            )
 
     _print_summary(total, dry_run=dry_run)
 

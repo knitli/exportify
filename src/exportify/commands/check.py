@@ -290,6 +290,7 @@ def check(
         exportify check --json
     """
     from exportify.common.cache import JSONAnalysisCache
+    from exportify.common.config import find_config_file, load_config
 
     checks_to_run = _resolve_checks(
         lateimports=lateimports,
@@ -303,59 +304,81 @@ def check(
         CONSOLE.print()
 
     source_root = source or detect_source_root()
-    py_files = collect_py_files(paths, source)
     rules = load_rules(verbose=verbose)
     shared_cache = JSONAnalysisCache()
 
+    # Load additional source roots from config
+    additional_source_roots: list[Path] = []
+    config_path = find_config_file()
+    if config_path:
+        additional_source_roots = load_config(config_path).project.additional_source_paths
+
+    all_source_roots = [source_root, *additional_source_roots]
+
+    # Collect explicit files once (when user specified paths)
+    explicit_py_files = collect_py_files(paths, source) if paths else []
+
     results: list[tuple[int, int]] = []
 
-    if "lateimports" in checks_to_run:
-        results.append(
-            _run_lateimports_check(
-                py_files=py_files,
-                paths=paths,
-                shared_cache=shared_cache,
-                source_root=source_root,
-                lateimports=lateimports,
-                json_output=json_output,
-                verbose=verbose,
-            )
+    for root in all_source_roots:
+        if root != source_root and not json_output:
+            CONSOLE.print()
+            print_info(f"Checking additional source: {root}...")
+            CONSOLE.print()
+
+        root_py_files = (
+            [f for f in explicit_py_files if f.is_relative_to(root)]
+            if paths
+            else collect_py_files((), root)
         )
 
-    if "dynamic_imports" in checks_to_run:
-        results.append(
-            _run_dynamic_imports_check(
-                py_files=py_files,
-                paths=paths,
-                source_root=source_root,
-                shared_cache=shared_cache,
-                json_output=json_output,
-                verbose=verbose,
+        if "lateimports" in checks_to_run:
+            results.append(
+                _run_lateimports_check(
+                    py_files=root_py_files,
+                    paths=paths,
+                    shared_cache=shared_cache,
+                    source_root=root,
+                    lateimports=lateimports,
+                    json_output=json_output,
+                    verbose=verbose,
+                )
             )
-        )
 
-    if "module_all" in checks_to_run:
-        results.append(
-            _run_module_all_check(
-                py_files=py_files,
-                source_root=source_root,
-                rules=rules,
-                json_output=json_output,
-                verbose=verbose,
+        if "dynamic_imports" in checks_to_run:
+            results.append(
+                _run_dynamic_imports_check(
+                    py_files=root_py_files,
+                    paths=paths,
+                    source_root=root,
+                    shared_cache=shared_cache,
+                    json_output=json_output,
+                    verbose=verbose,
+                )
             )
-        )
 
-    if "package_all" in checks_to_run:
-        results.append(
-            _run_package_all_check(
-                py_files=py_files,
-                paths=paths,
-                source_root=source_root,
-                shared_cache=shared_cache,
-                json_output=json_output,
-                verbose=verbose,
+        if "module_all" in checks_to_run:
+            results.append(
+                _run_module_all_check(
+                    py_files=root_py_files,
+                    source_root=root,
+                    rules=rules,
+                    json_output=json_output,
+                    verbose=verbose,
+                )
             )
-        )
+
+        if "package_all" in checks_to_run:
+            results.append(
+                _run_package_all_check(
+                    py_files=root_py_files,
+                    paths=paths,
+                    shared_cache=shared_cache,
+                    source_root=root,
+                    json_output=json_output,
+                    verbose=verbose,
+                )
+            )
 
     total_errors = sum(e for e, _ in results)
     total_warnings = sum(w for _, w in results)

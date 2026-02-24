@@ -193,9 +193,15 @@ class ASTParser:
     def _handle_assign(self, node: ast.Assign) -> list[DetectedSymbol]:
         """Handle regular assignment. Returns list of symbols."""
         symbols = []
+        typevar_kind = self._detect_typevar_call(node.value)
         for target in node.targets:
             if isinstance(target, ast.Name):
-                member_type = self._determine_variable_type(target.id, None)
+                if typevar_kind:
+                    member_type = MemberType.TYPE_VAR
+                    metadata: dict[str, object] = {"kind": typevar_kind}
+                else:
+                    member_type = self._determine_variable_type(target.id, None)
+                    metadata = {}
                 symbols.append(
                     self._create_symbol(
                         name=target.id,
@@ -203,9 +209,32 @@ class ASTParser:
                         location=SourceLocation(line=node.lineno),
                         provenance=SymbolProvenance.DEFINED_HERE,
                         is_private=target.id.startswith("_"),
+                        metadata=metadata,
                     )
                 )
         return symbols
+
+    _TYPEVAR_CONSTRUCTORS = frozenset({"TypeVar", "TypeVarTuple", "ParamSpec"})
+
+    def _detect_typevar_call(self, value: ast.expr) -> str | None:
+        """Return the TypeVar constructor name if value is a TypeVar/ParamSpec/TypeVarTuple call.
+
+        Handles both ``TypeVar(...)`` and ``typing.TypeVar(...)`` forms.
+        Returns None if the value is not a recognised type-variable constructor call.
+        """
+        if not isinstance(value, ast.Call):
+            return None
+        func = value.func
+        # Bare name: TypeVar('T')
+        if isinstance(func, ast.Name) and func.id in self._TYPEVAR_CONSTRUCTORS:
+            return func.id
+        # Qualified: typing.TypeVar('T')
+        if (
+            isinstance(func, ast.Attribute)
+            and func.attr in self._TYPEVAR_CONSTRUCTORS
+        ):
+            return func.attr
+        return None
 
     def _determine_variable_type(self, name: str, annotation: ast.expr | None) -> MemberType:
         """Determine if variable is a constant, type alias, or regular variable."""

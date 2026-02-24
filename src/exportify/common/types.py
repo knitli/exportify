@@ -53,6 +53,7 @@ class MemberType(StrEnum):
     VARIABLE = "variable"
     CONSTANT = "constant"
     TYPE_ALIAS = "type_alias"
+    TYPE_VAR = "type_var"
     IMPORTED = "imported"  # For imported symbols
     UNKNOWN = "unknown"
 

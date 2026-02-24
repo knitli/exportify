@@ -14,7 +14,7 @@ from rich.panel import Panel
 
 from exportify.common.config import CONFIG_ENV_VAR, find_config_file
 from exportify.export_manager import RuleEngine
-from exportify.utils import detect_source_root
+from exportify.utils import detect_source_root, locate_project_root
 
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ from exportify.types import ValidationReport
 CONSOLE = Console(markup=True)
 
 
-DEFAULT_CONFIG_PATH = Path.cwd() / ".exportify" / "config.yaml"
+DEFAULT_CONFIG_PATH = locate_project_root() / ".exportify" / "config.yaml"
 
 
 def print_success(message: str) -> None:

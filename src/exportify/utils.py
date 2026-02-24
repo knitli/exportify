@@ -250,6 +250,23 @@ def format_content(content: str, *, filename: Path | None = None, verbose: bool 
         )
         if result.returncode == 0:
             return result.stdout
+    elif uv_binary := shutil.which("uvx"):
+        result = subprocess.run(
+            [
+                uv_binary,
+                "ruff",
+                "format",
+                "--verbose" if verbose else "--quiet",
+                *stdin_filename_args,
+                "-",
+            ],
+            input=content,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            return result.stdout
     return content
 
 
@@ -270,11 +287,33 @@ def format_file(file_path: Path, *, verbose: bool = False) -> None:
         file_path.write_text(formatted, encoding="utf-8")
 
 
+def write_gitignore_patterns(exportify_dir: Path | None = None) -> None:
+    """Write .gitignore file to exclude exportify's cache directory."""
+    exportify_root = exportify_dir or (locate_project_root() / ".exportify")
+    gitignore_patterns = ["cache/", "snapshots/"]
+    gitignore_path = exportify_root / ".gitignore"
+    if gitignore_path.exists():
+        existing_patterns = set(gitignore_path.read_text().splitlines())
+        if new_patterns := set(gitignore_patterns) - existing_patterns:
+            gitignore_path.write_text("\n".join(existing_patterns | new_patterns) + "\n")
+    else:
+        gitignore_path.write_text("\n".join(gitignore_patterns) + "\n")
+
+
+def find_project_name() -> str:
+    """Find the project name from pyproject.toml or fallback to directory name."""
+    if (data := _read_pyproject()) and (name := data.get("project", {}).get("name")):
+        return name
+    return locate_project_root().name
+
+
 __all__ = (
     "detect_lateimport_dependency",
     "detect_source_root",
+    "find_project_name",
     "format_content",
     "format_file",
     "formatting_tools_available",
     "locate_project_root",
+    "write_gitignore_patterns",
 )

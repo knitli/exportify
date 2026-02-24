@@ -21,10 +21,13 @@ import tomllib
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import yaml
 
+from exportify import detect_source_root, locate_project_root
 from exportify.common.types import OutputStyle
+from exportify.utils import find_project_name
 
 
 CONFIG_ENV_VAR = "EXPORTIFY_CONFIG"
@@ -75,7 +78,55 @@ def find_config_file() -> Path | None:
     return None
 
 
-@dataclass
+@dataclass(frozen=True)
+class ProjectConfig:
+    """Basic configuration information for an exportify project, derived from the config file and other sources."""
+
+    project_name: str = field(default_factory=find_project_name)
+    """The project name, derived from pyproject.toml or the current directory name if not provided."""
+    project_path: Path = field(default_factory=locate_project_root)
+    """The project root path, derived from pyproject.toml or the current working directory if not found."""
+    source_path: Path = field(default_factory=detect_source_root)
+    """The source root path (i.e. the directory containing the top-level package, such as project_path / "src" ), auto-detected by looking for __init__.py files."""
+    additional_source_paths: list[Path] = field(default_factory=list)
+    """Additional source paths to include when searching for modules, specified in the config file."""
+
+    def __init__(
+        self,
+        project_name: str | None = None,
+        project_path: str | Path | None = None,
+        source_path: str | Path | None = None,
+        additional_source_paths: list[str] | list[Path] | None = None,
+        **kwargs: Any,
+    ):
+        """Initialize ProjectConfig, ignoring any extra kwargs from the config file."""
+        object.__setattr__(self, "project_name", project_name or find_project_name())
+        object.__setattr__(
+            self,
+            "project_path",
+            Path(project_path).resolve() if project_path else locate_project_root(),
+        )
+        object.__setattr__(
+            self,
+            "source_path",
+            Path(source_path).resolve() if source_path else detect_source_root(),
+        )
+        if additional_paths := [Path(p).resolve() for p in (additional_source_paths or [])]:
+            object.__setattr__(self, "additional_source_paths", additional_paths)
+        elif (packages_dir := self.project_path / "packages").is_dir():
+            # Monorepo: auto-detect packages/ subdirectories that are standalone projects,
+            # resolving each to its actual source root.
+            additional_paths = [
+                detect_source_root(base_path=p)
+                for p in packages_dir.iterdir()
+                if p.is_dir() and (p / "pyproject.toml").is_file()
+            ]
+            object.__setattr__(self, "additional_source_paths", additional_paths)
+        else:
+            object.__setattr__(self, "additional_source_paths", [])
+
+
+@dataclass(frozen=True)
 class SpdxConfig:
     """SPDX license header configuration for generated __init__.py files."""
 
@@ -100,7 +151,7 @@ class SpdxConfig:
         return "\n#\n".join(parts) if parts else None
 
 
-@dataclass
+@dataclass(frozen=True)
 class ExportifyConfig:
     """Parsed exportify configuration."""
 
@@ -109,6 +160,9 @@ class ExportifyConfig:
 
     package_styles: dict[str, OutputStyle] = field(default_factory=dict)
     """Per-package overrides: maps package path (e.g. "mypackage.compat") to its OutputStyle."""
+
+    project: ProjectConfig = field(default_factory=ProjectConfig)
+    """Basic project configuration derived from the config file and other sources."""
 
     spdx: SpdxConfig = field(default_factory=SpdxConfig)
     """SPDX header configuration for generated files."""
@@ -199,8 +253,14 @@ def load_config(path: Path) -> ExportifyConfig:
         copyright=spdx_data.get("copyright", "") or "",
         license=spdx_data.get("license", "") or "",
     )
+    project_data = {
+        k: v for k, v in data.get("project", {}).items() if v
+    }  # Only "name" is relevant to our ProjectConfig
+    project = ProjectConfig(**project_data)
 
-    return ExportifyConfig(output_style=global_style, package_styles=package_styles, spdx=spdx)
+    return ExportifyConfig(
+        output_style=global_style, project=project, package_styles=package_styles, spdx=spdx
+    )
 
 
 def detect_lateimport_dependency() -> bool:
@@ -252,6 +312,7 @@ __all__ = [
     "DEFAULT_CONFIG_NAMES",
     "DEFAULT_SNAPSHOT_DIR",
     "ExportifyConfig",
+    "ProjectConfig",
     "SpdxConfig",
     "detect_lateimport_dependency",
     "find_config_file",
