@@ -126,6 +126,8 @@ class ProjectConfig:
             object.__setattr__(self, "additional_source_paths", [])
 
 
+# the spdx generation logic causes reuse to error when scanned
+# REUSE-IgnoreStart
 @dataclass(frozen=True)
 class SpdxConfig:
     """SPDX license header configuration for generated __init__.py files."""
@@ -149,6 +151,9 @@ class SpdxConfig:
         if self.license:
             parts.append(f"# SPDX-License-Identifier: {self.license}")
         return "\n#\n".join(parts) if parts else None
+
+
+# REUSE-IgnoreEnd
 
 
 @dataclass(frozen=True)

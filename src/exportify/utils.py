@@ -1,7 +1,7 @@
-# SPDX-CopyrightText: 2026 Knitli Inc.
+# SPDX-FileCopyrightText: 2026 Knitli Inc.
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
-# ruff: noqa: S603 --- IGNORE ---
+# ruff: noqa: S603
 """Utility functions for exportify."""
 
 import shutil

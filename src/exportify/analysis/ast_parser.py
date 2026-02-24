@@ -220,7 +220,7 @@ class ASTParser:
         """Return the TypeVar constructor name if value is a TypeVar/ParamSpec/TypeVarTuple call.
 
         Handles both ``TypeVar(...)`` and ``typing.TypeVar(...)`` forms.
-        Returns None if the value is not a recognised type-variable constructor call.
+        Returns None if the value is not a recognized type-variable constructor call.
         """
         if not isinstance(value, ast.Call):
             return None
@@ -229,10 +229,7 @@ class ASTParser:
         if isinstance(func, ast.Name) and func.id in self._TYPEVAR_CONSTRUCTORS:
             return func.id
         # Qualified: typing.TypeVar('T')
-        if (
-            isinstance(func, ast.Attribute)
-            and func.attr in self._TYPEVAR_CONSTRUCTORS
-        ):
+        if isinstance(func, ast.Attribute) and func.attr in self._TYPEVAR_CONSTRUCTORS:
             return func.attr
         return None
 

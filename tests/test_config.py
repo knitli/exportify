@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2026 Knitli Inc.
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
-
 """Tests for exportify.common.config and exportify.utils."""
 
 from __future__ import annotations
