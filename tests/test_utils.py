@@ -299,7 +299,7 @@ class TestDetectSourceRoot:
         monkeypatch.chdir(tmp_path)
 
         result = detect_source_root()
-        assert result == Path(tmp_path.name)
+        assert result == tmp_path / tmp_path.name
 
     def test_pyproject_read_failure_falls_back_to_src(self, tmp_path: Path, monkeypatch):
         """When pyproject.toml is invalid, falls back to src/ if it exists."""
@@ -308,12 +308,11 @@ class TestDetectSourceRoot:
         pyproject.write_text("this is not: valid [ toml")
         self._check_fallback_to_src_directory(tmp_path)
 
-    # TODO Rename this here and in `test_falls_back_to_src_when_exists` and `test_pyproject_read_failure_falls_back_to_src`
     def _check_fallback_to_src_directory(self, tmp_path):
         src = tmp_path / "src"
         src.mkdir()
         result = detect_source_root()
-        assert result == Path("src")
+        assert result == tmp_path / "src"
 
     def test_pyproject_read_failure_falls_back_to_cwd(self, tmp_path: Path, monkeypatch):
         """When pyproject.toml is invalid and no src/, falls back to cwd."""
@@ -335,7 +334,7 @@ class TestDetectSourceRoot:
         pyproject.write_text('[project]\nname = "mypackage"\n')
 
         result = detect_source_root()
-        assert result == Path("src")
+        assert result == tmp_path / "src"
 
     def test_returns_path_when_no_fallback_matches(self, tmp_path: Path, monkeypatch):
         """Returns cwd when neither pyproject nor src/ nor project-name dir exist."""

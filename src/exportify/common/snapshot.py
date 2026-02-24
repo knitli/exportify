@@ -41,8 +41,7 @@ class SnapshotManifest:
     def from_dict(cls, d: dict) -> SnapshotManifest:
         """Deserialize a manifest from a plain dict (as read from JSON)."""
         return cls(
-            timestamp=d["timestamp"],
-            entries=[SnapshotEntry(**e) for e in d.get("entries", [])],
+            timestamp=d["timestamp"], entries=[SnapshotEntry(**e) for e in d.get("entries", [])]
         )
 
 
@@ -92,13 +91,8 @@ class SnapshotManager:
             rel = str(file_path.resolve().relative_to(self.project_root))
             entries.append(SnapshotEntry(source=rel, stored=stored_name))
 
-        manifest = SnapshotManifest(
-            timestamp=datetime.now(UTC).isoformat(),
-            entries=entries,
-        )
-        self.manifest_path.write_text(
-            json.dumps(manifest.to_dict(), indent=2), encoding="utf-8"
-        )
+        manifest = SnapshotManifest(timestamp=datetime.now(UTC).isoformat(), entries=entries)
+        self.manifest_path.write_text(json.dumps(manifest.to_dict(), indent=2), encoding="utf-8")
         return manifest
 
     def restore(self, paths: list[Path] | None = None) -> list[Path]:
@@ -118,17 +112,13 @@ class SnapshotManager:
         if manifest is None:
             return []
 
-        resolved_filters: list[Path] | None = None
-        if paths:
-            resolved_filters = [p.resolve() for p in paths]
-
+        resolved_filters = [p.resolve() for p in paths] if paths else None
         restored: list[Path] = []
         for entry in manifest.entries:
             abs_source = self.project_root / entry.source
 
             if resolved_filters is not None and not any(
-                abs_source == f or abs_source.is_relative_to(f)
-                for f in resolved_filters
+                abs_source == f or abs_source.is_relative_to(f) for f in resolved_filters
             ):
                 continue
 
@@ -157,8 +147,4 @@ class SnapshotManager:
             return None
 
 
-__all__ = (
-    "SnapshotEntry",
-    "SnapshotManager",
-    "SnapshotManifest",
-)
+__all__ = ("SnapshotEntry", "SnapshotManager", "SnapshotManifest")

@@ -291,7 +291,7 @@ class TestDetectSourceRoot:
         (tmp_path / "src").mkdir()
         from exportify.utils import detect_source_root
 
-        assert detect_source_root() == Path("src")
+        assert detect_source_root() == tmp_path / "src"
 
     def test_falls_back_to_cwd_when_no_src(self, tmp_path: Path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -309,7 +309,7 @@ class TestDetectSourceRoot:
         )
         from exportify.utils import detect_source_root
 
-        assert detect_source_root() == Path("src")
+        assert detect_source_root() == tmp_path / "src"
 
     def test_reads_hatch_packages(self, tmp_path: Path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -322,7 +322,7 @@ class TestDetectSourceRoot:
         from exportify.utils import detect_source_root
 
         # hatch packages[0] = "src/mypkg", parent = "src"
-        assert detect_source_root() == Path("src")
+        assert detect_source_root() == tmp_path / "src"
 
 
 class TestDetectLateimportDependencyUtils:

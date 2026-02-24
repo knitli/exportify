@@ -75,7 +75,4 @@ def status(
 if __name__ == "__main__":
     StatusCommand()
 
-__all__ = (
-    "StatusCommand",
-    "status",
-)
+__all__ = ("StatusCommand",)

@@ -24,7 +24,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from exportify.analysis.ast_parser import ASTParser
-from exportify.commands.utils import format_file
 from exportify.common.cache import JSONAnalysisCache
 from exportify.common.types import (
     ExportGenerationResult,
@@ -36,6 +35,7 @@ from exportify.discovery.file_discovery import FileDiscovery
 from exportify.export_manager.generator import CodeGenerator
 from exportify.export_manager.graph import PropagationGraph
 from exportify.export_manager.rules import RuleEngine
+from exportify.utils import format_content
 
 
 logger = logging.getLogger(__name__)
@@ -154,18 +154,26 @@ class Pipeline:
                 target = self.generator._get_target_path(manifest.module_path)
                 file_existed = target.exists()
 
+                # Format content before write so dry-run and written file are identical
+                formatted = format_content(code.content, filename=target)
+
                 if not dry_run:
-                    self.generator.write_file(manifest.module_path, code)
-                    format_file(target, verbose=False)
+                    result = self.generator.file_writer.write_file(target, formatted)
+                    if not result.success:
+                        if result.error and "syntax error" in result.error.lower():
+                            raise SyntaxError(
+                                f"Generated code has syntax errors\n\n{result.error}"
+                            )
+                        raise OSError(f"Failed to write {target}: {result.error}")
                     self.stats.files_written += 1
 
-                # Record generation
+                # Record generation (formatted content so dry-run output matches written file)
                 if file_existed:
                     updated_files.append(
                         UpdatedFile(
                             path=target,
                             old_content="",  # Would need to read for full diff
-                            new_content=code.content,
+                            new_content=formatted,
                             changes=[f"Updated {len(manifest.all_exports)} exports"],
                         )
                     )
@@ -173,7 +181,7 @@ class Pipeline:
                     generated_files.append(
                         GeneratedFile(
                             path=target,
-                            content=code.content,
+                            content=formatted,
                             exports=manifest.export_names,
                             source_modules=list({e.target_module for e in manifest.all_exports}),
                             timestamp=time.time(),

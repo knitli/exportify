@@ -150,7 +150,9 @@ class SectionParser:
             # Multiple sentinels or malformed - fall back to AST parsing
             return self.parse_content(content.replace(self.SENTINEL, ""))
 
-        preserved = parts[0].rstrip()
+        # Strip managed assignments (__all__) from the preserved section so that
+        # re-generation never produces a duplicate __all__ declaration.
+        preserved = self._strip_managed_assignments(parts[0].rstrip())
         managed = parts[1].lstrip()
 
         # Detect what's in the managed section
@@ -165,19 +167,17 @@ class SectionParser:
         # If the preserved section contains managed infrastructure (leaked from a
         # previous buggy generation run), re-parse it with the AST-based path to
         # filter those nodes out, keeping only genuine user code.
-        _LEAKED_MARKERS = (
+        _managed_infrastructure_markers = (
             "_dynamic_imports",
             "__getattr__ = create_late_getattr",
             "from lateimport import create_late_getattr",
             "from types import MappingProxyType",
         )
-        if any(marker in preserved for marker in _LEAKED_MARKERS):
+        if any(marker in preserved for marker in _managed_infrastructure_markers):
             with contextlib.suppress(Exception):
                 re_parsed = self.parse_content(preserved)
                 preserved_lines_count = (
-                    re_parsed.preserved_code.count("\n") + 1
-                    if re_parsed.preserved_code
-                    else 0
+                    re_parsed.preserved_code.count("\n") + 1 if re_parsed.preserved_code else 0
                 )
                 return ParsedSections(
                     preserved_code=re_parsed.preserved_code,
@@ -255,6 +255,47 @@ class SectionParser:
                 flags["had_dir"] = True
 
         return flags
+
+    def _strip_managed_assignments(self, code: str) -> str:
+        """Strip managed variable assignments (__all__) from preserved code.
+
+        Uses line-range removal so that surrounding comments and formatting are
+        preserved while only the managed assignment nodes are excised.
+
+        Args:
+            code: Preserved code text (everything above the sentinel).
+
+        Returns:
+            Code text with ``__all__`` assignments removed.
+        """
+        if not code or "__all__" not in code:
+            return code
+
+        try:
+            return self._filter_code_for_all_assignments(code)
+        except Exception:
+            return code
+
+    def _filter_code_for_all_assignments(self, code: str) -> str:
+        """Filter out lines corresponding to __all__ assignments using AST."""
+        tree = ast.parse(code)
+        lines = code.splitlines()
+        lines_to_remove: set[int] = set()
+
+        for node in tree.body:
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and target.id == "__all__":
+                        end_line = node.end_lineno if node.end_lineno is not None else node.lineno
+                        for line_no in range(node.lineno - 1, end_line):
+                            lines_to_remove.add(line_no)
+                        break
+
+        if not lines_to_remove:
+            return code
+
+        filtered = [line for i, line in enumerate(lines) if i not in lines_to_remove]
+        return "\n".join(filtered).rstrip()
 
     def _is_type_checking_block(self, node: ast.If) -> bool:
         """Check if an If node is a TYPE_CHECKING block.

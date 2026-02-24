@@ -15,7 +15,6 @@ from cyclopts import App, Parameter
 from exportify.commands.utils import (
     CONSOLE,
     collect_py_files,
-    format_file,
     load_rules,
     path_to_module,
     print_error,
@@ -28,7 +27,7 @@ from exportify.common.snapshot import SnapshotManager
 from exportify.export_manager import ModuleAllFixResult, RuleEngine
 from exportify.export_manager.module_all import fix_module_all
 from exportify.pipeline import Pipeline
-from exportify.utils import detect_source_root
+from exportify.utils import detect_source_root, format_file
 
 
 FixCommand = App(console=CONSOLE)
@@ -223,4 +222,4 @@ def fix(
 if __name__ == "__main__":
     FixCommand()
 
-__all__ = ("FixCommand", "fix")
+__all__ = ("FixCommand",)

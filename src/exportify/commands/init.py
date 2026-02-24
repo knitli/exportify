@@ -81,7 +81,7 @@ def init(
         CONSOLE.print("─" * 80)
     else:
         print_success(f"Config written to: {output}")
-        print_info("Edit this file to customise export rules for your project.")
+        print_info("Edit this file to customize export rules for your project.")
 
     CONSOLE.print()
 
@@ -95,7 +95,4 @@ def init(
 if __name__ == "__main__":
     InitCommand()
 
-__all__ = (
-    "InitCommand",
-    "init",
-)
+__all__ = ("InitCommand",)

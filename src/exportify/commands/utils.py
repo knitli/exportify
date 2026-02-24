@@ -3,11 +3,9 @@
 # SPDX-FileContributor: Adam Poulemanos <adam@knit.li>
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
-# ruff: noqa: S603
 """Utility functions for commands."""
 
 import logging
-import shutil
 
 from pathlib import Path
 
@@ -246,69 +244,10 @@ def path_to_module(path: Path, source_root: Path) -> str:
     return ".".join(parts)
 
 
-def _has_ruff() -> bool:
-    """Check if ruff is installed and available."""
-    return shutil.which("ruff") is not None
-
-
-def _has_isort() -> bool:
-    """Check if isort is installed and available."""
-    return shutil.which("isort") is not None
-
-
-def _has_black() -> bool:
-    """Check if black is installed and available."""
-    return shutil.which("black") is not None
-
-
-def formatting_tools_available() -> bool:
-    """Check if any formatting tools are available."""
-    return _has_ruff() or _has_isort() or _has_black()
-
-
-def format_file(file_path: Path, *, verbose: bool = False) -> None:
-    """Format a generated file using the first available formatter tool.
-
-    Tries ruff, then isort, then black, in that order.  Silently does
-    nothing if none of the tools are installed.
-
-    Args:
-        file_path: Path to the file to format.
-        verbose: Whether to show formatter output.
-    """
-    import subprocess
-
-    if ruff_binary := shutil.which("ruff"):
-        if verbose:
-            print_info(f"Running ruff on {file_path}...")
-        subprocess.run(
-            [ruff_binary, "format", "--verbose" if verbose else "--quiet",
-             str(file_path.absolute())],
-            check=False,
-        )
-    elif isort_binary := shutil.which("isort"):
-        if verbose:
-            print_info(f"Running isort on {file_path}...")
-        subprocess.run(
-            [isort_binary, "-v" if verbose else "-q", str(file_path.absolute())],
-            check=False,
-        )
-    elif black_binary := shutil.which("black"):
-        if verbose:
-            print_info(f"Running black on {file_path}...")
-        subprocess.run(
-            [black_binary, "--verbose" if verbose else "--quiet",
-             str(file_path.absolute())],
-            check=False,
-        )
-
-
 __all__ = (
     "CONSOLE",
     "DEFAULT_CONFIG_PATH",
     "collect_py_files",
-    "format_file",
-    "formatting_tools_available",
     "load_rules",
     "path_to_module",
     "print_error",

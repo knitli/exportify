@@ -229,7 +229,7 @@ class TestGeneratedDynamicImports:
         assert '"helper": (__spec__.parent, "utils")' in code.content
 
     def test_dynamic_imports_empty_when_no_exports(self, tmp_path: Path):
-        """_dynamic_imports should be an empty MappingProxyType when manifest has no exports."""
+        """With no exports the managed section should be minimal: just __all__ = ()."""
         manifest = ExportManifest(
             module_path="mypackage",
             own_exports=[],
@@ -240,8 +240,9 @@ class TestGeneratedDynamicImports:
         generator = CodeGenerator(tmp_path)
         code = generator.generate(manifest)
 
-        # _dynamic_imports should be present but empty
-        assert "_dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({" in code.content
+        # No lazy-loading infrastructure when there are no exports
+        assert "_dynamic_imports" not in code.content
+        assert "MappingProxyType" not in code.content
         assert "__all__ = ()" in code.content
 
 

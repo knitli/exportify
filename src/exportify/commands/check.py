@@ -69,6 +69,7 @@ def _run_lateimports_check(
     py_files: list[Path],
     paths: tuple[Path, ...],
     shared_cache,
+    source_root: Path,
     lateimports: bool | None,
     json_output: bool,
     verbose: bool,
@@ -77,7 +78,7 @@ def _run_lateimports_check(
     from exportify.utils import detect_lateimport_dependency
     from exportify.validator.validator import LateImportValidator
 
-    if not detect_lateimport_dependency():
+    if not detect_lateimport_dependency(source_root):
         if lateimports is True or verbose:
             print_info("Skipping lateimports check: 'lateimport' is not a project dependency")
         return 0, 0
@@ -105,7 +106,13 @@ def _run_lateimports_check(
 
 
 def _run_dynamic_imports_check(
-    *, py_files: list[Path], paths: tuple[Path, ...], shared_cache, json_output: bool, verbose: bool
+    *,
+    py_files: list[Path],
+    paths: tuple[Path, ...],
+    shared_cache,
+    source_root: Path,
+    json_output: bool,
+    verbose: bool,
 ) -> tuple[int, int]:
     """Run the dynamic_imports check and return (errors, warnings)."""
     from exportify.common.types import ValidationReport
@@ -118,7 +125,7 @@ def _run_dynamic_imports_check(
     if not init_files and paths:
         return 0, 0
 
-    validator = LateImportValidator(project_root=Path.cwd(), cache=shared_cache)
+    validator = LateImportValidator(project_root=source_root, cache=shared_cache)
     results = validator.validate(file_paths=init_files or None)
 
     import_resolution_codes = {
@@ -179,7 +186,13 @@ def _run_module_all_check(
 
 
 def _run_package_all_check(
-    *, py_files: list[Path], paths: tuple[Path, ...], shared_cache, json_output: bool, verbose: bool
+    *,
+    py_files: list[Path],
+    paths: tuple[Path, ...],
+    shared_cache,
+    source_root: Path,
+    json_output: bool,
+    verbose: bool,
 ) -> tuple[int, int]:
     """Run the package_all check and return (errors, warnings)."""
     from exportify.common.types import ValidationReport
@@ -192,7 +205,7 @@ def _run_package_all_check(
     if not init_files and paths:
         return 0, 0
 
-    validator = LateImportValidator(project_root=Path.cwd(), cache=shared_cache)
+    validator = LateImportValidator(project_root=source_root, cache=shared_cache)
     results = validator.validate(file_paths=init_files or None)
 
     consistency_errors = [e for e in results.errors if e.code == "CONSISTENCY_ERROR"]
@@ -238,8 +251,7 @@ def check(
     dynamic_imports: Annotated[
         bool | None,
         Parameter(
-            name="dynamic-imports",
-            help="Check _dynamic_imports entries resolve and match __all__",
+            name="dynamic-imports", help="Check _dynamic_imports entries resolve and match __all__"
         ),
     ] = None,
     module_all: Annotated[
@@ -303,6 +315,7 @@ def check(
                 py_files=py_files,
                 paths=paths,
                 shared_cache=shared_cache,
+                source_root=source_root,
                 lateimports=lateimports,
                 json_output=json_output,
                 verbose=verbose,
@@ -314,6 +327,7 @@ def check(
             _run_dynamic_imports_check(
                 py_files=py_files,
                 paths=paths,
+                source_root=source_root,
                 shared_cache=shared_cache,
                 json_output=json_output,
                 verbose=verbose,
@@ -336,6 +350,7 @@ def check(
             _run_package_all_check(
                 py_files=py_files,
                 paths=paths,
+                source_root=source_root,
                 shared_cache=shared_cache,
                 json_output=json_output,
                 verbose=verbose,
@@ -352,7 +367,4 @@ if __name__ == "__main__":
     CheckCommand()
 
 
-__all__ = (
-    "CheckCommand",
-    "check",
-)
+__all__ = ("CheckCommand",)

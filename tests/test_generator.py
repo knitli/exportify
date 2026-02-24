@@ -99,9 +99,11 @@ def test_generate_empty_manifest(generator: CodeGenerator):
     assert "__all__ = ()" in code.content  # Tuple, not list
     assert SENTINEL in code.content
     assert "from __future__ import annotations" in code.content
-    assert "MappingProxyType" in code.content
-    assert "create_late_getattr" in code.content
-    assert "def __dir__() -> list[str]:" in code.content
+    # No lazy-loading infrastructure when there are no exports
+    assert "MappingProxyType" not in code.content
+    assert "create_late_getattr" not in code.content
+    assert "def __dir__()" not in code.content
+    assert "if TYPE_CHECKING:" not in code.content
     # Check SPDX headers
     assert "SPDX-FileCopyrightText: 2026 Knitli Inc." in code.content
     assert "SPDX-License-Identifier: MIT OR Apache-2.0" in code.content
@@ -227,6 +229,53 @@ __all__ = ["OldExport"]
 
     # Should have new managed section
     assert "NewExport" in code.managed_section
+
+
+def test_sentinel_file_with_manual_all_no_duplicate(generator: CodeGenerator, temp_dir: Path):
+    """Regenerating a file whose preserved section has a manual __all__ must not duplicate it."""
+    module_path = "test.module"
+    target = temp_dir / "test" / "module" / "__init__.py"
+    target.parent.mkdir(parents=True)
+
+    # Simulate the export_manager/__init__.py pattern: manual __all__ above the sentinel,
+    # generated __all__ below it.
+    existing_content = """\
+from typing import Protocol
+
+from test.module.sub import OldExport
+
+__all__ = [
+    "OldExport",
+    "Protocol",
+]
+
+# === MANAGED EXPORTS ===
+
+__all__ = ("OldExport",)
+"""
+    target.write_text(existing_content)
+
+    exports = [make_lazy_export("NewExport", "test.module.sub")]
+    manifest = make_manifest(module_path, own_exports=exports)
+    code = generator.generate(manifest)
+
+    # The regenerated file must contain exactly one __all__ *assignment*
+    all_assignments = [
+        line for line in code.content.splitlines() if line.strip().startswith("__all__ =")
+    ]
+    assert len(all_assignments) == 1, (
+        f"Expected 1 __all__ assignment, got {len(all_assignments)}:\n{code.content}"
+    )
+
+    # Manual imports are preserved, old __all__ is not
+    assert "from test.module.sub import OldExport" in code.content
+    assert "OldExport" not in code.managed_section  # replaced by NewExport
+    assert "NewExport" in code.managed_section
+
+    # File must be syntactically valid
+    import ast as _ast
+
+    _ast.parse(code.content)
 
 
 def test_no_sentinel_preserves_non_managed_code(generator: CodeGenerator, temp_dir: Path):
@@ -425,7 +474,6 @@ def test_validate_generated_missing_all(generator: CodeGenerator):
 
     errors = generator.validate_generated(code)
     assert any("__all__" in err for err in errors)
-    assert any("__dir__" in err for err in errors)  # Should also catch missing __dir__()
 
 
 # validate_init_file tests
@@ -483,7 +531,6 @@ def test_validate_init_file_missing_all(temp_dir: Path):
 
     errors = validate_init_file(init_file)
     assert any("__all__" in err for err in errors)
-    assert any("__dir__" in err for err in errors)  # Should also catch missing __dir__()
 
 
 # Sorting tests
@@ -830,7 +877,7 @@ def test_barrel_managed_section_empty(temp_dir):
     code = generator_barrel.generate(manifest)
 
     assert "__all__ = ()" in code.content
-    assert "def __dir__" in code.content
+    assert "def __dir__" not in code.content  # No __dir__ when there are no exports
 
 
 # _barrel_import_lines (lines 382-403)

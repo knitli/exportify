@@ -19,10 +19,7 @@ UndoCommand = App(console=CONSOLE)
 
 @UndoCommand.default
 def undo(
-    *paths: Annotated[
-        Path,
-        Parameter(help="Files or directories to restore (default: all)"),
-    ],
+    *paths: Annotated[Path, Parameter(help="Files or directories to restore (default: all)")],
     verbose: Annotated[bool, Parameter(help="Show each restored file")] = False,
 ) -> None:
     """Restore files modified by the last fix run.
@@ -66,7 +63,4 @@ if __name__ == "__main__":
     UndoCommand()
 
 
-__all__ = (
-    "UndoCommand",
-    "undo",
-)
+__all__ = ("UndoCommand",)

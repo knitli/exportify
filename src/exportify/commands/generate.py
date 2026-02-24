@@ -174,7 +174,4 @@ def generate(
 if __name__ == "__main__":
     GenerateCommand()
 
-__all__ = (
-    "GenerateCommand",
-    "generate",
-)
+__all__ = ("GenerateCommand",)
