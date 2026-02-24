@@ -35,7 +35,7 @@ Manage Python package exports: check, fix, and generate `__init__.py` files.
 * [`doctor`](#exportify-doctor): Run health checks and provide actionable advice.
 * [`fix`](#exportify-fix): Sync exports and `__all__` declarations to match rules.
 * [`generate`](#exportify-generate): Bootstrap new `__init__.py` files for packages that don't have one.
-* [`init`](#exportify-init): Initialise exportify with a default configuration file.
+* [`init`](#exportify-init): Initialize exportify with a default configuration file.
 * [`status`](#exportify-status): Show current export/import health status.
 
 ### exportify check
@@ -168,11 +168,11 @@ Provides recommendations for improvements.
 exportify init [OPTIONS] [ARGS]
 ```
 
-Initialise exportify with a default configuration file.
+Initialize exportify with a default configuration file.
 
 Creates `.exportify/config.yaml` in the current directory with sensible default
 rules that work for most Python packages. Edit the file afterwards to
-customise which symbols are exported and how they propagate.
+customize which symbols are exported and how they propagate.
 
 **Parameters**:
 

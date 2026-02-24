@@ -22,7 +22,9 @@ import time
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import NoReturn
 
+from exportify import ExportManifest
 from exportify.analysis.ast_parser import ASTParser
 from exportify.common.cache import JSONAnalysisCache
 from exportify.common.config import SpdxConfig
@@ -30,6 +32,7 @@ from exportify.common.types import (
     ExportGenerationResult,
     GeneratedFile,
     GenerationMetrics,
+    SkippedFile,
     UpdatedFile,
 )
 from exportify.discovery.file_discovery import FileDiscovery
@@ -84,7 +87,9 @@ class Pipeline:
         # Initialize components
         self.file_discovery = FileDiscovery()
         self.ast_parser = ASTParser()
-        self.generator = CodeGenerator(output_dir, output_style=output_style, spdx_config=spdx_config)
+        self.generator = CodeGenerator(
+            output_dir, output_style=output_style, spdx_config=spdx_config
+        )
         self.graph = PropagationGraph(rule_engine)
 
         # Statistics
@@ -95,40 +100,26 @@ class Pipeline:
         # purposes only — they must not get their own __init__.py generated.
         self._package_modules: set[str] = set()
 
-    def run(
-        self, source_root: Path, *, dry_run: bool = False, module: Path | None = None
-    ) -> ExportGenerationResult:
-        """Execute full pipeline.
+    def _discover_files(self, source_root: Path) -> list[Path]:
+        """Discover Python files in the source root.
 
         Args:
-            source_root: Root directory to process
-            dry_run: If True, don't write files
-            module: If specified, only process this module
+            source_root: Root directory to search
+        Returns:
+            List of Python file paths
+        """
+        logger.info("Discovering Python files in %s", source_root)
+        python_files = self.file_discovery.discover_python_files(source_root)
+        self.stats.files_discovered = len(python_files)
+        logger.info("Found %d Python files in %s", len(python_files), source_root)
+        return python_files
+
+    def _build_manifests(self) -> dict[str, ExportManifest]:
+        """Build export manifests from the propagation graph.
 
         Returns:
-            ExportGenerationResult with complete results
+            Dictionary mapping module paths to ExportManifests
         """
-        start_time = time.time()
-
-        # Reset per-run state
-        self._package_modules = set()
-
-        # Update generator output directory to match source root
-        self.generator.output_dir = source_root
-
-        # Step 1: Discover files
-        logger.info("Discovering Python files in %s", source_root)
-        search_root = module or source_root
-        python_files = self.file_discovery.discover_python_files(search_root)
-        self.stats.files_discovered = len(python_files)
-        logger.info("Found %d Python files", len(python_files))
-
-        # Step 2: Analyze files and build graph
-        logger.info("Analyzing files and building propagation graph")
-        for file_path in python_files:
-            self._process_file(file_path, source_root)
-
-        # Step 3: Build manifests from graph
         logger.info("Building export manifests")
         try:
             manifests = self.graph.build_manifests()
@@ -138,8 +129,26 @@ class Pipeline:
             logger.exception("Manifest building failed")
             self.stats.errors.append(str(e))
             manifests = {}
+        return manifests
 
-        # Step 4: Generate code
+    def _generate_code(
+        self, manifests: dict[str, ExportManifest], *, dry_run: bool = False
+    ) -> tuple[list[GeneratedFile], list[UpdatedFile], list[SkippedFile]]:
+        """Generate code for a single export manifest.
+
+        Args:
+            manifest: ExportManifest to generate code for
+        Returns:
+            GeneratedCode with content and metadata
+        """
+
+        def _raise_error(
+            error: type[Exception], message: str, original_error: Exception | str | None = None
+        ) -> NoReturn:
+            if isinstance(original_error, Exception):
+                raise error(f"{message}: {original_error}") from original_error
+            raise error(message)
+
         logger.info("Generating code for %d modules", len(manifests))
         generated_files = []
         updated_files = []
@@ -149,6 +158,12 @@ class Pipeline:
             # Only generate __init__.py for actual packages, not leaf modules.
             # Leaf modules (.py files) exist in the graph for propagation only.
             if manifest.module_path not in self._package_modules:
+                skipped_files.append(
+                    SkippedFile(
+                        path=Path(manifest.module_path),
+                        reason="Not a package module (no __init__.py)",
+                    )
+                )
                 continue
             try:
                 code = self.generator.generate(manifest)
@@ -164,10 +179,12 @@ class Pipeline:
                     result = self.generator.file_writer.write_file(target, formatted)
                     if not result.success:
                         if result.error and "syntax error" in result.error.lower():
-                            raise SyntaxError(
-                                f"Generated code has syntax errors\n\n{result.error}"
+                            _raise_error(
+                                SyntaxError,
+                                f"Syntax error in generated code for {manifest.module_path}",
+                                result.error,
                             )
-                        raise OSError(f"Failed to write {target}: {result.error}")
+                        _raise_error(OSError, f"Failed to write {target}", result.error)
                     self.stats.files_written += 1
 
                 # Record generation (formatted content so dry-run output matches written file)
@@ -195,6 +212,47 @@ class Pipeline:
             except Exception as e:
                 logger.exception("Failed to generate %s", manifest.module_path)
                 self.stats.errors.append(f"{manifest.module_path}: {e}")
+
+        return generated_files, updated_files, skipped_files
+
+    def run(
+        self, source_root: Path, *, dry_run: bool = False, module: Path | None = None
+    ) -> ExportGenerationResult:
+        """Execute full pipeline.
+
+        Args:
+            source_root: Root directory to process
+            dry_run: If True, don't write files
+            module: If specified, only process this module
+
+        Returns:
+            ExportGenerationResult with complete results
+        """
+        start_time = time.time()
+
+        # Reset per-run state
+        self._package_modules = set()
+
+        # Update generator output directory to match source root
+        self.generator.output_dir = source_root
+
+        # Step 1: Discover files
+        search_root = module or source_root
+        python_files = self._discover_files(search_root)
+
+        # Step 2: Analyze files and build graph
+        logger.info("Analyzing files and building propagation graph")
+        for file_path in python_files:
+            self._process_file(file_path, source_root)
+
+        # Step 3: Build manifests from graph
+        manifests = self._build_manifests()
+
+        # Step 4: Generate code
+        logger.info("Generating code for %d modules", len(manifests))
+        generated_files, updated_files, skipped_files = self._generate_code(
+            manifests, dry_run=dry_run
+        )
 
         # Calculate metrics
         processing_time_ms = int((time.time() - start_time) * 1000)

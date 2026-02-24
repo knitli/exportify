@@ -16,6 +16,16 @@ Components:
 
 from __future__ import annotations
 
+from types import MappingProxyType
+
+# === MANAGED EXPORTS ===
+# Exportify manages this section. It contains lazy-loading infrastructure
+# for the package: imports and runtime declarations (__all__, __getattr__,
+# __dir__). Manual edits will be overwritten by `exportify fix`.
+from typing import TYPE_CHECKING
+
+from lateimport import create_late_getattr
+
 from exportify.export_manager.generator import CodeGenerator, GeneratedCode, validate_init_file
 from exportify.export_manager.graph import PropagationGraph
 from exportify.export_manager.module_all import (
@@ -26,16 +36,6 @@ from exportify.export_manager.module_all import (
 )
 from exportify.export_manager.rules import RuleEngine
 
-# === MANAGED EXPORTS ===
-
-# Exportify manages this section. It contains lazy-loading infrastructure
-# for the package: imports and runtime declarations (__all__, __getattr__,
-# __dir__). Manual edits will be overwritten by `exportify fix`.
-
-from typing import TYPE_CHECKING
-from types import MappingProxyType
-
-from lateimport import create_late_getattr
 
 if TYPE_CHECKING:
     from exportify.export_manager.file_writer import FileWriter, WriteResult
@@ -44,7 +44,6 @@ if TYPE_CHECKING:
         PRESERVED_BEGIN,
         PRESERVED_END,
         SENTINEL,
-        SPDX_HEADERS,
         CodeGenerator,
         GeneratedCode,
         validate_init_file,
@@ -80,7 +79,6 @@ _dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({
     "PRESERVED_BEGIN": (__spec__.parent, "generator"),
     "PRESERVED_END": (__spec__.parent, "generator"),
     "SENTINEL": (__spec__.parent, "generator"),
-    "SPDX_HEADERS": (__spec__.parent, "generator"),
     "SUPPORTED_VERSIONS": (__spec__.parent, "rules"),
     "CircularDependencyIndicator": (__spec__.parent, "graph"),
     "CodeGenerator": (__spec__.parent, "generator"),
@@ -111,7 +109,6 @@ __all__ = (
     "PRESERVED_BEGIN",
     "PRESERVED_END",
     "SENTINEL",
-    "SPDX_HEADERS",
     "SUPPORTED_VERSIONS",
     "CircularDependencyIndicator",
     "CodeGenerator",

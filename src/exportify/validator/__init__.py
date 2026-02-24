@@ -20,10 +20,11 @@ ImportValidator = LateImportValidator
 # for the package: imports and runtime declarations (__all__, __getattr__,
 # __dir__). Manual edits will be overwritten by `exportify fix`.
 
-from typing import TYPE_CHECKING
 from types import MappingProxyType
+from typing import TYPE_CHECKING
 
 from lateimport import create_late_getattr
+
 
 if TYPE_CHECKING:
     from exportify.validator.consistency import ConsistencyChecker

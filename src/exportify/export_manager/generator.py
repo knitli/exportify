@@ -586,7 +586,6 @@ __all__ = [
     "PRESERVED_BEGIN",
     "PRESERVED_END",
     "SENTINEL",
-    "SPDX_HEADERS",
     "CodeGenerator",
     "GeneratedCode",
     "WriteResult",

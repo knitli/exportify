@@ -6,18 +6,18 @@
 
 from __future__ import annotations
 
-from exportify.analysis.ast_parser import ASTParser
+from types import MappingProxyType
 
 # === MANAGED EXPORTS ===
-
 # Exportify manages this section. It contains lazy-loading infrastructure
 # for the package: imports and runtime declarations (__all__, __getattr__,
 # __dir__). Manual edits will be overwritten by `exportify fix`.
-
 from typing import TYPE_CHECKING
-from types import MappingProxyType
 
 from lateimport import create_late_getattr
+
+from exportify.analysis.ast_parser import ASTParser
+
 
 if TYPE_CHECKING:
     from exportify.analysis.ast_parser import ASTParser

@@ -84,9 +84,11 @@ class TestUndoCommandObject:
         from cyclopts import App
 
         from exportify.commands.undo import UndoCommand
+
         assert isinstance(UndoCommand, App)
 
     def test_undo_exported_from_module(self):
         from exportify.commands.undo import UndoCommand, undo
+
         assert callable(undo)
         assert UndoCommand is not None

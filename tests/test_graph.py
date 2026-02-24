@@ -571,9 +571,7 @@ class TestPropagationGraphEdgeCases:
         graph = PropagationGraph(rule_engine=engine)
         graph.add_module("pkg", None)
 
-        excluded = self._create_decision(
-            "ExcludedThing", "pkg", action=RuleAction.EXCLUDE
-        )
+        excluded = self._create_decision("ExcludedThing", "pkg", action=RuleAction.EXCLUDE)
         graph.add_export(excluded)  # Should not raise
 
         manifests = graph.build_manifests()
@@ -587,9 +585,7 @@ class TestPropagationGraphEdgeCases:
         graph = PropagationGraph(rule_engine=engine)
         graph.add_module("pkg", None)
 
-        no_decision = self._create_decision(
-            "NothingThing", "pkg", action=RuleAction.NO_DECISION
-        )
+        no_decision = self._create_decision("NothingThing", "pkg", action=RuleAction.NO_DECISION)
         graph.add_export(no_decision)
 
         manifests = graph.build_manifests()
@@ -636,7 +632,6 @@ class TestPropagationGraphEdgeCases:
     def test_detect_cycles_visiting_branch(self):
         """detect_cycles captures the cycle path via VISITING state (lines 172-174)."""
         from exportify.export_manager.graph import ModuleNode
-
         from exportify.export_manager.rules import RuleEngine
 
         engine = RuleEngine()
@@ -736,7 +731,7 @@ class TestPropagationGraphEdgeCases:
         """
         import pytest
 
-        from exportify.export_manager.graph import ExportEntry, ModuleNode
+        from exportify.export_manager.graph import ExportEntry
         from exportify.export_manager.rules import RuleEngine
 
         engine = RuleEngine()
@@ -745,7 +740,7 @@ class TestPropagationGraphEdgeCases:
 
         # Build a valid decision so we have a symbol
         decision1 = self._create_decision("Dup", "pkg", PropagationLevel.NONE)
-        decision2 = self._create_decision("Dup", "pkg", PropagationLevel.NONE)
+        self._create_decision("Dup", "pkg", PropagationLevel.NONE)
 
         # Directly inject two entries with the same key by bypassing the dict via
         # monkeypatching the node's own_exports to an object whose .keys() returns dupes.
@@ -766,7 +761,7 @@ class TestPropagationGraphEdgeCases:
         """_validate_propagation_sources raises when source module not in graph (line 284)."""
         import pytest
 
-        from exportify.export_manager.graph import ExportEntry, ModuleNode
+        from exportify.export_manager.graph import ExportEntry
         from exportify.export_manager.rules import RuleEngine
 
         engine = RuleEngine()
@@ -879,9 +874,9 @@ class TestPropagationGraphEdgeCases:
         We cover them by calling _add_propagated_export directly with a string subclass that
         reports equality for != but also reports < as True.
         """
+        from exportify.common.types import ExportDecision
         from exportify.export_manager.graph import ExportEntry
         from exportify.export_manager.rules import RuleEngine
-        from exportify.common.types import ExportDecision
 
         engine = RuleEngine()
         graph = PropagationGraph(rule_engine=engine)
@@ -898,6 +893,8 @@ class TestPropagationGraphEdgeCases:
 
             def __lt__(self, other):
                 return True  # makes `new_module < old_module` True (hits line 261-262)
+
+            __slots__ = ()
 
         base_decision = self._create_decision("SameKey", "pkg", PropagationLevel.NONE)
 

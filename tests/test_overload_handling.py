@@ -13,13 +13,7 @@ from pathlib import Path
 import pytest
 
 from exportify.analysis.ast_parser import ASTParser
-from exportify.common.types import (
-    MemberType,
-    PropagationLevel,
-    Rule,
-    RuleAction,
-    RuleMatchCriteria,
-)
+from exportify.common.types import MemberType, PropagationLevel, Rule, RuleAction, RuleMatchCriteria
 from exportify.export_manager.rules import RuleEngine
 
 
@@ -63,7 +57,7 @@ def parser():
 
 def create_temp_file(content: str) -> Path:
     """Create temporary Python file with content."""
-    temp_file = tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False)  # noqa: SIM115
+    temp_file = tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False)
     temp_file.write(content)
     temp_file.close()
     return Path(temp_file.name)

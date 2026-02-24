@@ -391,7 +391,6 @@ class TestErrorHandling:
         self, rule_engine, cache, tmp_path, monkeypatch
     ) -> None:
         """ValueError from build_manifests is captured as an error, not raised."""
-        from exportify.export_manager.graph import PropagationGraph
 
         pipeline = Pipeline(rule_engine, cache, tmp_path)
 
@@ -416,7 +415,6 @@ class TestErrorHandling:
         self, rule_engine, cache, tmp_path, monkeypatch
     ) -> None:
         """Exception from generator.generate is captured per-manifest."""
-        from unittest.mock import MagicMock
 
         pipeline = Pipeline(rule_engine, cache, tmp_path)
 
@@ -427,7 +425,6 @@ class TestErrorHandling:
         (src / "mod.py").write_text("class A: pass")
 
         # Let the graph build succeed, but make generator.generate always raise
-        orig_generate = pipeline.generator.generate
 
         def bad_generate(manifest):
             raise RuntimeError("generation failed")

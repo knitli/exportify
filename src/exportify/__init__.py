@@ -53,10 +53,11 @@ __version__ = _get_version()
 # for the package: imports and runtime declarations (__all__, __getattr__,
 # __dir__). Manual edits will be overwritten by `exportify fix`.
 
-from typing import TYPE_CHECKING
 from types import MappingProxyType
+from typing import TYPE_CHECKING
 
 from lateimport import create_late_getattr
+
 
 if TYPE_CHECKING:
     from exportify.analysis.ast_parser import ASTParser
@@ -216,6 +217,7 @@ __getattr__ = create_late_getattr(_dynamic_imports, globals(), __name__)
 __all__ = (
     "DEFAULT_OUTPUT",
     "SCHEMA_VERSION",
+    "ASTParser",
     "AnalysisResult",
     "CacheEntry",
     "CacheStatistics",
@@ -231,8 +233,8 @@ __all__ = (
     "ExportDecision",
     "ExportEntry",
     "ExportGenerationResult",
-    "ExportifyConfig",
     "ExportManifest",
+    "ExportifyConfig",
     "ExtractedRule",
     "FileDiscovery",
     "FileWriter",
@@ -241,6 +243,7 @@ __all__ = (
     "GenerationMetrics",
     "ImportResolution",
     "ImportResolver",
+    "JSONAnalysisCache",
     "LateImportConfig",
     "LateImportValidator",
     "LazyExport",
@@ -277,14 +280,12 @@ __all__ = (
     "ValidationReport",
     "ValidationWarning",
     "WriteResult",
-    "ASTParser",
     "cli_init",
     "detect_lateimport_dependency",
     "detect_source_root",
     "format_content",
     "format_file",
     "formatting_tools_available",
-    "JSONAnalysisCache",
     "locate_project_root",
     "main",
     "migrate_to_yaml",

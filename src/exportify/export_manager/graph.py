@@ -359,6 +359,7 @@ class PropagationGraph:
 
         return "\n".join(lines)
 
+
 __all__ = (
     "CircularDependencyIndicator",
     "ExportEntry",

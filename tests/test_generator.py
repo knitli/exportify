@@ -352,7 +352,11 @@ def __dir__() -> list[str]:
     _ast.parse(code.content)
 
     # from __future__ import annotations must be the first executable statement
-    lines = [line for line in code.content.splitlines() if line.strip() and not line.strip().startswith("#")]
+    lines = [
+        line
+        for line in code.content.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
     assert lines[0] in ('"""Package docstring."""', "from __future__ import annotations"), (
         f"Unexpected first executable line: {lines[0]!r}"
     )

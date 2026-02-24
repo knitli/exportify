@@ -25,7 +25,7 @@ def parser():
 
 def create_temp_file(content: str) -> Path:
     """Create temporary Python file with content."""
-    temp_file = tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False)  # noqa: SIM115
+    temp_file = tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False)
     temp_file.write(content)
     temp_file.close()
     return Path(temp_file.name)

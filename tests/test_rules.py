@@ -897,10 +897,7 @@ class TestRuleEngineAdditionalCoverage:
     def test_set_overrides_include_triggers_include_decision(self):
         """set_overrides with include entry returns INCLUDE at priority 9999 (lines 63, 82)."""
         engine = RuleEngine()
-        engine.set_overrides({
-            "include": {"my.module": ["SpecialClass"]},
-            "exclude": {},
-        })
+        engine.set_overrides({"include": {"my.module": ["SpecialClass"]}, "exclude": {}})
 
         symbol = self._create_symbol("SpecialClass")
         result = engine.evaluate(symbol, "my.module")
@@ -913,10 +910,7 @@ class TestRuleEngineAdditionalCoverage:
     def test_set_overrides_exclude_triggers_exclude_decision(self):
         """set_overrides with exclude entry returns EXCLUDE at priority 9999 (lines 63, 96)."""
         engine = RuleEngine()
-        engine.set_overrides({
-            "include": {},
-            "exclude": {"my.module": ["BadClass"]},
-        })
+        engine.set_overrides({"include": {}, "exclude": {"my.module": ["BadClass"]}})
 
         symbol = self._create_symbol("BadClass")
         result = engine.evaluate(symbol, "my.module")
@@ -929,10 +923,7 @@ class TestRuleEngineAdditionalCoverage:
     def test_override_include_does_not_apply_to_other_module(self):
         """Include override for one module does not affect a different module (line 79-81)."""
         engine = RuleEngine()
-        engine.set_overrides({
-            "include": {"my.module": ["SpecialClass"]},
-            "exclude": {},
-        })
+        engine.set_overrides({"include": {"my.module": ["SpecialClass"]}, "exclude": {}})
 
         symbol = self._create_symbol("SpecialClass")
         # Different module — override must not apply
@@ -943,10 +934,7 @@ class TestRuleEngineAdditionalCoverage:
     def test_override_include_does_not_apply_to_other_symbol(self):
         """Include override for one symbol name does not affect a different symbol (line 80)."""
         engine = RuleEngine()
-        engine.set_overrides({
-            "include": {"my.module": ["SpecialClass"]},
-            "exclude": {},
-        })
+        engine.set_overrides({"include": {"my.module": ["SpecialClass"]}, "exclude": {}})
 
         symbol = self._create_symbol("OtherClass")
         result = engine.evaluate(symbol, "my.module")
@@ -1091,6 +1079,7 @@ class TestRuleEngineAdditionalCoverage:
         rule_yaml = {"schema_version": "0.9", "rules": []}
         rule_file = tmp_path / "old_schema.yaml"
         import yaml as _yaml
+
         rule_file.write_text(_yaml.dump(rule_yaml))
 
         # Temporarily add "0.9" to SUPPORTED_VERSIONS so the unsupported-version
@@ -1125,6 +1114,7 @@ class TestRuleEngineAdditionalCoverage:
         }
         rule_file = tmp_path / "rules.yaml"
         import yaml as _yaml
+
         rule_file.write_text(_yaml.dump(rule_yaml))
 
         engine.load_rules([rule_file])
@@ -1171,21 +1161,23 @@ class TestRuleEngineAdditionalCoverage:
         in any module would match.
         """
         engine = RuleEngine()
-        engine.add_rule(Rule(
-            name="commands-only",
-            priority=850,
-            description="Export *Command variables from commands modules",
-            match=RuleMatchCriteria(
-                name_pattern=r".*Command$",
-                module_pattern=r".*\.commands\.[a-z_]+$",
-                any_of=[
-                    RuleMatchCriteria(member_type=MemberType.CLASS),
-                    RuleMatchCriteria(member_type=MemberType.VARIABLE),
-                ],
-            ),
-            action=RuleAction.INCLUDE,
-            propagate=PropagationLevel.PARENT,
-        ))
+        engine.add_rule(
+            Rule(
+                name="commands-only",
+                priority=850,
+                description="Export *Command variables from commands modules",
+                match=RuleMatchCriteria(
+                    name_pattern=r".*Command$",
+                    module_pattern=r".*\.commands\.[a-z_]+$",
+                    any_of=[
+                        RuleMatchCriteria(member_type=MemberType.CLASS),
+                        RuleMatchCriteria(member_type=MemberType.VARIABLE),
+                    ],
+                ),
+                action=RuleAction.INCLUDE,
+                propagate=PropagationLevel.PARENT,
+            )
+        )
 
         # ✓ Matches: right name, right module, right member type
         fix_command = self._create_symbol("FixCommand", member_type=MemberType.VARIABLE)
@@ -1210,20 +1202,22 @@ class TestRuleEngineAdditionalCoverage:
     def test_all_of_does_not_bypass_parent_criteria(self):
         """all_of must not short-circuit parent criteria either."""
         engine = RuleEngine()
-        engine.add_rule(Rule(
-            name="complex-rule",
-            priority=500,
-            description="Match public classes defined here",
-            match=RuleMatchCriteria(
-                name_pattern=r"^[A-Z].*",
-                all_of=[
-                    RuleMatchCriteria(member_type=MemberType.CLASS),
-                    RuleMatchCriteria(provenance=SymbolProvenance.DEFINED_HERE),
-                ],
-            ),
-            action=RuleAction.INCLUDE,
-            propagate=PropagationLevel.PARENT,
-        ))
+        engine.add_rule(
+            Rule(
+                name="complex-rule",
+                priority=500,
+                description="Match public classes defined here",
+                match=RuleMatchCriteria(
+                    name_pattern=r"^[A-Z].*",
+                    all_of=[
+                        RuleMatchCriteria(member_type=MemberType.CLASS),
+                        RuleMatchCriteria(provenance=SymbolProvenance.DEFINED_HERE),
+                    ],
+                ),
+                action=RuleAction.INCLUDE,
+                propagate=PropagationLevel.PARENT,
+            )
+        )
 
         # ✓ Matches all conditions
         public_class = self._create_symbol(

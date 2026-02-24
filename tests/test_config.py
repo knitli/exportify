@@ -6,8 +6,6 @@
 
 from __future__ import annotations
 
-import tomllib
-
 from pathlib import Path
 
 import pytest
@@ -82,8 +80,7 @@ class TestExportifyConfigGetOutputStyle:
         from exportify.common.types import OutputStyle
 
         cfg = ExportifyConfig(
-            output_style=OutputStyle.LAZY,
-            package_styles={"mypackage.compat": OutputStyle.BARREL},
+            output_style=OutputStyle.LAZY, package_styles={"mypackage.compat": OutputStyle.BARREL}
         )
         assert cfg.get_output_style("mypackage.compat") == OutputStyle.BARREL
 
@@ -92,8 +89,7 @@ class TestExportifyConfigGetOutputStyle:
         from exportify.common.types import OutputStyle
 
         cfg = ExportifyConfig(
-            output_style=OutputStyle.LAZY,
-            package_styles={"mypackage.compat": OutputStyle.BARREL},
+            output_style=OutputStyle.LAZY, package_styles={"mypackage.compat": OutputStyle.BARREL}
         )
         # sub-module inherits parent override
         assert cfg.get_output_style("mypackage.compat.models") == OutputStyle.BARREL
@@ -104,10 +100,7 @@ class TestExportifyConfigGetOutputStyle:
 
         cfg = ExportifyConfig(
             output_style=OutputStyle.LAZY,
-            package_styles={
-                "mypackage": OutputStyle.BARREL,
-                "mypackage.core": OutputStyle.LAZY,
-            },
+            package_styles={"mypackage": OutputStyle.BARREL, "mypackage.core": OutputStyle.LAZY},
         )
         assert cfg.get_output_style("mypackage.core.models") == OutputStyle.LAZY
 
@@ -116,8 +109,7 @@ class TestExportifyConfigGetOutputStyle:
         from exportify.common.types import OutputStyle
 
         cfg = ExportifyConfig(
-            output_style=OutputStyle.BARREL,
-            package_styles={"other_pkg": OutputStyle.LAZY},
+            output_style=OutputStyle.BARREL, package_styles={"other_pkg": OutputStyle.LAZY}
         )
         assert cfg.get_output_style("mypackage.core") == OutputStyle.BARREL
 
@@ -173,10 +165,7 @@ class TestLoadConfig:
 
     def test_invalid_override_style_raises(self, tmp_path: Path):
         cfg_file = tmp_path / "config.yaml"
-        data = {
-            "output_style": "lazy",
-            "overrides": {"mypackage.compat": {"output_style": "bad"}},
-        }
+        data = {"output_style": "lazy", "overrides": {"mypackage.compat": {"output_style": "bad"}}}
         cfg_file.write_text(yaml.dump(data))
         from exportify.common.config import load_config
 
@@ -185,10 +174,7 @@ class TestLoadConfig:
 
     def test_override_without_output_style_skipped(self, tmp_path: Path):
         cfg_file = tmp_path / "config.yaml"
-        data = {
-            "output_style": "lazy",
-            "overrides": {"mypackage.compat": {"other_key": "value"}},
-        }
+        data = {"output_style": "lazy", "overrides": {"mypackage.compat": {"other_key": "value"}}}
         cfg_file.write_text(yaml.dump(data))
         from exportify.common.config import load_config
 
@@ -198,9 +184,7 @@ class TestLoadConfig:
     def test_non_dict_override_skipped(self, tmp_path: Path):
         cfg_file = tmp_path / "config.yaml"
         # Write raw YAML where override value is a string, not a dict
-        cfg_file.write_text(
-            "output_style: lazy\noverrides:\n  mypackage.compat: not_a_dict\n"
-        )
+        cfg_file.write_text("output_style: lazy\noverrides:\n  mypackage.compat: not_a_dict\n")
         from exportify.common.config import load_config
 
         result = load_config(cfg_file)
@@ -217,9 +201,7 @@ class TestDetectLateimportDependency:
     def test_lateimport_in_project_dependencies(self, tmp_path: Path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         pyproject = tmp_path / "pyproject.toml"
-        pyproject.write_bytes(
-            b'[project]\ndependencies = ["lateimport>=0.1.0", "pyyaml"]\n'
-        )
+        pyproject.write_bytes(b'[project]\ndependencies = ["lateimport>=0.1.0", "pyyaml"]\n')
         from exportify.common.config import detect_lateimport_dependency
 
         assert detect_lateimport_dependency() is True
@@ -235,9 +217,7 @@ class TestDetectLateimportDependency:
     def test_lateimport_in_dependency_groups(self, tmp_path: Path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         pyproject = tmp_path / "pyproject.toml"
-        pyproject.write_bytes(
-            b'[dependency-groups]\ndev = ["lateimport>=0.1.0", "pytest"]\n'
-        )
+        pyproject.write_bytes(b'[dependency-groups]\ndev = ["lateimport>=0.1.0", "pytest"]\n')
         from exportify.common.config import detect_lateimport_dependency
 
         assert detect_lateimport_dependency() is True
@@ -362,9 +342,7 @@ class TestDetectSourceRoot:
         src = tmp_path / "src"
         src.mkdir()
         pyproject = tmp_path / "pyproject.toml"
-        pyproject.write_bytes(
-            b'[tool.setuptools.package-dir]\n"" = "src"\n'
-        )
+        pyproject.write_bytes(b'[tool.setuptools.package-dir]\n"" = "src"\n')
         from exportify.utils import detect_source_root
 
         assert detect_source_root() == tmp_path / "src"
@@ -374,9 +352,7 @@ class TestDetectSourceRoot:
         src = tmp_path / "src"
         src.mkdir()
         pyproject = tmp_path / "pyproject.toml"
-        pyproject.write_bytes(
-            b"[tool.hatch.build.targets.wheel]\npackages = [\"src/mypkg\"]\n"
-        )
+        pyproject.write_bytes(b'[tool.hatch.build.targets.wheel]\npackages = ["src/mypkg"]\n')
         from exportify.utils import detect_source_root
 
         # hatch packages[0] = "src/mypkg", parent = "src"
@@ -392,9 +368,7 @@ class TestDetectLateimportDependencyUtils:
 
     def test_lateimport_found_in_project_deps(self, tmp_path: Path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "pyproject.toml").write_text(
-            '[project]\ndependencies = ["lateimport>=0.1"]\n'
-        )
+        (tmp_path / "pyproject.toml").write_text('[project]\ndependencies = ["lateimport>=0.1"]\n')
         from exportify.utils import detect_lateimport_dependency
 
         assert detect_lateimport_dependency() is True

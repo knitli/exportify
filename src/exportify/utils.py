@@ -274,7 +274,7 @@ __all__ = (
     "detect_lateimport_dependency",
     "detect_source_root",
     "format_content",
-    "locate_project_root",
     "format_file",
     "formatting_tools_available",
+    "locate_project_root",
 )

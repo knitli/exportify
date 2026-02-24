@@ -13,7 +13,7 @@ The `init` command (and the underlying `migrate_to_yaml()` function) generates a
 
 This is used when setting up exportify for the first time. It is not a "migration" from
 another system — it simply creates a well-structured default configuration that can then
-be customised.
+be customized.
 
 ## CLI Usage
 
@@ -123,7 +123,7 @@ class MigrationResult:
 
 ### `verify_migration()`
 
-Verifies that a generated config produces the expected behaviour for common symbol
+Verifies that a generated config produces the expected behavior for common symbol
 patterns.
 
 ```python
@@ -135,7 +135,7 @@ success, errors = verify_migration(
 )
 
 if success:
-    print("Config verified - behaviour is correct")
+    print("Config verified - behavior is correct")
 else:
     for error in errors:
         print(f"  {error}")
@@ -162,7 +162,7 @@ success, errors = verify_migration(
 
 1. **Review the generated YAML**: Check `.exportify/config.yaml`
 2. **Run verification**: `exportify check --source src/yourpackage`
-3. **Customise rules**: Add project-specific rules as needed
+3. **Customize rules**: Add project-specific rules as needed
 4. **Generate exports**: `exportify generate --source src/yourpackage`
 
 ## Architecture
@@ -172,8 +172,8 @@ The init workflow is implemented in `src/exportify/migration.py`:
 - **`RuleMigrator`**: Builds the default rule set
   - `_extract_default_rules()`: Adds the 6 standard rules
   - `_extract_module_exceptions()`: Placeholder for project-specific overrides
-  - `_generate_yaml()`: Serialises rules to YAML
+  - `_generate_yaml()`: Serializes rules to YAML
   - `_generate_summary()`: Produces a human-readable summary
 
 - **`migrate_to_yaml()`**: Entry point used by both the CLI and the Python API
-- **`verify_migration()`**: Validates that a config file matches expected rule behaviour
+- **`verify_migration()`**: Validates that a config file matches expected rule behavior

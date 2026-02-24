@@ -214,27 +214,24 @@ class TestGeneratedDynamicImports:
             ),
         ]
         manifest = ExportManifest(
-            module_path="mypackage",
-            own_exports=exports,
-            propagated_exports=[],
-            all_exports=exports,
+            module_path="mypackage", own_exports=exports, propagated_exports=[], all_exports=exports
         )
 
         generator = CodeGenerator(tmp_path)
         code = generator.generate(manifest)
 
         # _dynamic_imports should be a MappingProxyType with entries
-        assert "_dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({" in code.content
+        assert (
+            "_dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({"
+            in code.content
+        )
         assert '"MyClass": (__spec__.parent, "core")' in code.content
         assert '"helper": (__spec__.parent, "utils")' in code.content
 
     def test_dynamic_imports_empty_when_no_exports(self, tmp_path: Path):
         """With no exports the managed section should be minimal: just __all__ = ()."""
         manifest = ExportManifest(
-            module_path="mypackage",
-            own_exports=[],
-            propagated_exports=[],
-            all_exports=[],
+            module_path="mypackage", own_exports=[], propagated_exports=[], all_exports=[]
         )
 
         generator = CodeGenerator(tmp_path)

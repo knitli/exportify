@@ -59,15 +59,6 @@ run = [
   "typos -w",
   "tombi format pyproject.toml ruff.toml mise.toml",
 ]
-depends_post = '''
-if [ "${usage_add}" = "true" ]; then
-  git add .
-fi
-if [ "${usage_add_and_commit}" = "true" ]; then
-  git add .
-  git commit --amend --no-edit
-fi
-'''
 
 [tasks.fix.tools]
 ruff = "latest"

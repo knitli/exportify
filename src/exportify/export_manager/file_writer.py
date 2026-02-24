@@ -54,10 +54,7 @@ class FileWriter:
     SnapshotManager) provide user-facing rollback instead of per-file backups.
     """
 
-    def __init__(
-        self,
-        validator: Callable[[str], list[str]] | None = None,
-    ) -> None:
+    def __init__(self, validator: Callable[[str], list[str]] | None = None) -> None:
         """Initialize file writer.
 
         Args:

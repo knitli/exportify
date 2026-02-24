@@ -744,10 +744,7 @@ class TestCircuitBreaker:
 
         # Create a simple object without file_hash attribute
         fake_analysis = types.SimpleNamespace(
-            symbols=[],
-            imports=[],
-            analysis_timestamp=time.time(),
-            schema_version="1.0",
+            symbols=[], imports=[], analysis_timestamp=time.time(), schema_version="1.0"
         )
 
         # Should not raise even with no file_hash
@@ -871,7 +868,7 @@ class TestCircuitBreaker:
 
     def test_add_ignore_default_cache_dir_creates_gitignore(self, tmp_path, monkeypatch):
         """_add_ignore_to_cache writes .gitignore for the default cache directory."""
-        from exportify.common.cache import DEFAULT_CACHE_SUBDIR, _add_ignore_to_cache
+        from exportify.common.cache import _add_ignore_to_cache
 
         # Monkeypatch DEFAULT_CACHE_SUBDIR so we can test the gitignore-creation branch
         # without side effects on the actual project

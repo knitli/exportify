@@ -120,7 +120,9 @@ def _fix_init_files(
     _warn_missing_inits(py_files, source_root)
 
     cache = JSONAnalysisCache()
-    pipeline = Pipeline(rule_engine=rules, cache=cache, output_dir=source_root, spdx_config=spdx_config)
+    pipeline = Pipeline(
+        rule_engine=rules, cache=cache, output_dir=source_root, spdx_config=spdx_config
+    )
 
     try:
         result = pipeline.run(source_root=source_root, dry_run=dry_run)

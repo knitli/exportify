@@ -6,19 +6,19 @@
 
 from __future__ import annotations
 
-# === MANAGED EXPORTS ===
+from types import MappingProxyType
 
+# === MANAGED EXPORTS ===
 # Exportify manages this section. It contains lazy-loading infrastructure
 # for the package: imports and runtime declarations (__all__, __getattr__,
 # __dir__). Manual edits will be overwritten by `exportify fix`.
-
 from typing import TYPE_CHECKING
-from types import MappingProxyType
 
 from lateimport import create_late_getattr
 
+
 if TYPE_CHECKING:
-    from exportify.common.cache import T, CircuitBreaker, CircuitState, JSONAnalysisCache
+    from exportify.common.cache import CircuitBreaker, CircuitState, JSONAnalysisCache, T
     from exportify.common.config import (
         CONFIG_ENV_VAR,
         DEFAULT_CACHE_SUBDIR,
@@ -122,7 +122,6 @@ __all__ = (
     "DEFAULT_CACHE_SUBDIR",
     "DEFAULT_CONFIG_NAMES",
     "DEFAULT_SNAPSHOT_DIR",
-    "T",
     "AnalysisResult",
     "CacheEntry",
     "CacheStatistics",
@@ -134,11 +133,12 @@ __all__ = (
     "DetectedSymbol",
     "ExportDecision",
     "ExportGenerationResult",
-    "ExportifyConfig",
     "ExportManifest",
+    "ExportifyConfig",
     "GeneratedFile",
     "GenerationMetrics",
     "ImportResolution",
+    "JSONAnalysisCache",
     "LateImportConfig",
     "LazyExport",
     "MemberType",
@@ -155,6 +155,7 @@ __all__ = (
     "SnapshotManifest",
     "SourceLocation",
     "SymbolProvenance",
+    "T",
     "UpdatedFile",
     "ValidationConfig",
     "ValidationError",
@@ -163,7 +164,6 @@ __all__ = (
     "ValidationWarning",
     "detect_lateimport_dependency",
     "find_config_file",
-    "JSONAnalysisCache",
     "load_config",
 )
 
