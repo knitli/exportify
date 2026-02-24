@@ -17,6 +17,8 @@ hk.local.pkl.license
 # local terminal zsh config -- can contain sensitive info
 .vscode/terminal.local.zsh
 *mcp*.backup*
+.exportify/snapshots/
+*.py.backup.*
 
 # CLAUDE.md -- we symlink this file from AGENTS.md in the setup script
 CLAUDE.md
