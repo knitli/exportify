@@ -23,6 +23,7 @@ from exportify.commands.utils import (
     print_warning,
 )
 from exportify.common.cache import JSONAnalysisCache
+from exportify.common.snapshot import SnapshotManager
 from exportify.export_manager import ModuleAllFixResult, RuleEngine
 from exportify.export_manager.module_all import fix_module_all
 from exportify.pipeline import Pipeline
@@ -201,6 +202,12 @@ def fix(
     source_root = source or detect_source_root()
     py_files = collect_py_files(paths, source)
     rules = load_rules(verbose=verbose)
+
+    if not dry_run:
+        SnapshotManager(source_root).capture(py_files)
+        if verbose:
+            print_info(f"Snapshot captured ({len(py_files)} file(s))")
+
     total = 0
 
     if "module_all" in fixes_to_run:
