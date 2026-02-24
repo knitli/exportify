@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from exportify.commands.generate import GenerateCommand
     from exportify.commands.init import InitCommand
     from exportify.commands.status import StatusCommand
+    from exportify.commands.undo import UndoCommand, undo
 
 _dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({
     "CheckCommand": (__spec__.parent, "check"),
@@ -29,6 +30,8 @@ _dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({
     "GenerateCommand": (__spec__.parent, "generate"),
     "InitCommand": (__spec__.parent, "init"),
     "StatusCommand": (__spec__.parent, "status"),
+    "UndoCommand": (__spec__.parent, "undo"),
+    "undo": (__spec__.parent, "undo"),
 })
 
 __getattr__ = create_late_getattr(_dynamic_imports, globals(), __name__)
@@ -41,6 +44,8 @@ __all__ = (
     "GenerateCommand",
     "InitCommand",
     "StatusCommand",
+    "UndoCommand",
+    "undo",
 )
 
 
