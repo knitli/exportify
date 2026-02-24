@@ -23,7 +23,7 @@ from textwrap import dedent
 import pytest
 
 from exportify.common.types import ExportManifest, LazyExport
-from exportify.export_manager.file_writer import BackupPolicy, FileWriter
+from exportify.export_manager.file_writer import FileWriter
 from exportify.export_manager.generator import SENTINEL, CodeGenerator
 from exportify.export_manager.section_parser import SectionParser
 
@@ -49,7 +49,7 @@ def temp_dir():
 @pytest.fixture
 def file_writer() -> FileWriter:
     """Create file writer with default settings."""
-    return FileWriter(backup_policy=BackupPolicy.ALWAYS, max_backups=5)
+    return FileWriter()
 
 
 @pytest.fixture
@@ -654,128 +654,7 @@ class TestCodeGenerator:
 
 
 class TestFileWriter:
-    """Test file writing with backups."""
-
-    def test_backup_created_with_timestamp(self, file_writer: FileWriter, temp_dir: Path) -> None:
-        """Backup files use timestamp naming."""
-        target = temp_dir / "test.py"
-        target.write_text("# original content\n__all__ = ()\n")
-
-        result = file_writer.write_file(target, "# new content\n__all__ = ()\n", create_backup=True)
-
-        assert result.success
-        assert result.backup_path is not None
-        assert result.backup_path.exists()
-
-        # Verify timestamp format in filename
-        assert ".backup." in result.backup_path.name
-        # Should match pattern: test.py.backup.YYYYMMDD-HHMMSS
-        assert result.backup_path.suffix != ".py"
-
-    def test_restore_from_backup(self, file_writer: FileWriter, temp_dir: Path) -> None:
-        """Restore file from backup works correctly."""
-        target = temp_dir / "test.py"
-        original = "# original\n__all__ = ()\n"
-        target.write_text(original)
-
-        # Create backup and modify
-        result = file_writer.write_file(target, "# modified\n__all__ = ()\n", create_backup=True)
-        assert result.success
-        backup_path = result.backup_path
-
-        # Restore from backup
-        restore_result = file_writer.restore_backup(target, backup_path)
-        assert restore_result.success
-
-        # Verify content restored
-        assert target.read_text() == original
-
-    def test_old_backups_cleaned_up(self, file_writer: FileWriter, temp_dir: Path) -> None:
-        """Old backups are cleaned up when max_backups limit reached."""
-        import time
-
-        target = temp_dir / "test.py"
-        target.write_text("# v0\n__all__ = ()\n")
-
-        # Manually create old backup files with different timestamps
-        base_time = time.time()
-        for i in range(7):
-            backup = target.with_suffix(f".py.backup.old{i}")
-            backup.write_text(f"# old backup {i}\n__all__ = ()\n")
-            # Set modification time to make them appear old
-            import os
-
-            os.utime(backup, (base_time - (i * 100), base_time - (i * 100)))
-
-        # Now write a new version - this should trigger cleanup
-        result = file_writer.write_file(target, "# new version\n__all__ = ()\n", create_backup=True)
-        assert result.success
-
-        # Count backup files
-        backups = list(target.parent.glob(f"{target.stem}.py.backup.*"))
-
-        # Should only keep max_backups (5) most recent
-        assert len(backups) <= file_writer.max_backups
-
-    def test_max_backups_limit_enforced(self, temp_dir: Path) -> None:
-        """Max backups configuration is respected."""
-        import os
-        import time
-
-        max_backups = 3
-        writer = FileWriter(backup_policy=BackupPolicy.ALWAYS, max_backups=max_backups)
-
-        target = temp_dir / "test.py"
-        target.write_text("# initial\n__all__ = ()\n")
-
-        # Manually create old backup files with different timestamps
-        base_time = time.time()
-        for i in range(5):
-            backup = target.with_suffix(f".py.backup.old{i}")
-            backup.write_text(f"# old backup {i}\n__all__ = ()\n")
-            # Set modification time to make them appear at different times
-            os.utime(backup, (base_time - (i * 100), base_time - (i * 100)))
-
-        # Write once - should clean up old backups
-        writer.write_file(target, "# new\n__all__ = ()\n", create_backup=True)
-
-        # Count remaining backups
-        backups = list(target.parent.glob(f"{target.stem}.py.backup.*"))
-        assert len(backups) == max_backups
-
-    def test_backup_policy_never(self, temp_dir: Path) -> None:
-        """BackupPolicy.NEVER creates no backups."""
-        writer = FileWriter(backup_policy=BackupPolicy.NEVER)
-
-        target = temp_dir / "test.py"
-        target.write_text("original")
-
-        result = writer.write_file(target, "modified", create_backup=True)
-
-        assert result.success
-        assert result.backup_path is None
-
-        # No backup files should exist
-        backups = list(target.parent.glob("*.backup.*"))
-        assert not backups
-
-    def test_backup_policy_on_change(self, temp_dir: Path) -> None:
-        """BackupPolicy.ON_CHANGE only creates backup when content differs."""
-        writer = FileWriter(backup_policy=BackupPolicy.ON_CHANGE)
-
-        target = temp_dir / "test.py"
-        content = "# same\n__all__ = ()\n"
-        target.write_text(content)
-
-        # Write same content - no backup
-        result = writer.write_file(target, content, create_backup=True)
-        assert result.success
-        assert result.backup_path is None
-
-        # Write different content - backup created
-        result = writer.write_file(target, "# different\n__all__ = ()\n", create_backup=True)
-        assert result.success
-        assert result.backup_path is not None
+    """Test file writing with validation."""
 
     def test_validation_error_prevents_write(self, temp_dir: Path) -> None:
         """Validation errors prevent file write."""
@@ -786,7 +665,7 @@ class TestFileWriter:
         writer = FileWriter(validator=failing_validator)
 
         target = temp_dir / "test.py"
-        result = writer.write_file(target, "bad", create_backup=False)
+        result = writer.write_file(target, "bad")
 
         assert not result.success
         assert result.error is not None
@@ -798,7 +677,7 @@ class TestFileWriter:
         target = temp_dir / "test.py"
 
         invalid_python = "def broken( # syntax error"
-        result = file_writer.write_file(target, invalid_python, create_backup=False)
+        result = file_writer.write_file(target, invalid_python)
 
         assert not result.success
         assert result.error is not None and "Syntax error" in result.error
@@ -973,47 +852,6 @@ class TestIntegration:
         assert "import sys" in parsed.preserved_code
         assert "def my_function()" in parsed.preserved_code
 
-    def test_backup_and_restore_integration(
-        self, code_generator: CodeGenerator, temp_dir: Path
-    ) -> None:
-        """Test backup creation and restoration in generation workflow."""
-        init_file = temp_dir / "test" / "module" / "__init__.py"
-        init_file.parent.mkdir(parents=True, exist_ok=True)
-
-        original_content = "# Original user code\nDEBUG = True"
-        init_file.write_text(original_content)
-
-        exports = [
-            LazyExport(
-                public_name="MyClass",
-                target_module="test.module.impl",
-                target_object="MyClass",
-                is_type_only=False,
-            )
-        ]
-        manifest = ExportManifest(
-            module_path="test.module",
-            own_exports=exports,
-            propagated_exports=[],
-            all_exports=exports,
-        )
-
-        # Generate and write with backup
-        generated = code_generator.generate(manifest)
-        result = code_generator.write_file("test.module", generated)
-
-        assert result.success
-        assert result.backup_path is not None
-        assert result.backup_path.exists()
-
-        # Verify backup contains original content
-        backup_content = result.backup_path.read_text()
-        assert "DEBUG = True" in backup_content
-
-        # Verify new file has both preserved and generated content
-        new_content = init_file.read_text()
-        assert "DEBUG = True" in new_content
-        assert "MyClass" in new_content
 
 
 # ============================================================================
