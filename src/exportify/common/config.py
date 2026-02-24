@@ -76,6 +76,31 @@ def find_config_file() -> Path | None:
 
 
 @dataclass
+class SpdxConfig:
+    """SPDX license header configuration for generated __init__.py files."""
+
+    enabled: bool = False
+    """Whether to add SPDX comment headers to generated files. Default: False."""
+
+    copyright: str = ""
+    """SPDX-FileCopyrightText value (e.g. '2026 Acme Corp.')."""
+
+    license: str = ""
+    """SPDX-License-Identifier value (e.g. 'MIT' or 'Apache-2.0')."""
+
+    def build_header(self) -> str | None:
+        """Return the SPDX comment block, or None if disabled or nothing to emit."""
+        if not self.enabled:
+            return None
+        parts = []
+        if self.copyright:
+            parts.append(f"# SPDX-FileCopyrightText: {self.copyright}")
+        if self.license:
+            parts.append(f"# SPDX-License-Identifier: {self.license}")
+        return "\n#\n".join(parts) if parts else None
+
+
+@dataclass
 class ExportifyConfig:
     """Parsed exportify configuration."""
 
@@ -84,6 +109,9 @@ class ExportifyConfig:
 
     package_styles: dict[str, OutputStyle] = field(default_factory=dict)
     """Per-package overrides: maps package path (e.g. "mypackage.compat") to its OutputStyle."""
+
+    spdx: SpdxConfig = field(default_factory=SpdxConfig)
+    """SPDX header configuration for generated files."""
 
     def get_output_style(self, module_path: str) -> OutputStyle:
         """Get output style for a module, inheriting from the nearest matching ancestor.
@@ -164,7 +192,15 @@ def load_config(path: Path) -> ExportifyConfig:
                 f"in {path}. Valid values: {valid}"
             ) from None
 
-    return ExportifyConfig(output_style=global_style, package_styles=package_styles)
+    # --- spdx config ---
+    spdx_data = data.get("spdx") or {}
+    spdx = SpdxConfig(
+        enabled=bool(spdx_data.get("enabled", False)),
+        copyright=spdx_data.get("copyright", "") or "",
+        license=spdx_data.get("license", "") or "",
+    )
+
+    return ExportifyConfig(output_style=global_style, package_styles=package_styles, spdx=spdx)
 
 
 def detect_lateimport_dependency() -> bool:
@@ -216,6 +252,7 @@ __all__ = [
     "DEFAULT_CONFIG_NAMES",
     "DEFAULT_SNAPSHOT_DIR",
     "ExportifyConfig",
+    "SpdxConfig",
     "detect_lateimport_dependency",
     "find_config_file",
     "load_config",

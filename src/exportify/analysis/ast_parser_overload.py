@@ -110,4 +110,4 @@ def group_functions_by_name(tree: ast.Module) -> dict[str, dict[str, object]]:
     return function_groups
 
 
-__all__ = ["group_functions_by_name", "is_overloaded_function"]
+__all__ = ("group_functions_by_name", "is_overloaded_function")

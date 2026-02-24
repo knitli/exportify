@@ -3,13 +3,13 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
 name: CI
-
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   pull_request:
-    branches: [main]
-
+    branches:
+      - main
 jobs:
   lint:
     name: Lint
@@ -18,14 +18,16 @@ jobs:
       - uses: actions/checkout@v6
       - uses: jdx/mise-action@v2
       - run: mise run lint
-
   test:
     name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12", "3.13", "3.14"]
+        python-version:
+          - "3.12"
+          - "3.13"
+          - "3.14"
     steps:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v7

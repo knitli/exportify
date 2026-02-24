@@ -23,6 +23,7 @@ from textwrap import dedent
 import pytest
 
 from exportify.common.types import ExportManifest, LazyExport
+from exportify.common.config import SpdxConfig
 from exportify.export_manager.file_writer import FileWriter
 from exportify.export_manager.generator import SENTINEL, CodeGenerator
 from exportify.export_manager.section_parser import SectionParser
@@ -559,9 +560,12 @@ class TestCodeGenerator:
     # We need to tell reuse that these are not actual headers, otherwise it'll throw an error.
     # REUSE-IgnoreStart
     def test_spdx_headers_regenerated(
-        self, code_generator: CodeGenerator, sample_manifest: ExportManifest, temp_dir: Path,
+        self, sample_manifest: ExportManifest, temp_dir: Path,
     ) -> None:
-        """SPDX headers are regenerated, not preserved."""
+        """SPDX headers are regenerated (not preserved) when SpdxConfig is enabled."""
+        spdx = SpdxConfig(enabled=True, copyright="2026 Test Corp.", license="MIT")
+        gen = CodeGenerator(output_dir=temp_dir, spdx_config=spdx)
+
         init_file = temp_dir / "test" / "module" / "__init__.py"
         init_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -577,14 +581,14 @@ class TestCodeGenerator:
 
         init_file.write_text(content)
 
-        generated = code_generator.generate(sample_manifest)
+        generated = gen.generate(sample_manifest)
 
         # New SPDX headers in full content
-        assert "SPDX-FileCopyrightText:" in generated.content
-        assert "SPDX-License-Identifier:" in generated.content
+        assert "SPDX-FileCopyrightText: 2026 Test Corp." in generated.content
+        assert "SPDX-License-Identifier: MIT" in generated.content
 
-        # Old headers not in preserved section
-        assert "Old copyright notice" in generated.manual_section  # But user comment preserved
+        # Old user comment still in preserved section
+        assert "Old copyright notice" in generated.manual_section
 
     # REUSE-IgnoreEnd
     def test_managed_sections_regenerated(

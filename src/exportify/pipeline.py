@@ -25,6 +25,7 @@ from pathlib import Path
 
 from exportify.analysis.ast_parser import ASTParser
 from exportify.common.cache import JSONAnalysisCache
+from exportify.common.config import SpdxConfig
 from exportify.common.types import (
     ExportGenerationResult,
     GeneratedFile,
@@ -64,6 +65,7 @@ class Pipeline:
         cache: JSONAnalysisCache,
         output_dir: Path,
         output_style: str = "lazy",
+        spdx_config: SpdxConfig | None = None,
     ):
         """Initialize pipeline with required components.
 
@@ -72,6 +74,7 @@ class Pipeline:
             cache: Analysis cache for performance
             output_dir: Root directory for output
             output_style: Output style — ``"lazy"`` (default) or ``"barrel"``
+            spdx_config: Optional SPDX header configuration for generated files.
         """
         self.rule_engine = rule_engine
         self.cache = cache
@@ -81,7 +84,7 @@ class Pipeline:
         # Initialize components
         self.file_discovery = FileDiscovery()
         self.ast_parser = ASTParser()
-        self.generator = CodeGenerator(output_dir, output_style=output_style)
+        self.generator = CodeGenerator(output_dir, output_style=output_style, spdx_config=spdx_config)
         self.graph = PropagationGraph(rule_engine)
 
         # Statistics

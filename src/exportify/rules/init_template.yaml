@@ -11,172 +11,153 @@
 # Docs: https://github.com/knitli/exportify
 
 schema_version: "1.0"
-
+# Optional: add SPDX comment headers to every generated __init__.py.
+# spdx:
+#   enabled: true
+#   copyright: "2026 Your Name or Company."
+#   license: "MIT OR Apache-2.0"
 rules:
   # ===================================================================
   # Priority 1000: Explicit exclusions
   # These rules run first to prevent unwanted exports
   # ===================================================================
-
-  - name: "ExcludePrivateSymbols"
+  - name: ExcludePrivateSymbols
     priority: 1000
-    description: "Skip all private symbols (names starting with underscore)"
+    description: Skip all private symbols (names starting with underscore)
     match:
-      name_pattern: "^_.*"
+      name_pattern: ^_.*
     action: exclude
-
-  - name: "IncludeDunderVersion"
+  - name: IncludeDunderVersion
     priority: 1000
-    description: "Always include __version__ if it exists (common convention)"
+    description: Always include __version__ if it exists (common convention)
     match:
-      name_exact: "__version__"
+      name_exact: __version__
       # root init only
-      module_exact: "__init__"
+      module_exact: __init__
     action: include
-
-  - name: "ExcludeDunderSymbols"
+  - name: ExcludeDunderSymbols
     priority: 999
-    description: "Skip dunder symbols except __all__ which is managed separately"
+    description: Skip dunder symbols except __all__ which is managed separately
     match:
-      name_pattern: "^__.*__$"
+      name_pattern: ^__.*__$
     action: exclude
-
   # ===================================================================
   # Priority 900: Special component exclusions
   # Prevent self-referential or infrastructure issues
   # ===================================================================
-
-  - name: "ExcludeLateImportComponents"
+  - name: ExcludeLateImportComponents
     priority: 900
-    description: "Never lazily export lateimport components (prevents circular dependency)"
+    description: Never lazily export lateimport components (prevents circular dependency)
     match:
-      module_pattern: ".*\\.lateimport$"
+      module_pattern: .*\.lateimport$
     action: exclude
-
-  - name: "ExcludeLateImportFunction"
+  - name: ExcludeLateImportFunction
     priority: 900
-    description: "Don't lazily export the lateimport function itself"
+    description: Don't lazily export the lateimport function itself
     match:
-      name_exact: "lateimport"
+      name_exact: lateimport
     action: exclude
-
-  - name: "ExcludeCreateLateGetattr"
+  - name: ExcludeCreateLateGetattr
     priority: 900
-    description: "Don't lazily export create_late_getattr (infrastructure)"
+    description: Don't lazily export create_late_getattr (infrastructure)
     match:
-      name_exact: "create_late_getattr"
+      name_exact: create_late_getattr
     action: exclude
-
-  - name: "ExcludeLateImportClass"
+  - name: ExcludeLateImportClass
     priority: 900
-    description: "Don't lazily export LateImport class (infrastructure)"
+    description: Don't lazily export LateImport class (infrastructure)
     match:
-      name_exact: "LateImport"
+      name_exact: LateImport
     action: exclude
-
   # ===================================================================
   # Priority 800: Framework infrastructure
   # Exclude testing and development support code
   # ===================================================================
-
-  - name: "ExcludeTestFixtures"
+  - name: ExcludeTestFixtures
     priority: 800
-    description: "Skip pytest fixtures and test utilities"
+    description: Skip pytest fixtures and test utilities
     match:
       any_of:
-        - name_pattern: "^fixture_.*"
-        - name_pattern: "^pytest_.*"
-        - module_pattern: ".*\\.tests?\\..*"
+        - name_pattern: ^fixture_.*
+        - name_pattern: ^pytest_.*
+        - module_pattern: .*\.tests?\..*
     action: exclude
-
-  - name: "ExcludeDevOnlyFunctions"
+  - name: ExcludeDevOnlyFunctions
     priority: 800
-    description: "Skip functions marked as development-only"
+    description: Skip functions marked as development-only
     match:
-      name_pattern: "^dev_.*"
+      name_pattern: ^dev_.*
     action: exclude
-
   # ===================================================================
   # Priority 700: Defined symbols (high priority exports)
   # Export symbols defined in the module itself
   # ===================================================================
-
-  - name: "ExportDefinedClasses"
+  - name: ExportDefinedClasses
     priority: 700
-    description: "Export classes defined in this module"
+    description: Export classes defined in this module
     match:
       member_type: class
     action: include
     propagate: root
-
-  - name: "ExportDefinedFunctions"
+  - name: ExportDefinedFunctions
     priority: 700
-    description: "Export functions defined in this module (including async)"
+    description: Export functions defined in this module (including async)
     match:
       member_type: function
     action: include
     propagate: parent
-
-  - name: "ExportSpecialConstants"
+  - name: ExportSpecialConstants
     priority: 702
-    description: "Export constants in constants.py and file_extensions.py to root"
+    description: Export constants in constants.py and file_extensions.py to root
     match:
       all_of:
-          - member_type: constant
-          - any_of:
-            - module_pattern: ".*\\.constants$"
-            - module_pattern: ".*\\.file_extensions$"
+        - member_type: constant
+        - any_of:
+            - module_pattern: .*\.constants$
+            - module_pattern: .*\.file_extensions$
     action: include
     propagate: root
-
-  - name: "ExportDefinedConstants"
+  - name: ExportDefinedConstants
     priority: 700
-    description: "Export constants (SCREAMING_SNAKE_CASE variables)"
+    description: Export constants (SCREAMING_SNAKE_CASE variables)
     match:
       member_type: constant
-      name_pattern: "^[A-Z0-9_]+$"
+      name_pattern: ^[A-Z0-9_]+$
     action: include
     propagate: parent
-
-  - name: "ExportTypeAliases"
+  - name: ExportTypeAliases
     priority: 700
-    description: "Export type aliases (both Python 3.12+ and pre-3.12 style)"
+    description: Export type aliases (both Python 3.12+ and pre-3.12 style)
     match:
       member_type: type_alias
     action: include
     propagate: root
-
   # ===================================================================
   # Priority 600: Import handling
   # Determine which imported symbols to re-export
   # ===================================================================
-
-  - name: "ExportImportedSymbols"
+  - name: ExportImportedSymbols
     priority: 600
-    description: "Export imported symbols (aliased)"
+    description: Export imported symbols (aliased)
     match:
       # export all aliased imports
       all_of:
         - member_type: imported
         - provenance: alias_imported
-
     action: include
     propagate: root
-
   # ===================================================================
   # Priority 400: Variable handling
   # Public module-level variables
   # ===================================================================
-
-  - name: "ExportPublicVariables"
+  - name: ExportPublicVariables
     priority: 400
-    description: "Exclude public variables (snake_case module-level assignments)"
+    description: Exclude public variables (snake_case module-level assignments)
     match:
       member_type: variable
-      name_pattern: "^[a-z0-9_]+$"
+      name_pattern: ^[a-z0-9_]+$
     action: exclude
     propagate: none
-
   # ===================================================================
   # Priority 300: Project-specific propagation rules
   #
@@ -200,10 +181,9 @@ rules:
   # ===================================================================
   # Priority 0: Default fallback
   # ===================================================================
-
-  - name: "DefaultNoDecision"
+  - name: DefaultNoDecision
     priority: 0
-    description: "Default: no decision (symbol not exported)"
+    description: 'Default: no decision (symbol not exported)'
     match:
-      name_pattern: ".*"  # Matches everything
+      name_pattern: .* # Matches everything
     action: no_decision

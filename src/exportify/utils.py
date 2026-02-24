@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # ruff: noqa: S603 --- IGNORE ---
 """Utility functions for exportify."""
+
 import shutil
 import tomllib
 
@@ -189,9 +190,7 @@ def formatting_tools_available() -> bool:
     return _has_ruff() or _has_isort() or _has_black()
 
 
-def format_content(
-    content: str, *, filename: Path | None = None, verbose: bool = False
-) -> str:
+def format_content(content: str, *, filename: Path | None = None, verbose: bool = False) -> str:
     """Format Python source code using the first available formatter via stdin.
 
     Pipes ``content`` to the formatter's stdin and returns the formatted
@@ -213,11 +212,17 @@ def format_content(
     """
     import subprocess
 
-    stdin_filename_args = (["--stdin-filename", str(filename)] if filename is not None else [])
+    stdin_filename_args = ["--stdin-filename", str(filename)] if filename is not None else []
 
     if ruff_binary := shutil.which("ruff"):
         result = subprocess.run(
-            [ruff_binary, "format", "--verbose" if verbose else "--quiet", *stdin_filename_args, "-"],
+            [
+                ruff_binary,
+                "format",
+                "--verbose" if verbose else "--quiet",
+                *stdin_filename_args,
+                "-",
+            ],
             input=content,
             capture_output=True,
             text=True,
@@ -270,4 +275,6 @@ __all__ = (
     "detect_source_root",
     "format_content",
     "locate_project_root",
+    "format_file",
+    "formatting_tools_available",
 )

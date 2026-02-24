@@ -23,11 +23,12 @@ from exportify.commands.utils import (
     print_warning,
 )
 from exportify.common.cache import JSONAnalysisCache
+from exportify.common.config import SpdxConfig, find_config_file, load_config
 from exportify.common.snapshot import SnapshotManager
 from exportify.export_manager import ModuleAllFixResult, RuleEngine
 from exportify.export_manager.module_all import fix_module_all
 from exportify.pipeline import Pipeline
-from exportify.utils import detect_source_root, format_file
+from exportify.utils import detect_source_root, format_file, locate_project_root
 
 
 FixCommand = App(console=CONSOLE)
@@ -104,7 +105,13 @@ def _warn_missing_inits(py_files: list[Path], source_root: Path) -> None:
 
 
 def _fix_init_files(
-    py_files: list[Path], source_root: Path, rules: RuleEngine, *, dry_run: bool, verbose: bool
+    py_files: list[Path],
+    source_root: Path,
+    rules: RuleEngine,
+    *,
+    dry_run: bool,
+    verbose: bool,
+    spdx_config: SpdxConfig | None = None,
 ) -> int:
     """Fix __init__.py files via the Pipeline. Returns count of changed files."""
     if verbose:
@@ -113,7 +120,7 @@ def _fix_init_files(
     _warn_missing_inits(py_files, source_root)
 
     cache = JSONAnalysisCache()
-    pipeline = Pipeline(rule_engine=rules, cache=cache, output_dir=source_root)
+    pipeline = Pipeline(rule_engine=rules, cache=cache, output_dir=source_root, spdx_config=spdx_config)
 
     try:
         result = pipeline.run(source_root=source_root, dry_run=dry_run)
@@ -201,8 +208,13 @@ def fix(
     py_files = collect_py_files(paths, source)
     rules = load_rules(verbose=verbose)
 
+    spdx_config: SpdxConfig | None = None
+    config_path = find_config_file()
+    if config_path is not None:
+        spdx_config = load_config(config_path).spdx
+
     if not dry_run:
-        SnapshotManager(source_root).capture(py_files)
+        SnapshotManager(locate_project_root()).capture(py_files)
         if verbose:
             print_info(f"Snapshot captured ({len(py_files)} file(s))")
 
@@ -214,7 +226,9 @@ def fix(
         )
 
     if "dynamic_imports" in fixes_to_run or "package_all" in fixes_to_run:
-        total += _fix_init_files(py_files, source_root, rules, dry_run=dry_run, verbose=verbose)
+        total += _fix_init_files(
+            py_files, source_root, rules, dry_run=dry_run, verbose=verbose, spdx_config=spdx_config
+        )
 
     _print_summary(total, dry_run=dry_run)
 

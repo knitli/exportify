@@ -1,2 +1,4 @@
 .exportify/cache/
 .exportify/snapshots/
+.exportify/cache/analysis_cache.json
+.exportify/snapshots/last/*

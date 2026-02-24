@@ -386,4 +386,4 @@ class ASTParser:
         )
 
 
-__all__ = ["ASTParser"]
+__all__ = ("ASTParser",)

@@ -21,7 +21,7 @@ from exportify.commands.utils import (
     print_success,
     print_warning,
 )
-from exportify.common.config import CONFIG_ENV_VAR
+from exportify.common.config import CONFIG_ENV_VAR, SpdxConfig
 from exportify.export_manager import RuleEngine
 from exportify.types import ExportGenerationResult
 from exportify.utils import detect_source_root
@@ -111,6 +111,7 @@ def generate(
     rules = RuleEngine()
     rules_path = find_config_file()
 
+    spdx_config: SpdxConfig | None = None
     if rules_path is None:
         print_warning(f"No config file found (set {CONFIG_ENV_VAR} or create .exportify.yaml)")
         print_info("Using default rules")
@@ -120,6 +121,7 @@ def generate(
         print_success(f"Loaded rules from {rules_path}")
         config = load_config(rules_path)
         output_style_value = config.output_style.value
+        spdx_config = config.spdx
 
     CONSOLE.print()
 
@@ -130,7 +132,11 @@ def generate(
     # Create pipeline
     print_info("Initializing pipeline...")
     pipeline = Pipeline(
-        rule_engine=rules, cache=cache, output_dir=output_dir, output_style=output_style_value
+        rule_engine=rules,
+        cache=cache,
+        output_dir=output_dir,
+        output_style=output_style_value,
+        spdx_config=spdx_config,
     )
 
     if not source_root.exists():

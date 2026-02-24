@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Literal
 
 import textcase
 
+from exportify.common.config import SpdxConfig
 from exportify.common.types import ExportManifest, LazyExport
 from exportify.export_manager.file_writer import FileWriter, WriteResult
 from exportify.export_manager.section_parser import SectionParser
@@ -42,13 +43,6 @@ MANAGED_COMMENT = """# Exportify manages this section. It contains lazy-loading 
 # for the package: imports and runtime declarations (__all__, __getattr__,
 # __dir__). Manual edits will be overwritten by `exportify fix`."""
 
-# we need to tell REUSE that the following code block is not a license header (it generates them)
-# REUSE-IgnoreStart
-# SPDX headers for generated files
-SPDX_HEADERS = """# SPDX-FileCopyrightText: 2026 Knitli Inc.
-#
-# SPDX-License-Identifier: MIT OR Apache-2.0"""
-# REUSE-IgnoreEnd
 # Comment markers for preserved sections
 PRESERVED_BEGIN = "# --- BEGIN PRESERVED CODE ---"
 PRESERVED_END = "# --- END PRESERVED CODE ---"
@@ -89,7 +83,7 @@ class GeneratedCode:
         managed: str,
         export_count: int,
         *,
-        include_headers: bool = True,
+        spdx_header: str | None = None,
         add_markers: bool = False,
     ) -> GeneratedCode:
         """Create GeneratedCode with computed hash.
@@ -103,7 +97,7 @@ class GeneratedCode:
         Instead, ``create`` extracts any leading module docstring from *manual*,
         then assembles the file in the correct order:
 
-            SPDX comment headers (if include_headers)
+            SPDX comment headers (if spdx_header is provided)
             Module docstring (if found in manual)
             from __future__ import annotations
             Remaining manual body (stripped of any duplicate future import)
@@ -116,15 +110,16 @@ class GeneratedCode:
             managed: Generated managed section (must NOT start with
                 ``from __future__ import annotations``).
             export_count: Number of exports
-            include_headers: Whether to include SPDX headers (default: True)
+            spdx_header: SPDX comment block to prepend (e.g. the output of
+                ``SpdxConfig.build_header()``). ``None`` omits all headers.
             add_markers: Whether to add comment markers around preserved code
                 (default: False)
         """
         parts = []
 
-        # Add SPDX headers if requested
-        if include_headers:
-            parts.append(SPDX_HEADERS)
+        # Add SPDX headers if provided
+        if spdx_header:
+            parts.append(spdx_header)
 
         # --- Docstring extraction ---
         # from __future__ import annotations must come *after* the module
@@ -190,7 +185,9 @@ class GeneratedCode:
 class CodeGenerator:
     """Generates __init__.py files from export manifests."""
 
-    def __init__(self, output_dir: Path, output_style: str = "lazy") -> None:
+    def __init__(
+        self, output_dir: Path, output_style: str = "lazy", spdx_config: SpdxConfig | None = None
+    ) -> None:
         """Initialize code generator.
 
         Args:
@@ -198,9 +195,12 @@ class CodeGenerator:
             output_style: Output style — ``"lazy"`` (default) uses lateimport lazy
                 loading via ``__getattr__``; ``"barrel"`` generates direct ``from .mod
                 import Name`` style imports.
+            spdx_config: Optional SPDX header configuration. When provided and
+                enabled, each generated file will include SPDX comment headers.
         """
         self.output_dir = output_dir
         self._output_style = output_style
+        self._spdx_config = spdx_config
         self.file_writer = FileWriter(validator=self._create_validator())
         self.section_parser = SectionParser()
 
@@ -217,8 +217,12 @@ class CodeGenerator:
         # Generate managed section
         managed_section = self._generate_managed_section(manifest)
 
+        spdx_header = self._spdx_config.build_header() if self._spdx_config else None
         return GeneratedCode.create(
-            manual=manual_section, managed=managed_section, export_count=len(manifest.all_exports)
+            manual=manual_section,
+            managed=managed_section,
+            export_count=len(manifest.all_exports),
+            spdx_header=spdx_header,
         )
 
     def write_file(self, module_path: str, code: GeneratedCode) -> WriteResult:

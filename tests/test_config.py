@@ -280,6 +280,64 @@ class TestDetectLateimportDependency:
         assert detect_lateimport_dependency() is False
 
 
+class TestSpdxConfig:
+    def test_build_header_disabled_returns_none(self):
+        from exportify.common.config import SpdxConfig
+
+        spdx = SpdxConfig(enabled=False, copyright="2026 Acme.", license="MIT")
+        assert spdx.build_header() is None
+
+    def test_build_header_enabled_no_fields_returns_none(self):
+        from exportify.common.config import SpdxConfig
+
+        spdx = SpdxConfig(enabled=True)
+        assert spdx.build_header() is None
+
+    def test_build_header_copyright_only(self):
+        from exportify.common.config import SpdxConfig
+
+        spdx = SpdxConfig(enabled=True, copyright="2026 Acme.")
+        header = spdx.build_header()
+        assert header == "# SPDX-FileCopyrightText: 2026 Acme."
+
+    def test_build_header_license_only(self):
+        from exportify.common.config import SpdxConfig
+
+        spdx = SpdxConfig(enabled=True, license="MIT OR Apache-2.0")
+        header = spdx.build_header()
+        assert header == "# SPDX-License-Identifier: MIT OR Apache-2.0"
+
+    def test_build_header_both_fields(self):
+        from exportify.common.config import SpdxConfig
+
+        spdx = SpdxConfig(enabled=True, copyright="2026 Acme.", license="MIT")
+        header = spdx.build_header()
+        assert header == "# SPDX-FileCopyrightText: 2026 Acme.\n#\n# SPDX-License-Identifier: MIT"
+
+    def test_load_config_parses_spdx_section(self, tmp_path: Path):
+        from exportify.common.config import load_config
+
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "schema_version: '1.0'\nspdx:\n  enabled: true\n"
+            "  copyright: '2026 Test Corp.'\n  license: 'Apache-2.0'\n"
+        )
+        config = load_config(config_file)
+        assert config.spdx.enabled is True
+        assert config.spdx.copyright == "2026 Test Corp."
+        assert config.spdx.license == "Apache-2.0"
+
+    def test_load_config_spdx_defaults_to_disabled(self, tmp_path: Path):
+        from exportify.common.config import load_config
+
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("schema_version: '1.0'\n")
+        config = load_config(config_file)
+        assert config.spdx.enabled is False
+        assert config.spdx.copyright == ""
+        assert config.spdx.license == ""
+
+
 # ---------------------------------------------------------------------------
 # utils.py tests
 # ---------------------------------------------------------------------------

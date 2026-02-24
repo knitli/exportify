@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from exportify.common.config import SpdxConfig
 from exportify.common.types import ExportManifest, LazyExport
 from exportify.export_manager.generator import (
     SENTINEL,
@@ -104,9 +105,6 @@ def test_generate_empty_manifest(generator: CodeGenerator):
     assert "create_late_getattr" not in code.content
     assert "def __dir__()" not in code.content
     assert "if TYPE_CHECKING:" not in code.content
-    # Check SPDX headers
-    assert "SPDX-FileCopyrightText: 2026 Knitli Inc." in code.content
-    assert "SPDX-License-Identifier: MIT OR Apache-2.0" in code.content
 
 
 def test_generate_single_export(generator: CodeGenerator):
@@ -603,19 +601,31 @@ def test_type_checking_imports_grouped_by_module(generator: CodeGenerator):
     assert "ClassC," in sub1_section
 
 
-def test_spdx_headers_present(generator: CodeGenerator):
-    """Test SPDX headers are included in generated files."""
+def test_spdx_headers_present(temp_dir: Path):
+    """Test SPDX headers are included when SpdxConfig is enabled."""
+    spdx = SpdxConfig(enabled=True, copyright="2026 Test Corp.", license="MIT OR Apache-2.0")
+    gen = CodeGenerator(temp_dir, spdx_config=spdx)
     exports = [make_lazy_export("MyClass", "test.module.sub")]
     manifest = make_manifest("test.module", own_exports=exports)
-    code = generator.generate(manifest)
+    code = gen.generate(manifest)
 
     # Check SPDX header lines
-    assert "# SPDX-FileCopyrightText: 2026 Knitli Inc." in code.content
+    assert "# SPDX-FileCopyrightText: 2026 Test Corp." in code.content
     assert "# SPDX-License-Identifier: MIT OR Apache-2.0" in code.content
 
     # Headers should be at the very beginning
     lines = code.content.split("\n")
     assert lines[0].startswith("# SPDX-FileCopyrightText:")
+
+
+def test_spdx_headers_absent_by_default(generator: CodeGenerator):
+    """Test no SPDX headers when SpdxConfig is not configured."""
+    exports = [make_lazy_export("MyClass", "test.module.sub")]
+    manifest = make_manifest("test.module", own_exports=exports)
+    code = generator.generate(manifest)
+
+    assert "SPDX-FileCopyrightText" not in code.content
+    assert "SPDX-License-Identifier" not in code.content
 
 
 # REUSE-IgnoreEnd
@@ -755,11 +765,11 @@ def test_generated_code_create_without_markers():
     assert PRESERVED_END not in code.content
 
 
-def test_generated_code_create_without_headers():
-    """Test GeneratedCode.create with include_headers=False omits SPDX headers."""
+def test_generated_code_create_no_spdx_header():
+    """Test GeneratedCode.create with spdx_header=None omits SPDX headers."""
 
     managed = "__all__ = ()\ndef __dir__(): return []"
-    code = GeneratedCode.create(manual="", managed=managed, export_count=0, include_headers=False)
+    code = GeneratedCode.create(manual="", managed=managed, export_count=0, spdx_header=None)
 
     assert "SPDX-FileCopyrightText" not in code.content
 
