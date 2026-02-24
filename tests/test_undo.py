@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -14,7 +15,7 @@ from exportify.common.snapshot import SnapshotManager
 
 
 @pytest.fixture
-def project_root(tmp_path):
+def project_root(tmp_path: Path):
     (tmp_path / "src" / "pkg").mkdir(parents=True)
     (tmp_path / "src" / "pkg" / "__init__.py").write_text("# fixed version\n__all__ = []\n")
     return tmp_path
@@ -60,7 +61,11 @@ class TestUndoFunction:
 
         with patch("exportify.commands.undo.SnapshotManager", return_value=manager):
             undo()
-            undo()  # second call should not raise or mangle the file
+            assert init.read_text() == "# fixed version\n__all__ = []\n"
+
+            # Dirty the file again to verify the second undo also restores
+            init.write_text("# dirtied again\n")
+            undo()
 
         assert init.read_text() == "# fixed version\n__all__ = []\n"
 
