@@ -9,7 +9,7 @@
 Tests cover:
 - SectionParser: AST-based parsing of managed vs preserved sections
 - CodeGenerator: Preservation during regeneration
-- FileWriter: Backup creation, restoration, and cleanup
+- FileWriter: Atomic write and validation
 - Integration: Full regeneration cycles
 """
 
@@ -76,7 +76,7 @@ def sample_manifest() -> ExportManifest:
         ),
     ]
     return ExportManifest(
-        module_path="test.module", own_exports=exports, propagated_exports=[], all_exports=exports
+        module_path="test.module", own_exports=exports, propagated_exports=[], all_exports=exports,
     )
 
 
@@ -121,7 +121,7 @@ class TestSectionParser:
 
             def __dir__() -> list[str]:
                 return list(__all__)
-            '''
+            ''',
         ).strip()
 
         parsed = section_parser.parse_content(content)
@@ -167,7 +167,7 @@ class TestSectionParser:
             def helper() -> None:
                 """Helper function."""
                 pass
-            '''
+            ''',
         ).strip()
 
         parsed = section_parser.parse_content(content)
@@ -194,7 +194,7 @@ class TestSectionParser:
 
             if TYPE_CHECKING:
                 from test.module import SomeClass
-            """
+            """,
         ).strip()
 
         parsed = section_parser.parse_content(content)
@@ -209,7 +209,7 @@ class TestSectionParser:
             _dynamic_imports = MappingProxyType({
                 "MyClass": (__spec__.parent, "impl"),
             })
-            """
+            """,
         ).strip()
 
         parsed = section_parser.parse_content(content)
@@ -220,7 +220,7 @@ class TestSectionParser:
         content = dedent(
             """
             __getattr__ = create_late_getattr(_dynamic_imports, globals(), __name__)
-            """
+            """,
         ).strip()
 
         parsed = section_parser.parse_content(content)
@@ -231,7 +231,7 @@ class TestSectionParser:
         content = dedent(
             """
             __all__ = ("MyClass", "my_function")
-            """
+            """,
         ).strip()
 
         parsed = section_parser.parse_content(content)
@@ -243,7 +243,7 @@ class TestSectionParser:
             """
             def __dir__() -> list[str]:
                 return list(__all__)
-            """
+            """,
         ).strip()
 
         parsed = section_parser.parse_content(content)
@@ -260,7 +260,7 @@ class TestSectionParser:
 
             # === MANAGED EXPORTS ===
             from typing import TYPE_CHECKING
-            """
+            """,
         ).strip()
 
         parsed = section_parser.parse_content(content)
@@ -279,7 +279,7 @@ class TestSectionParser:
             IntOrFloat = int | float
 
             # === MANAGED EXPORTS ===
-            """
+            """,
         ).strip()
 
         parsed = section_parser.parse_content(content)
@@ -295,7 +295,7 @@ class TestSectionParser:
                 return x * 2
 
             # === MANAGED EXPORTS ===
-            '''
+            ''',
         ).strip()
 
         parsed = section_parser.parse_content(content)
@@ -311,7 +311,7 @@ class TestSectionParser:
                 pass
 
             # === MANAGED EXPORTS ===
-            '''
+            ''',
         ).strip()
 
         parsed = section_parser.parse_content(content)
@@ -328,7 +328,7 @@ class TestSectionParser:
             DEBUG = True
 
             # === MANAGED EXPORTS ===
-            """
+            """,
         ).strip()
 
         parsed = section_parser.parse_content(content)
@@ -353,7 +353,7 @@ class TestSectionParser:
             # === MANAGED EXPORTS ===
             from typing import TYPE_CHECKING
             __all__ = ()
-            '''
+            ''',
         ).strip()
 
         parsed = section_parser.parse_content(content)
@@ -376,7 +376,7 @@ class TestCodeGenerator:
     """Test code generation with preservation."""
 
     def test_regenerate_preserves_user_code(
-        self, code_generator: CodeGenerator, sample_manifest: ExportManifest, temp_dir: Path
+        self, code_generator: CodeGenerator, sample_manifest: ExportManifest, temp_dir: Path,
     ) -> None:
         """Regenerate file preserves user's manual code."""
         # Create initial file with user code
@@ -396,7 +396,7 @@ class TestCodeGenerator:
 
             # === MANAGED EXPORTS ===
             # Old managed section
-            '''
+            ''',
         ).strip()
 
         init_file.write_text(initial_content)
@@ -427,13 +427,13 @@ class TestCodeGenerator:
             PathLike = str | Path
 
             # === MANAGED EXPORTS ===
-            """
+            """,
         ).strip()
 
         init_file.write_text(content)
 
         manifest = ExportManifest(
-            module_path="test.module", own_exports=[], propagated_exports=[], all_exports=[]
+            module_path="test.module", own_exports=[], propagated_exports=[], all_exports=[],
         )
         generated = code_generator.generate(manifest)
 
@@ -453,13 +453,13 @@ class TestCodeGenerator:
             from typing import Any, cast
 
             # === MANAGED EXPORTS ===
-            """
+            """,
         ).strip()
 
         init_file.write_text(content)
 
         manifest = ExportManifest(
-            module_path="test.module", own_exports=[], propagated_exports=[], all_exports=[]
+            module_path="test.module", own_exports=[], propagated_exports=[], all_exports=[],
         )
         generated = code_generator.generate(manifest)
 
@@ -469,7 +469,7 @@ class TestCodeGenerator:
         assert "from typing import Any, cast" in generated.manual_section
 
     def test_custom_functions_preserved(
-        self, code_generator: CodeGenerator, temp_dir: Path
+        self, code_generator: CodeGenerator, temp_dir: Path,
     ) -> None:
         """User-defined functions are preserved."""
         init_file = temp_dir / "test" / "module" / "__init__.py"
@@ -486,13 +486,13 @@ class TestCodeGenerator:
                 pass
 
             # === MANAGED EXPORTS ===
-            '''
+            ''',
         ).strip()
 
         init_file.write_text(content)
 
         manifest = ExportManifest(
-            module_path="test.module", own_exports=[], propagated_exports=[], all_exports=[]
+            module_path="test.module", own_exports=[], propagated_exports=[], all_exports=[],
         )
         generated = code_generator.generate(manifest)
 
@@ -516,13 +516,13 @@ class TestCodeGenerator:
                     pass
 
             # === MANAGED EXPORTS ===
-            '''
+            ''',
         ).strip()
 
         init_file.write_text(content)
 
         manifest = ExportManifest(
-            module_path="test.module", own_exports=[], propagated_exports=[], all_exports=[]
+            module_path="test.module", own_exports=[], propagated_exports=[], all_exports=[],
         )
         generated = code_generator.generate(manifest)
 
@@ -543,13 +543,13 @@ class TestCodeGenerator:
             from typing import TypeAlias
 
             # === MANAGED EXPORTS ===
-            """
+            """,
         ).strip()
 
         init_file.write_text(content)
 
         manifest = ExportManifest(
-            module_path="test.module", own_exports=[], propagated_exports=[], all_exports=[]
+            module_path="test.module", own_exports=[], propagated_exports=[], all_exports=[],
         )
         generated = code_generator.generate(manifest)
 
@@ -559,7 +559,7 @@ class TestCodeGenerator:
     # We need to tell reuse that these are not actual headers, otherwise it'll throw an error.
     # REUSE-IgnoreStart
     def test_spdx_headers_regenerated(
-        self, code_generator: CodeGenerator, sample_manifest: ExportManifest, temp_dir: Path
+        self, code_generator: CodeGenerator, sample_manifest: ExportManifest, temp_dir: Path,
     ) -> None:
         """SPDX headers are regenerated, not preserved."""
         init_file = temp_dir / "test" / "module" / "__init__.py"
@@ -572,7 +572,7 @@ class TestCodeGenerator:
             import sys
 
             # === MANAGED EXPORTS ===
-            """
+            """,
         ).strip()
 
         init_file.write_text(content)
@@ -588,7 +588,7 @@ class TestCodeGenerator:
 
     # REUSE-IgnoreEnd
     def test_managed_sections_regenerated(
-        self, code_generator: CodeGenerator, sample_manifest: ExportManifest, temp_dir: Path
+        self, code_generator: CodeGenerator, sample_manifest: ExportManifest, temp_dir: Path,
     ) -> None:
         """Managed sections are completely regenerated."""
         init_file = temp_dir / "test" / "module" / "__init__.py"
@@ -607,7 +607,7 @@ class TestCodeGenerator:
                 from old.module import OldClass
 
             __all__ = ("OldClass",)
-            """
+            """,
         ).strip()
 
         init_file.write_text(old_content)
@@ -622,7 +622,7 @@ class TestCodeGenerator:
         assert "OldClass" not in generated.managed_section
 
     def test_empty_preserved_section(
-        self, code_generator: CodeGenerator, sample_manifest: ExportManifest, temp_dir: Path
+        self, code_generator: CodeGenerator, sample_manifest: ExportManifest, temp_dir: Path,
     ) -> None:
         """Handle files with no user code to preserve."""
         init_file = temp_dir / "test" / "module" / "__init__.py"
@@ -634,7 +634,7 @@ class TestCodeGenerator:
             # === MANAGED EXPORTS ===
             from typing import TYPE_CHECKING
             __all__ = ()
-            """
+            """,
         ).strip()
 
         init_file.write_text(content)
@@ -693,7 +693,7 @@ class TestIntegration:
     """End-to-end integration tests."""
 
     def test_full_regeneration_cycle_preserves_code(
-        self, code_generator: CodeGenerator, temp_dir: Path
+        self, code_generator: CodeGenerator, temp_dir: Path,
     ) -> None:
         """Complete generation cycle preserves user code through multiple runs."""
         # Setup: Create initial file with user code
@@ -711,7 +711,7 @@ class TestIntegration:
 
             def helper() -> None:
                 pass
-            '''
+            ''',
         ).strip()
 
         init_file.write_text(user_code)
@@ -723,7 +723,7 @@ class TestIntegration:
         assert "Foo" not in content2 or content2.count("Foo") == 0
 
     def _generate_and_verify_exported_code(
-        self, public_name: str, code_generator: CodeGenerator, init_file: Path
+        self, public_name: str, code_generator: CodeGenerator, init_file: Path,
     ):
         # First generation
         exports1 = [
@@ -732,7 +732,7 @@ class TestIntegration:
                 target_module="test.module.impl",
                 target_object=public_name,
                 is_type_only=False,
-            )
+            ),
         ]
         manifest1 = ExportManifest(
             module_path="test.module",
@@ -756,7 +756,7 @@ class TestIntegration:
         return result
 
     def test_multiple_regenerations_no_data_loss(
-        self, code_generator: CodeGenerator, temp_dir: Path
+        self, code_generator: CodeGenerator, temp_dir: Path,
     ) -> None:
         """Multiple regeneration cycles don't lose user data."""
         init_file = temp_dir / "test" / "module" / "__init__.py"
@@ -794,7 +794,7 @@ class TestIntegration:
             assert "def my_func()" in content, f"Lost my_func in cycle {cycle + 1}"
 
     def test_edge_case_empty_preserved_section(
-        self, code_generator: CodeGenerator, temp_dir: Path
+        self, code_generator: CodeGenerator, temp_dir: Path,
     ) -> None:
         """Handle empty preserved section gracefully."""
         init_file = temp_dir / "test" / "module" / "__init__.py"
@@ -809,7 +809,7 @@ class TestIntegration:
                 target_module="test.module.impl",
                 target_object="NewClass",
                 is_type_only=False,
-            )
+            ),
         ]
         manifest = ExportManifest(
             module_path="test.module",
@@ -838,7 +838,7 @@ class TestIntegration:
 
             def my_function():
                 pass
-            '''
+            ''',
         ).strip()
 
         parsed = section_parser.parse_content(content)
@@ -886,7 +886,7 @@ class TestEdgeCases:
         init_file.write_text(unicode_content, encoding="utf-8")
 
         manifest = ExportManifest(
-            module_path="test.module", own_exports=[], propagated_exports=[], all_exports=[]
+            module_path="test.module", own_exports=[], propagated_exports=[], all_exports=[],
         )
         generated = code_generator.generate(manifest)
 

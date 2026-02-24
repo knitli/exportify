@@ -14,6 +14,7 @@ This module implements safe file writing for generated __init__.py files:
 from __future__ import annotations
 
 import ast
+import os
 import tempfile
 
 from dataclasses import dataclass
@@ -97,6 +98,7 @@ class FileWriter:
             _temp_fd, temp_filepath = tempfile.mkstemp(
                 suffix=".py", prefix="__init__", dir=target.parent, text=True
             )
+            os.close(_temp_fd)
             temp_path = Path(temp_filepath)
         except OSError as e:
             return WriteResult.failure_result(target, f"Cannot create temp file: {e}")
@@ -108,6 +110,7 @@ class FileWriter:
             # 3. Validate temp file (belt-and-suspenders)
             temp_content = temp_path.read_text(encoding="utf-8")
             if validation_errors := self.validator(temp_content):
+                temp_path.unlink(missing_ok=True)
                 error_msg = "Temp file validation failed:\n" + "\n".join(
                     f"  - {err}" for err in validation_errors
                 )
