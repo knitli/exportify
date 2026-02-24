@@ -63,7 +63,7 @@ if TYPE_CHECKING:
     from exportify.analysis.ast_parser import ASTParser
     from exportify.cli import main
     from exportify.common.cache import CircuitBreaker, CircuitState, JSONAnalysisCache
-    from exportify.common.config import ExportifyConfig
+    from exportify.common.config import ExportifyConfig, SpdxConfig
     from exportify.common.snapshot import SnapshotEntry, SnapshotManager, SnapshotManifest
     from exportify.common.types import (
         AnalysisResult,
@@ -190,6 +190,7 @@ _dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({
     "SnapshotManager": (__spec__.parent, "common.snapshot"),
     "SnapshotManifest": (__spec__.parent, "common.snapshot"),
     "SourceLocation": (__spec__.parent, "common.types"),
+    "SpdxConfig": (__spec__.parent, "common.config"),
     "SymbolProvenance": (__spec__.parent, "common.types"),
     "UpdatedFile": (__spec__.parent, "common.types"),
     "ValidationConfig": (__spec__.parent, "common.types"),
@@ -272,6 +273,7 @@ __all__ = (
     "SnapshotManager",
     "SnapshotManifest",
     "SourceLocation",
+    "SpdxConfig",
     "SymbolProvenance",
     "UpdatedFile",
     "ValidationConfig",

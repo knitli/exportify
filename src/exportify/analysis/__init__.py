@@ -16,8 +16,6 @@ from typing import TYPE_CHECKING
 
 from lateimport import create_late_getattr
 
-from exportify.analysis.ast_parser import ASTParser
-
 
 if TYPE_CHECKING:
     from exportify.analysis.ast_parser import ASTParser
