@@ -121,7 +121,7 @@ class FileDiscovery:
 
             # If pattern doesn't start with /, it can match at any level
             # Otherwise it's anchored to the root
-            pattern = f"(^|.*/){pattern}$" if not pattern.startswith("/") else f"^{pattern[1:]}$"
+            pattern = f"^{pattern[1:]}$" if pattern.startswith("/") else f"(^|.*/){pattern}$"
 
             # Compile regex
             try:
@@ -149,10 +149,10 @@ class FileDiscovery:
             # Path is not relative to root
             return False
 
-        relative_str = str(relative)
+        normalized_relative_path = str(relative)
 
         # Check against all patterns
-        return any(pattern.match(relative_str) for pattern in self._gitignore_patterns)
+        return any(pattern.match(normalized_relative_path) for pattern in self._gitignore_patterns)
 
 
 __all__ = ["FileDiscovery"]

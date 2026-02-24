@@ -128,7 +128,7 @@ def load_config(path: Path) -> ExportifyConfig:
 
     Raises:
         ValueError: If ``output_style`` (top-level or in an override) contains
-            an unrecognised value.
+            an unrecognized value.
     """
     with path.open() as fh:
         data: dict = yaml.safe_load(fh) or {}
@@ -140,7 +140,7 @@ def load_config(path: Path) -> ExportifyConfig:
     except ValueError:
         valid = [s.value for s in OutputStyle]
         raise ValueError(
-            f"Unrecognised output_style {raw_style!r} in {path}. Valid values: {valid}"
+            f"Unrecognized output_style {raw_style!r} in {path}. Valid values: {valid}"
         ) from None
 
     # --- per-package overrides ---
@@ -157,7 +157,7 @@ def load_config(path: Path) -> ExportifyConfig:
         except ValueError:
             valid = [s.value for s in OutputStyle]
             raise ValueError(
-                f"Unrecognised output_style {raw_pkg_style!r} for package {pkg_path!r} "
+                f"Unrecognized output_style {raw_pkg_style!r} for package {pkg_path!r} "
                 f"in {path}. Valid values: {valid}"
             ) from None
 
@@ -171,7 +171,7 @@ def detect_lateimport_dependency() -> bool:
     ``dependency-groups`` (e.g. dev dependencies added via ``uv add --dev``).
 
     ``pyproject.toml`` is looked up relative to the current working directory
-    (``Path.cwd() / "pyproject.toml"``), consistent with the behaviour of
+    (``Path.cwd() / "pyproject.toml"``), consistent with the behavior of
     :func:`find_config_file`.
 
     Returns:

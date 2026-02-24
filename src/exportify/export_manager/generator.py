@@ -18,6 +18,7 @@ objects and generates properly formatted __init__.py files with:
 from __future__ import annotations
 
 import ast
+import contextlib
 import hashlib
 
 from dataclasses import dataclass
@@ -92,12 +93,31 @@ class GeneratedCode:
     ) -> GeneratedCode:
         """Create GeneratedCode with computed hash.
 
+        ``from __future__ import annotations`` must be the first non-comment
+        statement in every Python file (only a module docstring and comments may
+        precede it).  Because the managed section is placed *after* any preserved
+        manual code, we can't put it there — it would be too late in the file
+        whenever the manual section contains imports.
+
+        Instead, ``create`` extracts any leading module docstring from *manual*,
+        then assembles the file in the correct order:
+
+            SPDX comment headers (if include_headers)
+            Module docstring (if found in manual)
+            from __future__ import annotations
+            Remaining manual body (stripped of any duplicate future import)
+            SENTINEL + managed section (which never includes from __future__)
+
         Args:
-            manual: Manual code section to preserve
-            managed: Generated managed section
+            manual: Manual code section to preserve (may include docstring and
+                any ``from __future__ import annotations`` lines — both are
+                handled safely).
+            managed: Generated managed section (must NOT start with
+                ``from __future__ import annotations``).
             export_count: Number of exports
             include_headers: Whether to include SPDX headers (default: True)
-            add_markers: Whether to add comment markers around preserved code (default: False)
+            add_markers: Whether to add comment markers around preserved code
+                (default: False)
         """
         parts = []
 
@@ -105,15 +125,53 @@ class GeneratedCode:
         if include_headers:
             parts.append(SPDX_HEADERS)
 
-        # Add manual section if present, positioned between SPDX and SENTINEL
-        if manual:
-            manual_parts = []
+        # --- Docstring extraction ---
+        # from __future__ import annotations must come *after* the module
+        # docstring but *before* any other imports.  We pull the docstring out
+        # of the manual section so we can insert it at the right position.
+        manual_body = manual.strip() if manual else ""
+        docstring_text = ""
+
+        if manual_body:
+            with contextlib.suppress(Exception):
+                tree = ast.parse(manual_body)
+                if (
+                    tree.body
+                    and isinstance(tree.body[0], ast.Expr)
+                    and isinstance(tree.body[0].value, ast.Constant)
+                    and isinstance(tree.body[0].value.value, str)
+                ):
+                    ds_node = tree.body[0]
+                    lines = manual_body.splitlines()
+                    # Extract only the docstring lines (not preceding comments)
+                    docstring_text = "\n".join(
+                        lines[ds_node.lineno - 1 : ds_node.end_lineno]
+                    )
+                    # Remove docstring (and any preceding comments) from body
+                    manual_body = "\n".join(lines[ds_node.end_lineno :]).strip()
+
+            # Strip any existing from __future__ import annotations — we always
+            # re-emit it at the correct position below.
+            clean_lines = [
+                line
+                for line in manual_body.splitlines()
+                if line.strip() != "from __future__ import annotations"
+            ]
+            manual_body = "\n".join(clean_lines).strip()
+
+        if docstring_text:
+            parts.append(docstring_text)
+
+        # from __future__ import annotations — always placed here so it is the
+        # first executable statement (after comments and the optional docstring).
+        parts.append("from __future__ import annotations")
+
+        # Add manual body (without docstring or future import) if non-empty
+        if manual_body:
             if add_markers:
-                manual_parts.append(PRESERVED_BEGIN)
-            manual_parts.append(manual)
-            if add_markers:
-                manual_parts.append(PRESERVED_END)
-            parts.append("\n".join(manual_parts))
+                parts.append("\n".join([PRESERVED_BEGIN, manual_body, PRESERVED_END]))
+            else:
+                parts.append(manual_body)
 
         # Add sentinel and managed section
         parts.extend([SENTINEL, MANAGED_COMMENT, "", managed])
@@ -246,11 +304,26 @@ class CodeGenerator:
         Returns:
             Preserved code section (empty string if nothing to preserve)
         """
-        # Files without the sentinel have never been managed — preserve all content
-        # (including comments, which AST parsing would drop). Strip the
-        # from __future__ import annotations line since the managed section
-        # always provides it, to avoid duplication.
         if SENTINEL not in existing:
+            # Detect whether this sentinel-less file already contains lazy-import
+            # infrastructure written by a previous run (before sentinels were
+            # added) or by hand.  If so, use the AST-based section parser to
+            # filter out the managed nodes — otherwise they would end up in the
+            # preserved section and get duplicated in the new managed section.
+            _LAZY_MARKERS = ("_dynamic_imports", "from lateimport import create_late_getattr")
+            is_lazy_managed = any(marker in existing for marker in _LAZY_MARKERS)
+
+            if is_lazy_managed:
+                try:
+                    parsed = self.section_parser.parse_content(existing)
+                    return parsed.preserved_code
+                except Exception:
+                    pass  # Fall through to the naive filter below
+
+            # Non-managed file: preserve all content (including standalone
+            # comments that AST parsing would drop).  from __future__ import
+            # annotations is stripped here because GeneratedCode.create()
+            # always re-emits it at the correct position.
             lines = [
                 line
                 for line in existing.splitlines()
@@ -279,8 +352,6 @@ class CodeGenerator:
         exports = sorted(manifest.all_exports, key=lambda x: _export_sort_key(x.public_name))
 
         parts = [
-            "from __future__ import annotations",
-            "",
             "from typing import TYPE_CHECKING",
             "from types import MappingProxyType",
             "",
@@ -343,7 +414,7 @@ class CodeGenerator:
         type_only = [e for e in exports if e.is_type_only]
         runtime = [e for e in exports if not e.is_type_only]
 
-        parts: list[str] = ["from __future__ import annotations"]
+        parts: list[str] = []
 
         # Only add TYPE_CHECKING import when there are type-only exports
         if type_only:

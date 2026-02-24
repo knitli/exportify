@@ -209,7 +209,7 @@ class SectionParser:
                 if self._is_type_checking_block(node):
                     flags["had_type_checking"] = True
 
-            # Assignments: _dynamic_imports = ..., __getattr__ = ..., __all__ = ...
+            # Plain assignments: __getattr__ = ..., __all__ = ...
             elif isinstance(node, ast.Assign):
                 for target in node.targets:
                     if isinstance(target, ast.Name):
@@ -219,6 +219,11 @@ class SectionParser:
                             flags["had_getattr"] = True
                         elif target.id == "__all__":
                             flags["had_all"] = True
+
+            # Annotated assignment: _dynamic_imports: MappingProxyType[...] = ...
+            elif isinstance(node, ast.AnnAssign):
+                if isinstance(node.target, ast.Name) and node.target.id == "_dynamic_imports":
+                    flags["had_dynamic_imports"] = True
 
             # __dir__() function definition
             elif isinstance(node, ast.FunctionDef) and node.name == "__dir__":
@@ -260,7 +265,7 @@ class SectionParser:
         if isinstance(node, ast.If) and self._is_type_checking_block(node):
             return True
 
-        # Managed assignments
+        # Plain assignments: __getattr__ = ..., __all__ = ...
         if isinstance(node, ast.Assign):
             for target in node.targets:
                 if isinstance(target, ast.Name) and target.id in (
@@ -269,6 +274,12 @@ class SectionParser:
                     "__all__",
                 ):
                     return True
+
+        # Annotated assignment: _dynamic_imports: MappingProxyType[...] = ...
+        if isinstance(node, ast.AnnAssign) and (
+            isinstance(node.target, ast.Name) and node.target.id == "_dynamic_imports"
+        ):
+            return True
 
         # __dir__() function
         if isinstance(node, ast.FunctionDef) and node.name == "__dir__":

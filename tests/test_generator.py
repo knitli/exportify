@@ -230,13 +230,13 @@ __all__ = ["OldExport"]
     assert "NewExport" in code.managed_section
 
 
-def test_no_sentinel_preserves_all(generator: CodeGenerator, temp_dir: Path):
-    """Test file without sentinel preserves entire content."""
+def test_no_sentinel_preserves_non_managed_code(generator: CodeGenerator, temp_dir: Path):
+    """Test file without sentinel: non-managed user code is preserved, managed imports filtered."""
     module_path = "test.module"
     target = temp_dir / "test" / "module" / "__init__.py"
     target.parent.mkdir(parents=True)
 
-    # Write existing file WITHOUT sentinel
+    # Write existing file WITHOUT sentinel that is NOT a lazy-import file
     existing_content = """# Legacy file without sentinel
 from typing import Protocol
 
@@ -249,9 +249,67 @@ __all__ = ["LegacyExport"]
     manifest = make_manifest(module_path, own_exports=exports)
     code = generator.generate(manifest)
 
-    # Should preserve entire file as manual section
+    # The manual section stores the original preserved text (non-lazy file: all except from __future__)
     assert "# Legacy file without sentinel" in code.manual_section
     assert "LegacyExport" in code.manual_section
+
+
+def test_no_sentinel_lazy_file_filters_managed_imports(generator: CodeGenerator, temp_dir: Path):
+    """Test that a sentinel-less file with lazy imports has them filtered, not duplicated."""
+    module_path = "test.module"
+    target = temp_dir / "test" / "module" / "__init__.py"
+    target.parent.mkdir(parents=True)
+
+    # Simulate a file generated before sentinels were added (lazy import pattern, no sentinel)
+    existing_content = '''"""Package docstring."""
+
+from __future__ import annotations
+
+from types import MappingProxyType
+from typing import TYPE_CHECKING
+
+from lateimport import create_late_getattr
+
+if TYPE_CHECKING:
+    from test.module.sub import OldExport
+
+_dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({
+    "OldExport": (__spec__.parent, "sub"),
+})
+
+__getattr__ = create_late_getattr(_dynamic_imports, globals(), __name__)
+
+__all__ = ("OldExport",)
+
+
+def __dir__() -> list[str]:
+    """List available attributes for the package."""
+    return list(__all__)
+'''
+    target.write_text(existing_content)
+
+    exports = [make_lazy_export("NewExport", "test.module.sub")]
+    manifest = make_manifest(module_path, own_exports=exports)
+    code = generator.generate(manifest)
+
+    # Managed infrastructure must NOT appear in the preserved manual section
+    assert "_dynamic_imports" not in code.manual_section
+    assert "create_late_getattr" not in code.manual_section
+    assert "OldExport" not in code.manual_section
+
+    # New export should be in the managed section
+    assert "NewExport" in code.managed_section
+
+    # The generated file must be syntactically valid
+    import ast as _ast
+
+    _ast.parse(code.content)
+
+    # from __future__ import annotations must be the first executable statement
+    lines = [l for l in code.content.splitlines() if l.strip() and not l.strip().startswith("#")]
+    assert lines[0] in ('"""Package docstring."""', "from __future__ import annotations"), (
+        f"Unexpected first executable line: {lines[0]!r}"
+    )
 
 
 # Atomic write tests

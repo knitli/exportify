@@ -16,11 +16,7 @@ Components:
 
 from __future__ import annotations
 
-from exportify.export_manager.generator import (
-    CodeGenerator,
-    GeneratedCode,
-    validate_init_file,
-)
+from exportify.export_manager.generator import CodeGenerator, GeneratedCode, validate_init_file
 from exportify.export_manager.graph import PropagationGraph
 from exportify.export_manager.module_all import (
     ModuleAllFixResult,

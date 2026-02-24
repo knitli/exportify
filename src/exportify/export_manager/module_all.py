@@ -21,16 +21,13 @@ import ast
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 import textcase
 
 from exportify.analysis.ast_parser import ASTParser
 from exportify.common.types import RuleAction, SymbolProvenance
 from exportify.export_manager.rules import RuleEngine
-
-if TYPE_CHECKING:
-    pass
 
 
 # ---------------------------------------------------------------------------
@@ -49,9 +46,7 @@ def _export_sort_key(name: str) -> tuple[Literal[0, 1, 2], str]:
     """
     if textcase.constant.match(name):
         return (0, name.lower())
-    if textcase.pascal.match(name):
-        return (1, name.lower())
-    return (2, name.lower())
+    return (1, name.lower()) if textcase.pascal.match(name) else (2, name.lower())
 
 
 # ---------------------------------------------------------------------------
@@ -185,9 +180,7 @@ def _detect_all_format(node: ast.Assign) -> Literal["list", "tuple"]:
     Returns:
         ``"list"`` or ``"tuple"``.
     """
-    if isinstance(node.value, ast.List):
-        return "list"
-    return "tuple"
+    return "list" if isinstance(node.value, ast.List) else "tuple"
 
 
 def _render_all(names: list[str], fmt: Literal["list", "tuple"]) -> str:
@@ -206,10 +199,11 @@ def _render_all(names: list[str], fmt: Literal["list", "tuple"]) -> str:
     open_br = "[" if fmt == "list" else "("
     close_br = "]" if fmt == "list" else ")"
 
-    if len(names) == 1 and fmt == "tuple":
-        return f'__all__ = ("{names[0]}",)'
-    if len(names) == 1 and fmt == "list":
-        return f'__all__ = ["{names[0]}"]'
+    if len(names) == 1:
+        if fmt == "tuple":
+            return f'__all__ = ("{names[0]}",)'
+        if fmt == "list":
+            return f'__all__ = ["{names[0]}"]'
 
     lines = [f"__all__ = {open_br}"]
     lines.extend(f'    "{name}",' for name in names)
@@ -218,9 +212,7 @@ def _render_all(names: list[str], fmt: Literal["list", "tuple"]) -> str:
 
 
 def _merge_names(
-    existing: list[str],
-    should_export: set[str],
-    should_exclude: set[str],
+    existing: list[str], should_export: set[str], should_exclude: set[str]
 ) -> tuple[list[str], list[str], list[str]]:
     """Compute the merged ``__all__`` name list together with diff information.
 
@@ -241,10 +233,10 @@ def _merge_names(
     Returns:
         Three-tuple of ``(merged_names, added_names, removed_names)``.
     """
-    existing_set = set(existing)
-    added = sorted(should_export - existing_set, key=_export_sort_key)
+    existing_names_collection = set(existing)
+    added = sorted(should_export - existing_names_collection, key=_export_sort_key)
     # Only remove names that are explicitly EXCLUDED, not NO_DECISION.
-    removed = sorted(existing_set & should_exclude)
+    removed = sorted(existing_names_collection & should_exclude)
 
     # Keep names that are either INCLUDE or NO_DECISION (not in should_exclude).
     # Append newly required INCLUDE names in sorted order.
@@ -312,7 +304,7 @@ def check_module_all(file: Path, module_path: str, rules: RuleEngine) -> list[Mo
     try:
         tree = ast.parse(source, filename=str(file))
     except SyntaxError:
-        # Cannot analyse a file with syntax errors; report nothing.
+        # Cannot analyze a file with syntax errors; report nothing.
         return []
 
     # Compute rule actions (ASTParser reads the file again internally, but
@@ -363,9 +355,7 @@ def check_module_all(file: Path, module_path: str, rules: RuleEngine) -> list[Mo
             file=file,
             issue_type="extra",
             symbol_name=name,
-            message=(
-                f"{file}: '{name}' is in __all__ but rules say EXCLUDE"
-            ),
+            message=(f"{file}: '{name}' is in __all__ but rules say EXCLUDE"),
         )
         for name in sorted(actual & should_exclude)
     )
@@ -378,7 +368,7 @@ def fix_module_all(
 ) -> ModuleAllFixResult:
     """Update ``__all__`` in a regular module to match what the rules prescribe.
 
-    Behaviour:
+    Behavior:
 
     - If ``__all__`` already exists: names with ``EXCLUDE`` action are removed,
       names with ``INCLUDE`` action that are missing are appended (sorted), and
@@ -424,27 +414,7 @@ def fix_module_all(
     # Case 1: __all__ does not exist
     # ------------------------------------------------------------------
     if all_node is None:
-        if not should_export:
-            # Nothing to create.
-            return ModuleAllFixResult(file=file, was_modified=False, dry_run=dry_run)
-
-        sorted_names = sorted(should_export, key=_export_sort_key)
-        new_all_text = _render_all(sorted_names, fmt="tuple")
-
-        new_source = _append_all(source, new_all_text)
-
-        if not dry_run:
-            file.write_text(new_source, encoding="utf-8")
-
-        return ModuleAllFixResult(
-            file=file,
-            was_modified=True,
-            dry_run=dry_run,
-            added=sorted_names,
-            removed=[],
-            created=True,
-        )
-
+        return _generate_all_from_exports(should_export, file, dry_run=dry_run, source=source)
     # ------------------------------------------------------------------
     # Case 2: __all__ exists — compute diff and rewrite
     # ------------------------------------------------------------------
@@ -472,6 +442,27 @@ def fix_module_all(
 
     return ModuleAllFixResult(
         file=file, was_modified=True, dry_run=dry_run, added=added, removed=removed, created=False
+    )
+
+
+def _generate_all_from_exports(
+    should_export: set[str], file: Path, *, dry_run: bool, source: str
+) -> ModuleAllFixResult:
+    """Generate a new __all__ declaration from the prescribed exports when __all__ is absent."""
+    if not should_export:
+        # Nothing to create.
+        return ModuleAllFixResult(file=file, was_modified=False, dry_run=dry_run)
+
+    sorted_names = sorted(should_export, key=_export_sort_key)
+    new_all_text = _render_all(sorted_names, fmt="tuple")
+
+    new_source = _append_all(source, new_all_text)
+
+    if not dry_run:
+        file.write_text(new_source, encoding="utf-8")
+
+    return ModuleAllFixResult(
+        file=file, was_modified=True, dry_run=dry_run, added=sorted_names, removed=[], created=True
     )
 
 

@@ -1,3 +1,4 @@
+# sourcery skip: do-not-use-staticmethod
 #!/usr/bin/env python3
 
 # SPDX-FileCopyrightText: 2026 Knitli Inc.
