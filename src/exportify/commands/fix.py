@@ -217,4 +217,7 @@ def fix(
 if __name__ == "__main__":
     FixCommand()
 
-__all__ = ("FixCommand",)
+__all__ = (
+    "FixCommand",
+    "fix",
+)

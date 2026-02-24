@@ -352,4 +352,7 @@ if __name__ == "__main__":
     CheckCommand()
 
 
-__all__ = ("CheckCommand",)
+__all__ = (
+    "CheckCommand",
+    "check",
+)

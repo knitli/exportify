@@ -95,4 +95,7 @@ def init(
 if __name__ == "__main__":
     InitCommand()
 
-__all__ = ("InitCommand",)
+__all__ = (
+    "InitCommand",
+    "init",
+)

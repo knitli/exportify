@@ -258,3 +258,10 @@ class RuleEngine:
         """Validate all loaded rules."""
         return []
         # (Validation logic similar to before)
+
+__all__ = (
+    "CURRENT_SCHEMA_VERSION",
+    "SUPPORTED_VERSIONS",
+    "RuleEngine",
+    "SchemaVersionError",
+)

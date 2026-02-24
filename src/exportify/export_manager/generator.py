@@ -174,9 +174,9 @@ class GeneratedCode:
                 parts.append(manual_body)
 
         # Add sentinel and managed section
-        parts.extend([SENTINEL, MANAGED_COMMENT, "", managed])
+        parts.extend([SENTINEL, MANAGED_COMMENT, managed])
 
-        content = "\n\n".join(parts)
+        content = "\n\n".join(parts) + "\n"
         content_hash = hashlib.sha256(content.encode()).hexdigest()
 
         return cls(
@@ -599,4 +599,6 @@ __all__ = [
     "GeneratedCode",
     "WriteResult",
     "validate_init_file",
+    "MANAGED_COMMENT",
+    "SPDX_HEADERS",
 ]

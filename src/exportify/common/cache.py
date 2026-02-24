@@ -419,4 +419,10 @@ class JSONAnalysisCache:
 # Keep backwards compatibility
 AnalysisCache = JSONAnalysisCache
 
-__all__ = ("AnalysisCache", "CircuitBreaker", "CircuitState", "JSONAnalysisCache")
+__all__ = (
+    "AnalysisCache",
+    "CircuitBreaker",
+    "CircuitState",
+    "JSONAnalysisCache",
+    "T",
+)

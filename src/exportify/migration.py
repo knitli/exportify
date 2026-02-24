@@ -484,3 +484,14 @@ def cli_init(output: Path | None = None, *, dry_run: bool = False, verbose: bool
             return 1
 
     return 0
+
+__all__ = (
+    "DEFAULT_OUTPUT",
+    "SCHEMA_VERSION",
+    "ExtractedRule",
+    "MigrationResult",
+    "RuleMigrator",
+    "cli_init",
+    "migrate_to_yaml",
+    "verify_migration",
+)

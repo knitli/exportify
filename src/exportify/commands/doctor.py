@@ -76,4 +76,7 @@ def doctor() -> None:
 if __name__ == "__main__":
     DoctorCommand()
 
-__all__ = ("DoctorCommand",)
+__all__ = (
+    "DoctorCommand",
+    "doctor",
+)

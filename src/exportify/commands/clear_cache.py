@@ -44,4 +44,7 @@ def clear_cache() -> None:
 if __name__ == "__main__":
     ClearCacheCommand()
 
-__all__ = ("ClearCacheCommand",)
+__all__ = (
+    "ClearCacheCommand",
+    "clear_cache",
+)

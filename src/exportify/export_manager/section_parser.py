@@ -162,6 +162,31 @@ class SectionParser:
             "had_dir": "def __dir__()" in managed,
         }
 
+        # If the preserved section contains managed infrastructure (leaked from a
+        # previous buggy generation run), re-parse it with the AST-based path to
+        # filter those nodes out, keeping only genuine user code.
+        _LEAKED_MARKERS = (
+            "_dynamic_imports",
+            "__getattr__ = create_late_getattr",
+            "from lateimport import create_late_getattr",
+            "from types import MappingProxyType",
+        )
+        if any(marker in preserved for marker in _LEAKED_MARKERS):
+            with contextlib.suppress(Exception):
+                re_parsed = self.parse_content(preserved)
+                preserved_lines_count = (
+                    re_parsed.preserved_code.count("\n") + 1
+                    if re_parsed.preserved_code
+                    else 0
+                )
+                return ParsedSections(
+                    preserved_code=re_parsed.preserved_code,
+                    docstring=re_parsed.docstring,
+                    managed_lines=[(preserved_lines_count + 1, content.count("\n") + 1)],
+                    preserved_lines=re_parsed.preserved_lines,
+                    **flags,
+                )
+
         # Extract docstring from preserved section
         docstring: str | None = None
         with contextlib.suppress(SyntaxError):
@@ -325,9 +350,12 @@ class SectionParser:
         Returns:
             Preserved data with code, docstring, and line numbers
         """
-        # Module docstring (first node if it's a string constant)
+        # Module docstring (first node if it's a string constant).
+        # We still extract its value for ParsedSections.docstring, but we do NOT
+        # skip it — the docstring node is left in the iteration below so that
+        # _extract_code_for_nodes includes its text in preserved_code.
+        # GeneratedCode.create() knows how to extract and reposition the docstring.
         docstring = None
-        start_index = 0
 
         if (
             tree.body
@@ -336,13 +364,13 @@ class SectionParser:
             and isinstance(tree.body[0].value.value, str)
         ):
             docstring = tree.body[0].value.value
-            start_index = 1  # Skip docstring node
 
-        # Collect preserved nodes (all non-managed top-level nodes)
+        # Collect preserved nodes (all non-managed top-level nodes, including the
+        # module docstring which is never a managed node)
         preserved_nodes: list[ast.AST] = []
         managed_lines: list[tuple[int, int]] = []
 
-        for node in tree.body[start_index:]:
+        for node in tree.body:
             if self._is_managed_node(node):
                 # Track managed section lines
                 if hasattr(node, "lineno") and hasattr(node, "end_lineno"):

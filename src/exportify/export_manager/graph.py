@@ -358,3 +358,11 @@ class PropagationGraph:
             lines.extend(propagations)
 
         return "\n".join(lines)
+
+__all__ = (
+    "CircularDependencyIndicator",
+    "ExportEntry",
+    "ModuleNode",
+    "PropagationGraph",
+    "export_sort_key",
+)
