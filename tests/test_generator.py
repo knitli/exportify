@@ -11,8 +11,7 @@ Tests cover:
 - Lazy import generation (_dynamic_imports, __getattr__)
 - Type checking support
 - __all__ list generation
-- Atomic writes with backup and rollback
-- Syntax validation
+- Atomic writes with syntax validation
 """
 
 # sourcery skip: require-return-annotation, require-parameter-annotation, no-relative-imports
@@ -306,7 +305,7 @@ def __dir__() -> list[str]:
     _ast.parse(code.content)
 
     # from __future__ import annotations must be the first executable statement
-    lines = [l for l in code.content.splitlines() if l.strip() and not l.strip().startswith("#")]
+    lines = [line for line in code.content.splitlines() if line.strip() and not line.strip().startswith("#")]
     assert lines[0] in ('"""Package docstring."""', "from __future__ import annotations"), (
         f"Unexpected first executable line: {lines[0]!r}"
     )
@@ -330,8 +329,8 @@ def test_write_file_creates_directories(generator: CodeGenerator, temp_dir: Path
     assert target.is_file()
 
 
-def test_write_file_creates_backup(generator: CodeGenerator, temp_dir: Path):
-    """Test write_file creates backup of existing file."""
+def test_write_file_overwrites_existing(generator: CodeGenerator, temp_dir: Path):
+    """Test write_file overwrites an existing file with new content."""
     module_path = "test.module"
     target = temp_dir / "test" / "module" / "__init__.py"
     target.parent.mkdir(parents=True)
@@ -346,11 +345,7 @@ def test_write_file_creates_backup(generator: CodeGenerator, temp_dir: Path):
     code = generator.generate(manifest)
     generator.write_file(module_path, code)
 
-    # Backup should not exist after successful write (cleaned up)
-    backup = target.with_suffix(".py.backup")
-    assert not backup.exists()
-
-    # But file should have new content
+    # File should have new content
     new_content = target.read_text()
     assert "NewClass" in new_content
     assert initial_content != new_content
