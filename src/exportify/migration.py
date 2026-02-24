@@ -307,10 +307,86 @@ class RuleMigrator:
         return lines
 
 
+def _rule_from_yaml(rule_dict: dict) -> ExtractedRule:
+    """Parse a flat YAML rule dict into an ExtractedRule.
+
+    For rules with complex ``any_of``/``all_of`` match blocks, only the
+    top-level match fields (``name_pattern``, ``name_exact``, ``member_type``)
+    are captured — this is sufficient for reporting purposes.
+    """
+    match_dict = rule_dict.get("match") or {}
+    member_type_str = match_dict.get("member_type")
+    propagate_str = rule_dict.get("propagate")
+    action_str = rule_dict.get("action", "no_decision")
+    return ExtractedRule(
+        name=rule_dict["name"],
+        priority=rule_dict.get("priority", 0),
+        description=rule_dict.get("description", ""),
+        pattern=match_dict.get("name_pattern"),
+        exact_match=match_dict.get("name_exact"),
+        member_type=MemberType(member_type_str) if member_type_str else None,
+        action=RuleAction(action_str),
+        propagate=PropagationLevel(propagate_str) if propagate_str else None,
+        source_line=None,
+    )
+
+
+def _load_init_template() -> tuple[str, list[ExtractedRule]]:
+    """Read the bundled init template and parse it into ExtractedRule objects."""
+    template_path = Path(__file__).parent / "rules" / "init_template.yaml"
+    yaml_content = template_path.read_text(encoding="utf-8")
+    data = yaml.safe_load(yaml_content)
+    rules = [_rule_from_yaml(r) for r in data.get("rules", [])]
+    return yaml_content, rules
+
+
+def _generate_template_summary(rules: list[ExtractedRule]) -> str:
+    """Return a human-readable summary of the template rules."""
+    lines = [
+        "# Exportify Configuration Summary",
+        "",
+        f"**Generated rules**: {len(rules)}",
+        "",
+        "## Rules",
+        "",
+    ]
+    for rule in sorted(rules, key=lambda r: (-r.priority, r.name)):
+        lines.extend([
+            f"### {rule.name} (priority {rule.priority})",
+            f"**Description**: {rule.description}",
+            f"**Action**: `{rule.action.value}`",
+        ])
+        if rule.pattern:
+            lines.append(f"**Pattern**: `{rule.pattern}`")
+        if rule.member_type:
+            lines.append(f"**Member type**: `{rule.member_type.value}`")
+        if rule.propagate:
+            lines.append(f"**Propagation**: `{rule.propagate.value}`")
+        lines.append("")
+    lines += [
+        "## Priority Bands",
+        "",
+        "| Priority | Purpose |",
+        "|----------|---------|",
+        "| 1000 | Absolute exclusions (private, dunders) |",
+        "| 900–800 | Infrastructure/framework exclusions |",
+        "| 700 | Primary export rules (classes, functions, constants, type aliases) |",
+        "| 600 | Import handling |",
+        "| 400 | Variable handling |",
+        "| 300 | Project-specific propagation overrides |",
+        "| 0 | Default fallback |",
+        "",
+    ]
+    return "\n".join(lines)
+
+
 def migrate_to_yaml(
     output_path: Path = DEFAULT_OUTPUT, *, dry_run: bool = False
 ) -> MigrationResult:
     """Generate default exportify configuration and optionally write it.
+
+    Loads the bundled ``init_template.yaml`` — the full default rule set with
+    correct propagation settings — and writes it to ``output_path``.
 
     Args:
         output_path: Destination for the YAML config file.
@@ -319,12 +395,21 @@ def migrate_to_yaml(
     Returns:
         MigrationResult with YAML content and generation details.
     """
-    migrator = RuleMigrator()
-    result = migrator.migrate()
+    yaml_content, rules = _load_init_template()
+    summary = _generate_template_summary(rules)
 
-    if not dry_run and result.success:
+    result = MigrationResult(
+        yaml_content=yaml_content,
+        rules_generated=rules,
+        overrides_generated={"include": {}, "exclude": {}},
+        summary=summary,
+        success=True,
+        errors=[],
+    )
+
+    if not dry_run:
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(result.yaml_content, encoding="utf-8")
+        output_path.write_text(yaml_content, encoding="utf-8")
 
     return result
 

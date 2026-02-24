@@ -88,7 +88,11 @@ class SnapshotManager:
                 continue
             stored_name = f"{i}.py"
             shutil.copy2(file_path, self.files_dir / stored_name)
-            rel = str(file_path.resolve().relative_to(self.project_root))
+            resolved = file_path.resolve()
+            try:
+                rel = str(resolved.relative_to(self.project_root))
+            except ValueError:
+                rel = str(resolved)
             entries.append(SnapshotEntry(source=rel, stored=stored_name))
 
         manifest = SnapshotManifest(timestamp=datetime.now(UTC).isoformat(), entries=entries)

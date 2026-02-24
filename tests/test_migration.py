@@ -218,9 +218,9 @@ class TestEndToEndInit:
         assert result.summary
 
         rule_names = {r.name for r in result.rules_generated}
-        assert "exclude-private-members" in rule_names
-        assert "include-constants" in rule_names
-        assert "propagate-exceptions" in rule_names
+        assert "ExcludePrivateSymbols" in rule_names
+        assert "ExportDefinedConstants" in rule_names
+        assert "ExportDefinedClasses" in rule_names
 
         parsed = yaml.safe_load(result.yaml_content)
         assert parsed["schema_version"] == "1.0"
