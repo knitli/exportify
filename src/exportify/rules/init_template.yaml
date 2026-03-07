@@ -15,11 +15,89 @@
 # Docs: https://github.com/knitli/exportify
 
 schema_version: "1.0"
-# Optional: add SPDX comment headers to every generated __init__.py.
+
+# ---------------------------------------------------------------------------
+# Output style
+# ---------------------------------------------------------------------------
+# Default output style for all generated __init__.py files.
+#   lazy   (default) — generates a __getattr__-based lazy import pattern; symbols
+#                      are imported only when first accessed.
+#   barrel — generates direct "from .submodule import X" re-exports; compatible
+#             with tools that do not support lazy loading.
+#
+# output_style: lazy
+
+# ---------------------------------------------------------------------------
+# Per-package output style overrides
+# ---------------------------------------------------------------------------
+# Override the output style for specific packages and their subpackages.
+# The most-specific matching ancestor wins.
+#
+# overrides:
+#   "mypackage.compat":
+#     output_style: barrel
+#   "mypackage.legacy":
+#     output_style: barrel
+
+# ---------------------------------------------------------------------------
+# Project settings
+# ---------------------------------------------------------------------------
+# Explicit project identification. Not required — exportify auto-detects these
+# values from pyproject.toml or directory layout — but providing them ensures
+# consistent, deterministic behaviour across environments and exportify versions.
+#
+# project:
+#   project_name: "mypackage"
+#   project_path: "."          # Path to project root (default: auto-detect)
+#   source_path: "src"         # Path to source root containing packages (default: auto-detect)
+#   additional_source_paths:   # Extra source roots for monorepos / multi-package projects
+#     - "packages/pkg_a/src"
+#     - "packages/pkg_b/src"
+
+# ---------------------------------------------------------------------------
+# Exclude paths
+# ---------------------------------------------------------------------------
+# Glob patterns for files/directories to skip during discovery.
+# Patterns are matched against the path relative to each source root.
+# Supports ** for recursive matching.
+#
+# exclude_paths:
+#   - "**/_vendor/**"          # Skip vendored third-party code
+#   - "**/tests/**"            # Skip test directories
+#   - "**/migrations/**"       # Skip generated migration files
+#   - "mypackage/legacy/**"    # Skip a specific sub-package entirely
+
+# ---------------------------------------------------------------------------
+# SPDX license headers
+# ---------------------------------------------------------------------------
+# When enabled, every generated __init__.py will include SPDX comment headers.
+#
 # spdx:
 #   enabled: true
 #   copyright: "2026 Your Name or Company."
 #   license: "MIT OR Apache-2.0"
+
+# ---------------------------------------------------------------------------
+# Metadata (informational only — not interpreted by exportify)
+# ---------------------------------------------------------------------------
+# Arbitrary key/value pairs; useful for documenting configuration intent.
+#
+# metadata:
+#   description: "Export rules for mypackage"
+#   owner: "platform-team"
+
+# ---------------------------------------------------------------------------
+# Export rules
+# ---------------------------------------------------------------------------
+# Rules are evaluated highest-priority-first; the first match wins.
+# Priority bands:
+#   1000      — absolute exclusions (private members, dunders)
+#   950–900   — stdlib / infrastructure exclusions
+#   800       — test / development exclusions
+#   700       — primary export rules (classes, functions, constants)
+#   600–500   — import re-export handling
+#   300–400   — propagation overrides / project-specific rules
+#   0–200     — defaults and fallbacks
 rules:
   # ===================================================================
   # Priority 1000: Explicit exclusions
@@ -44,6 +122,22 @@ rules:
     description: Skip dunder symbols except __all__ which is managed separately
     match:
       name_pattern: ^__.*__$
+    action: exclude
+  # ===================================================================
+  # Priority 950: Stdlib / typing infrastructure exclusions
+  # ===================================================================
+  - name: ExcludeStdlibImports
+    priority: 950
+    description: >-
+      Exclude stdlib imports from being re-exported. Standard library symbols
+      imported into a module (e.g. TYPE_CHECKING, MappingProxyType, Path) are
+      almost never intended as public re-exports. Aliased stdlib imports that ARE
+      genuine re-exports can be explicitly included via a higher-priority rule or
+      a manual override.
+    match:
+      all_of:
+        - member_type: imported
+        - is_stdlib: true
     action: exclude
   # ===================================================================
   # Priority 900: Special component exclusions
@@ -144,7 +238,7 @@ rules:
     priority: 600
     description: Export imported symbols (aliased)
     match:
-      # export all aliased imports
+      # export all aliased imports (that are not stdlib — handled above)
       all_of:
         - member_type: imported
         - provenance: alias_imported

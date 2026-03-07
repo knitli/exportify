@@ -64,6 +64,10 @@
             "unknown"
           ],
           "type": "string"
+        },
+        "is_stdlib": {
+          "description": "Match symbols based on whether they originate from the Python standard library.\n  true  – only match stdlib imports\n  false – only match non-stdlib imports\nThis criterion is only meaningful when combined with member_type: imported.",
+          "type": "boolean"
         }
       },
       "type": "object"
@@ -190,6 +194,14 @@
         }
       },
       "type": "object"
+    },
+    "exclude_paths": {
+      "default": [],
+      "description": "Glob patterns for files or directories to skip during file discovery. Patterns are matched against the path relative to each source root and support '**' for recursive matching. Examples: '**/tests/**', '**/migrations/**', 'mypackage/legacy/**'.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
     },
     "rules": {
       "description": "Export rules evaluated in priority order (highest priority first). The first rule whose 'match' criteria are satisfied determines the export decision. If no rule matches, the symbol receives no_decision and is not exported.",

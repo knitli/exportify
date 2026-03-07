@@ -39,6 +39,19 @@ rules:
     match:
       name_pattern: ^__.*__$
     action: exclude
+  - name: ExcludeStdlibImports
+    priority: 950
+    description: >-
+      Exclude stdlib imports from being re-exported. Standard library symbols
+      imported into a module (e.g. TYPE_CHECKING, MappingProxyType, Path) are
+      almost never intended as public re-exports. Aliased stdlib imports that ARE
+      genuine re-exports can be explicitly included via a higher-priority rule or
+      a manual override.
+    match:
+      all_of:
+        - member_type: imported
+        - is_stdlib: true
+    action: exclude
   # ===================================================================
   # Priority 900: Special component exclusions
   # Prevent self-referential or infrastructure issues

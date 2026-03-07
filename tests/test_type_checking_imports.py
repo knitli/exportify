@@ -214,7 +214,7 @@ class TestGeneratedDynamicImports:
             ),
         ]
         manifest = ExportManifest(
-            module_path="mypackage", own_exports=exports, propagated_exports=[], all_exports=exports
+            module_path="mypackage", own_exports=[], propagated_exports=exports, all_exports=exports
         )
 
         generator = CodeGenerator(tmp_path)

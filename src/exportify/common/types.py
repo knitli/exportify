@@ -171,6 +171,7 @@ class RuleMatchCriteria:
     module_pattern: str | None = None  # Regex
     member_type: MemberType | None = None
     provenance: SymbolProvenance | None = None  # NEW: Match on symbol provenance
+    is_stdlib: bool | None = None  # Match on whether the symbol is from the stdlib
     any_of: list[RuleMatchCriteria] | None = None  # OR conditions
     all_of: list[RuleMatchCriteria] | None = None  # AND conditions
 

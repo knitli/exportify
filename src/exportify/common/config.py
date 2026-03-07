@@ -172,6 +172,17 @@ class ExportifyConfig:
     spdx: SpdxConfig = field(default_factory=SpdxConfig)
     """SPDX header configuration for generated files."""
 
+    exclude_paths: list[str] = field(default_factory=list)
+    """Glob patterns for paths to exclude from processing (relative to each source root).
+
+    Supports ``**`` for recursive matching.  Examples::
+
+        exclude_paths:
+          - "**/_vendor/**"
+          - "**/tests/**"
+          - "mypackage/legacy/**"
+    """
+
     def get_output_style(self, module_path: str) -> OutputStyle:
         """Get output style for a module, inheriting from the nearest matching ancestor.
 
@@ -198,9 +209,9 @@ def load_config(path: Path) -> ExportifyConfig:
     """Load an exportify configuration from a YAML file.
 
     Reads the file at *path* and populates an :class:`ExportifyConfig`.  Only
-    the ``output_style`` and ``overrides`` sections are relevant to this
-    function; all other YAML keys (e.g. ``schema_version``, ``rules``) are
-    silently ignored.
+    the ``output_style``, ``overrides``, ``spdx``, ``project``, and
+    ``exclude_paths`` sections are relevant to this function; all other YAML
+    keys (e.g. ``schema_version``, ``rules``) are silently ignored.
 
     YAML schema understood by this function::
 
@@ -209,6 +220,10 @@ def load_config(path: Path) -> ExportifyConfig:
         overrides:
           "mypackage.compat":
             output_style: barrel
+
+        exclude_paths:
+          - "**/_vendor/**"
+          - "**/tests/**"
 
     Args:
         path: Path to the YAML config file.
@@ -258,13 +273,22 @@ def load_config(path: Path) -> ExportifyConfig:
         copyright=spdx_data.get("copyright", "") or "",
         license=spdx_data.get("license", "") or "",
     )
+
+    # --- project config ---
     project_data = {
         k: v for k, v in data.get("project", {}).items() if v
     }  # Only "name" is relevant to our ProjectConfig
     project = ProjectConfig(**project_data)
 
+    # --- exclude_paths ---
+    exclude_paths: list[str] = data.get("exclude_paths", []) or []
+
     return ExportifyConfig(
-        output_style=global_style, project=project, package_styles=package_styles, spdx=spdx
+        output_style=global_style,
+        project=project,
+        package_styles=package_styles,
+        spdx=spdx,
+        exclude_paths=exclude_paths,
     )
 
 

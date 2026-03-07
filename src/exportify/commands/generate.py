@@ -79,6 +79,7 @@ def _run_pipeline_for_root(
     cache: JSONAnalysisCache,
     output_style_value: str,
     spdx_config: SpdxConfig | None,
+    exclude_paths: list[str],
     dry_run: bool,
     raise_exit: Callable[[str], NoReturn],
 ) -> None:
@@ -102,6 +103,7 @@ def _run_pipeline_for_root(
         output_dir=(output or source_root) if root == source_root else root,
         output_style=output_style_value,
         spdx_config=spdx_config,
+        exclude_paths=exclude_paths,
     )
 
     try:
@@ -203,6 +205,8 @@ def generate(
         print_info(f"Filtering to module: {module}")
         CONSOLE.print()
 
+    exclude_paths: list[str] = config.exclude_paths if config else []
+
     for root in all_source_roots:
         _run_pipeline_for_root(
             root=root,
@@ -213,6 +217,7 @@ def generate(
             cache=cache,
             output_style_value=output_style_value,
             spdx_config=spdx_config,
+            exclude_paths=exclude_paths,
             dry_run=dry_run,
             raise_exit=_raise_system_exit,
         )

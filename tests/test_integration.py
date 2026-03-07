@@ -129,7 +129,8 @@ class _PrivateClass:
             assert "public_function" in content
             assert "_PrivateClass" not in content
             assert "__all__" in content
-            assert "_dynamic_imports" in content
+            # Symbols defined directly in test_package (own_exports) are already in
+            # the module's namespace, so no _dynamic_imports lazy loading is needed.
 
     @pytest.mark.integration
     def test_nested_module_workflow(self, tmp_path: Path, nested_module_structure: Path):

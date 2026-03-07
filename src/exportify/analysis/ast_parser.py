@@ -306,6 +306,12 @@ class ASTParser:
                 module = node.module or ""
                 level = "." * node.level  # Relative imports
                 import_path = f"{level}{module}" if level or module else ""
+
+                # Skip __future__ imports entirely — they are compiler directives,
+                # not real symbols, and can never be re-exported.
+                if module == "__future__":
+                    continue
+
                 is_stdlib = self._is_stdlib_module(module) if module else False
 
                 for alias in node.names:

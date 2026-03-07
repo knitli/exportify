@@ -78,11 +78,20 @@ class FileDiscovery:
             ):
                 continue
 
-            # Apply exclude patterns
-            if exclude_patterns and any(
-                fnmatch.fnmatch(py_file.name, pattern) for pattern in exclude_patterns
-            ):
-                continue
+            # Apply exclude patterns against both the filename and the relative path
+            # (relative to root), so users can write patterns like "**/tests/**"
+            # or "mypackage/legacy/**" as well as "*.pyi".
+            if exclude_patterns:
+                try:
+                    rel = py_file.relative_to(root)
+                except ValueError:
+                    rel = None
+                if any(
+                    fnmatch.fnmatch(py_file.name, pattern)
+                    or (rel is not None and rel.match(pattern))
+                    for pattern in exclude_patterns
+                ):
+                    continue
 
             python_files.append(py_file)
 

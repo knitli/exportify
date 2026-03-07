@@ -410,9 +410,8 @@ class TestCodeGenerator:
         assert "from pathlib import Path" in generated.manual_section
         assert "StrPath = str | Path" in generated.manual_section
 
-        # Verify new managed section generated
-        assert "from typing import TYPE_CHECKING" in generated.managed_section
-        assert "_dynamic_imports" in generated.managed_section
+        # Verify new managed section generated (sample_manifest has no propagated exports,
+        # so lazy import boilerplate is intentionally omitted — only __all__ is emitted)
         assert "__all__" in generated.managed_section
 
     def test_type_aliases_preserved(self, code_generator: CodeGenerator, temp_dir: Path) -> None:

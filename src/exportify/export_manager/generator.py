@@ -345,12 +345,32 @@ class CodeGenerator:
     def _generate_lazy_managed_section(self, manifest: ExportManifest) -> str:
         """Generate the managed section using lazy lateimport pattern."""
         # Sort exports using the custom sort key
-        exports = sorted(manifest.all_exports, key=lambda x: _export_sort_key(x.public_name))
+        all_exports = sorted(manifest.all_exports, key=lambda x: _export_sort_key(x.public_name))
 
-        if not exports:
+        if not all_exports:
             return "__all__ = ()"
 
-        type_lines = self._generate_type_checking_imports(exports)
+        # Only symbols from submodules (propagated) need lazy loading.
+        # Symbols defined directly in __init__.py (own_exports) are already in
+        # the module's namespace — putting them in _dynamic_imports would create
+        # self-referential circular imports.
+        prop_exports = sorted(
+            manifest.propagated_exports, key=lambda x: _export_sort_key(x.public_name)
+        )
+
+        if not prop_exports:
+            # All exports are defined directly in this __init__.py.  No lazy
+            # import machinery is needed; just emit __all__ and __dir__.
+            parts = [
+                self._generate_all_tuple(all_exports),
+                "",
+                "def __dir__() -> list[str]:",
+                '    """List available attributes for the package."""',
+                "    return list(__all__)",
+            ]
+            return "\n".join(parts)
+
+        type_lines = self._generate_type_checking_imports(prop_exports)
         parts = [
             "from typing import TYPE_CHECKING",
             "from types import MappingProxyType",
@@ -361,15 +381,16 @@ class CodeGenerator:
             *[f"    {line}" for line in type_lines],
         ]
         # 3. _dynamic_imports dictionary (MappingProxyType wrapper)
-        # Only for runtime exports (not type-only)
-        runtime_exports = [e for e in exports if not e.is_type_only]
+        # Only for propagated (submodule) runtime exports — never for symbols
+        # defined directly in __init__.py, which are already in the namespace.
+        runtime_prop_exports = [e for e in prop_exports if not e.is_type_only]
 
         parts.extend([
             "",
             "_dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({",
         ])
 
-        for export in runtime_exports:
+        for export in runtime_prop_exports:
             # Extract relative module name from full path
             relative_module = self._extract_relative_module(
                 export.target_module, manifest.module_path
@@ -382,7 +403,8 @@ class CodeGenerator:
             "",
             "__getattr__ = create_late_getattr(_dynamic_imports, globals(), __name__)",
             "",
-            self._generate_all_tuple(exports),
+            # __all__ covers ALL exports: own (directly defined) + propagated (lazy)
+            self._generate_all_tuple(all_exports),
             "",
             "def __dir__() -> list[str]:",
             '    """List available attributes for the package."""',

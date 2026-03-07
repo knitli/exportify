@@ -69,6 +69,7 @@ class Pipeline:
         output_dir: Path,
         output_style: str = "lazy",
         spdx_config: SpdxConfig | None = None,
+        exclude_paths: list[str] | None = None,
     ):
         """Initialize pipeline with required components.
 
@@ -78,11 +79,14 @@ class Pipeline:
             output_dir: Root directory for output
             output_style: Output style — ``"lazy"`` (default) or ``"barrel"``
             spdx_config: Optional SPDX header configuration for generated files.
+            exclude_paths: Glob patterns for paths to exclude from discovery
+                (relative to each source root).  Supports ``**``.
         """
         self.rule_engine = rule_engine
         self.cache = cache
         self.output_dir = output_dir
         self.output_style = output_style
+        self.exclude_paths: list[str] = exclude_paths or []
 
         # Initialize components
         self.file_discovery = FileDiscovery()
@@ -109,7 +113,10 @@ class Pipeline:
             List of Python file paths
         """
         logger.info("Discovering Python files in %s", source_root)
-        python_files = self.file_discovery.discover_python_files(source_root)
+        python_files = self.file_discovery.discover_python_files(
+            source_root,
+            exclude_patterns=self.exclude_paths or None,
+        )
         self.stats.files_discovered = len(python_files)
         logger.info("Found %d Python files in %s", len(python_files), source_root)
         return python_files

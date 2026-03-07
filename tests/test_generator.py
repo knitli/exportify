@@ -110,7 +110,7 @@ def test_generate_empty_manifest(generator: CodeGenerator):
 def test_generate_single_export(generator: CodeGenerator):
     """Test generating code with single lazy export."""
     exports = [make_lazy_export("MyClass", "test.module.submodule")]
-    manifest = make_manifest("test.module", own_exports=exports)
+    manifest = make_manifest("test.module", own_exports=[], propagated=exports)
 
     code = generator.generate(manifest)
 
@@ -140,7 +140,7 @@ def test_generate_multiple_exports(generator: CodeGenerator):
         make_lazy_export("ClassB", "test.module.sub2"),
         make_lazy_export("function_c", "test.module.sub1"),
     ]
-    manifest = make_manifest("test.module", own_exports=exports)
+    manifest = make_manifest("test.module", own_exports=[], propagated=exports)
 
     code = generator.generate(manifest)
 
@@ -171,7 +171,7 @@ def test_type_alias_in_type_checking_block(generator: CodeGenerator):
         make_lazy_export("MyClass", "test.module.sub"),
         make_lazy_export("MyType", "test.module.sub", is_type_only=True),
     ]
-    manifest = make_manifest("test.module", own_exports=exports)
+    manifest = make_manifest("test.module", own_exports=[], propagated=exports)
 
     code = generator.generate(manifest)
 
@@ -582,7 +582,7 @@ def test_type_checking_imports_grouped_by_module(generator: CodeGenerator):
         make_lazy_export("ClassC", "test.module.sub1"),  # Same module as ClassA
         make_lazy_export("function_d", "test.module.sub2"),  # Same module as ClassB
     ]
-    manifest = make_manifest("test.module", own_exports=exports)
+    manifest = make_manifest("test.module", own_exports=[], propagated=exports)
     code = generator.generate(manifest)
 
     # Should group imports by module with multi-line format
@@ -638,7 +638,7 @@ def test_spdx_headers_absent_by_default(generator: CodeGenerator):
 def test_mapping_proxy_type_annotation(generator: CodeGenerator):
     """Test _dynamic_imports has correct MappingProxyType annotation."""
     exports = [make_lazy_export("MyClass", "test.module.sub")]
-    manifest = make_manifest("test.module", own_exports=exports)
+    manifest = make_manifest("test.module", own_exports=[], propagated=exports)
     code = generator.generate(manifest)
 
     assert (
@@ -650,7 +650,7 @@ def test_mapping_proxy_type_annotation(generator: CodeGenerator):
 def test_spec_parent_usage(generator: CodeGenerator):
     """Test __spec__.parent is used instead of hardcoded package name."""
     exports = [make_lazy_export("MyClass", "test.module.submodule")]
-    manifest = make_manifest("test.module", own_exports=exports)
+    manifest = make_manifest("test.module", own_exports=[], propagated=exports)
     code = generator.generate(manifest)
 
     # Should use __spec__.parent, not hardcoded "test.module"
@@ -672,7 +672,7 @@ def test_full_generation_workflow(generator: CodeGenerator, temp_dir: Path):
         make_lazy_export("MyType", "codeweaver.core.types.aliases", is_type_only=True),
         make_lazy_export("CONSTANT", "codeweaver.core.types.constants"),
     ]
-    manifest = make_manifest(module_path, own_exports=exports)
+    manifest = make_manifest(module_path, own_exports=[], propagated=exports)
 
     # Generate code
     code = generator.generate(manifest)
@@ -942,7 +942,7 @@ def test_barrel_import_lines_multiple_from_same_module(temp_dir):
 def test_type_checking_import_aliased(generator):
     """Test TYPE_CHECKING block includes 'obj as alias' when names differ."""
     exports = [make_lazy_export("PublicAlias", "test.module.sub", target_object="InternalClass")]
-    manifest = make_manifest("test.module", own_exports=exports)
+    manifest = make_manifest("test.module", own_exports=[], propagated=exports)
     code = generator.generate(manifest)
 
     # The TYPE_CHECKING block should contain 'InternalClass as PublicAlias'

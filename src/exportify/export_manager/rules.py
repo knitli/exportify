@@ -181,7 +181,15 @@ class RuleEngine:
         if criteria.member_type and symbol.member_type != criteria.member_type:
             return False
 
-        return not (criteria.provenance and symbol.provenance != criteria.provenance)
+        if criteria.provenance and symbol.provenance != criteria.provenance:
+            return False
+
+        if criteria.is_stdlib is not None:
+            symbol_is_stdlib = bool(symbol.metadata.get("is_stdlib", False))
+            if symbol_is_stdlib != criteria.is_stdlib:
+                return False
+
+        return True
 
     def _get_compiled_pattern(self, pattern_str: str) -> re.Pattern:
         """Get or compile a regex pattern (with caching)."""
@@ -240,6 +248,7 @@ class RuleEngine:
                 provenance=SymbolProvenance(match_data["provenance"])
                 if "provenance" in match_data
                 else None,
+                is_stdlib=match_data.get("is_stdlib"),
                 any_of=[self._parse_criteria(sub) for sub in match_data.get("any_of", [])] or None,
                 all_of=[self._parse_criteria(sub) for sub in match_data.get("all_of", [])] or None,
             )
@@ -272,6 +281,7 @@ class RuleEngine:
             module_pattern=data.get("module_pattern"),
             member_type=MemberType(data["member_type"]) if "member_type" in data else None,
             provenance=SymbolProvenance(data["provenance"]) if "provenance" in data else None,
+            is_stdlib=data.get("is_stdlib"),
             any_of=[self._parse_criteria(sub) for sub in data.get("any_of", [])] or None,
             all_of=[self._parse_criteria(sub) for sub in data.get("all_of", [])] or None,
         )
