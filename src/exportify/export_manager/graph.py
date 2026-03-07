@@ -241,24 +241,44 @@ class PropagationGraph:
                 # New entry wins (higher priority)
                 node.propagated_exports[name] = entry
             elif new_prio == old_prio:
-                # Same priority - this is a conflict
+                # Same priority - check for genuine conflict vs. harmless re-export collision
                 new_module = entry.decision.module_path
                 old_module = existing.decision.module_path
 
-                # If from different modules, raise conflict error
                 if new_module != old_module:
-                    raise ValueError(
-                        f"❌ Error: Export conflict detected\n\n"
-                        f"  Export name: {name!r}\n"
-                        f"  Target module: {node.module_path}\n"
-                        f"  Conflicting sources:\n"
-                        f"    • {old_module} (priority {old_prio})\n"
-                        f"    • {new_module} (priority {new_prio})\n\n"
-                        f"  Resolution: Assign different priorities to resolve the conflict."
+                    # Not a genuine conflict if the same rule matched the same underlying symbol
+                    # in multiple modules (e.g., alias re-exported through several layers).
+                    new_sym = entry.decision.source_symbol
+                    old_sym = existing.decision.source_symbol
+                    same_rule = entry.decision.reason == existing.decision.reason
+                    same_symbol = (
+                        new_sym.name == old_sym.name
+                        and new_sym.original_source == old_sym.original_source
                     )
 
+                    if same_rule or same_symbol:
+                        # Deterministic tiebreak: prefer the shallower (more direct) source.
+                        # Fewer module segments = closer ancestor to the target module.
+                        new_depth = len(new_module.split("."))
+                        old_depth = len(old_module.split("."))
+                        if new_depth < old_depth:
+                            node.propagated_exports[name] = entry
+                        elif new_depth == old_depth and new_module < old_module:
+                            node.propagated_exports[name] = entry
+                        # else keep existing (shallower or alphabetically first)
+                    else:
+                        raise ValueError(
+                            f"❌ Error: Export conflict detected\n\n"
+                            f"  Export name: {name!r}\n"
+                            f"  Target module: {node.module_path}\n"
+                            f"  Conflicting sources:\n"
+                            f"    • {old_module} (priority {old_prio})\n"
+                            f"    • {new_module} (priority {new_prio})\n\n"
+                            f"  Resolution: Assign different priorities to resolve the conflict."
+                        )
+
                 # Same module - use alphabetical tie-breaker for stability
-                if new_module < old_module:
+                elif new_module < old_module:
                     node.propagated_exports[name] = entry
         else:
             node.propagated_exports[name] = entry

@@ -31,6 +31,8 @@ class TestPropagationGraph:
         propagation: PropagationLevel = PropagationLevel.PARENT,
         priority: int = 100,
         member_type: MemberType = MemberType.CLASS,
+        reason: str = "Test decision",
+        original_source: str | None = None,
     ) -> ExportDecision:
         """Helper to create ExportDecision."""
         symbol = DetectedSymbol(
@@ -39,7 +41,7 @@ class TestPropagationGraph:
             provenance=SymbolProvenance.DEFINED_HERE,
             location=SourceLocation(line=1),
             is_private=name.startswith("_"),
-            original_source=None,
+            original_source=original_source,
             original_name=name,
         )
         return ExportDecision(
@@ -48,7 +50,7 @@ class TestPropagationGraph:
             export_name=name,
             propagation=propagation,
             priority=priority,
-            reason="Test decision",
+            reason=reason,
             source_symbol=symbol,
         )
 
@@ -407,7 +409,7 @@ class TestPropagationGraph:
         assert "Export1" in manifests["pkg"].export_names
 
     def test_conflict_detection_same_priority(self):
-        """Conflicts with same priority from different modules should raise error."""
+        """Genuine conflicts (different rules, different symbols) with same priority should raise."""
         import pytest
 
         from exportify.export_manager.rules import RuleEngine
@@ -420,13 +422,64 @@ class TestPropagationGraph:
         graph.add_module("pkg.sub2", "pkg")
         graph.add_module("pkg", None)
 
-        # Both export "Conflict" with same priority
-        graph.add_export(self._create_decision("Conflict", "pkg.sub1", priority=100))
-        graph.add_export(self._create_decision("Conflict", "pkg.sub2", priority=100))
+        # Both export "Conflict" with same priority but via different rules and different sources.
+        # This is a genuine ambiguity that cannot be auto-resolved.
+        graph.add_export(
+            self._create_decision(
+                "Conflict", "pkg.sub1", priority=100, reason="RuleA", original_source="pkg.sub1"
+            )
+        )
+        graph.add_export(
+            self._create_decision(
+                "Conflict", "pkg.sub2", priority=100, reason="RuleB", original_source="pkg.sub2"
+            )
+        )
 
         # Should raise conflict error
         with pytest.raises(ValueError, match="Export conflict detected"):
             graph.build_manifests()
+
+    def test_conflict_detection_same_rule_same_symbol_no_error(self):
+        """Same-priority conflict from different modules is not an error when the same rule
+        matched the same underlying symbol (e.g., alias re-exported through multiple layers)."""
+        from exportify.export_manager.rules import RuleEngine
+
+        engine = RuleEngine()
+        graph = PropagationGraph(rule_engine=engine)
+
+        graph.add_module("pkg.sub1", "pkg")
+        graph.add_module("pkg.sub1.child", "pkg.sub1")
+        graph.add_module("pkg", None)
+
+        # Both expose "ReExport" at priority 600 via the same rule from the same original source.
+        # sub1 is shallower (depth 2) and should win the tiebreak.
+        graph.add_export(
+            self._create_decision(
+                "ReExport",
+                "pkg.sub1",
+                propagation=PropagationLevel.ROOT,
+                priority=600,
+                reason="Matched rule: ExportImportedSymbols",
+                original_source="pkg.core",
+            )
+        )
+        graph.add_export(
+            self._create_decision(
+                "ReExport",
+                "pkg.sub1.child",
+                propagation=PropagationLevel.ROOT,
+                priority=600,
+                reason="Matched rule: ExportImportedSymbols",
+                original_source="pkg.core",
+            )
+        )
+
+        manifests = graph.build_manifests()
+        assert "ReExport" in manifests["pkg"].export_names
+        # The shallower source (pkg.sub1, depth 2) should win
+        prop = manifests["pkg"].propagated_exports
+        winning = next(e for e in prop if e.public_name == "ReExport")
+        assert winning.target_module == "pkg.sub1"
 
     def test_export_sorting_with_sort_key(self):
         """Exports should be sorted using export_sort_key."""
@@ -542,6 +595,8 @@ class TestPropagationGraphEdgeCases:
         priority: int = 100,
         member_type: MemberType = MemberType.CLASS,
         action: RuleAction = RuleAction.INCLUDE,
+        reason: str = "Test decision",
+        original_source: str | None = None,
     ) -> ExportDecision:
         """Helper to create ExportDecision."""
         symbol = DetectedSymbol(
@@ -550,7 +605,7 @@ class TestPropagationGraphEdgeCases:
             provenance=SymbolProvenance.DEFINED_HERE,
             location=SourceLocation(line=1),
             is_private=name.startswith("_"),
-            original_source=None,
+            original_source=original_source,
             original_name=name,
         )
         return ExportDecision(
@@ -559,7 +614,7 @@ class TestPropagationGraphEdgeCases:
             export_name=name,
             propagation=propagation,
             priority=priority,
-            reason="Test decision",
+            reason=reason,
             source_symbol=symbol,
         )
 
@@ -714,9 +769,17 @@ class TestPropagationGraphEdgeCases:
         graph.add_module("pkg.sub2", "pkg")
         graph.add_module("pkg", None)
 
-        # Two different modules export same name at same priority -> ValueError
-        graph.add_export(self._create_decision("Clash", "pkg.sub1", priority=100))
-        graph.add_export(self._create_decision("Clash", "pkg.sub2", priority=100))
+        # Two different modules export same name at same priority via different rules -> ValueError
+        graph.add_export(
+            self._create_decision(
+                "Clash", "pkg.sub1", priority=100, reason="RuleA", original_source="pkg.sub1"
+            )
+        )
+        graph.add_export(
+            self._create_decision(
+                "Clash", "pkg.sub2", priority=100, reason="RuleB", original_source="pkg.sub2"
+            )
+        )
 
         with pytest.raises(ValueError, match="Export conflict detected"):
             graph.build_manifests()
