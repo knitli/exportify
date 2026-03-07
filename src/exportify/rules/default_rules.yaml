@@ -157,6 +157,22 @@ rules:
         - provenance: alias_imported
     action: include
     propagate: root
+  - name: ExcludeNonAliasedImports
+    priority: 550
+    description: >-
+      Exclude non-aliased imported symbols from re-export. When a symbol is
+      imported without an alias (e.g. `from .models import BasedModel`), it is
+      almost certainly for internal use only — not to be re-exported. Aliased
+      imports (handled by ExportImportedSymbols at 600) are the explicit signal
+      that a symbol is intended for public re-export. Without this rule,
+      catch-all "include" rules (e.g. PropagateToRoot) would inadvertently
+      re-export every non-private import, creating circular dependencies and
+      incorrect lazy-import module paths.
+    match:
+      all_of:
+        - member_type: imported
+        - provenance: imported
+    action: exclude
   # ===================================================================
   # Priority 400: Variable handling
   # Public module-level variables

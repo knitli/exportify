@@ -1236,3 +1236,94 @@ class TestRuleEngineAdditionalCoverage:
             "PublicClass", member_type=MemberType.CLASS, provenance=SymbolProvenance.IMPORTED
         )
         assert engine.evaluate(imported_class, "myapp.mod").action == RuleAction.NO_DECISION
+
+
+# ============================================================================
+# Test Class: Default Rules YAML Integration
+# ============================================================================
+
+
+class TestDefaultRulesYaml:
+    """Integration tests for default_rules.yaml against real symbols.
+
+    These tests load the shipped default_rules.yaml and verify that the
+    priority ordering between ExportImportedSymbols (600),
+    ExcludeNonAliasedImports (550), and catch-all rules like PropagateToRoot
+    (300) produces the correct decisions for imported vs. aliased symbols.
+
+    The specific regression covered: a non-aliased import of a symbol that
+    happens to live in a module matching PropagateToRoot's module_pattern was
+    previously included and propagated to the root __init__.py, generating a
+    lazy-import entry pointing at the wrong module (the re-importer, not the
+    definer) and creating circular dependencies.
+    """
+
+    _DEFAULT_RULES = (
+        Path(__file__).parent.parent
+        / "src"
+        / "exportify"
+        / "rules"
+        / "default_rules.yaml"
+    )
+
+    def _make_engine(self) -> RuleEngine:
+        engine = RuleEngine()
+        engine.load_rules([self._DEFAULT_RULES])
+        return engine
+
+    def _sym(
+        self,
+        name: str,
+        member_type: MemberType,
+        provenance: SymbolProvenance,
+        *,
+        is_stdlib: bool = False,
+    ) -> DetectedSymbol:
+        return DetectedSymbol(
+            name=name,
+            member_type=member_type,
+            provenance=provenance,
+            location=SourceLocation(line=1),
+            is_private=name.startswith("_"),
+            original_source=None,
+            original_name=name,
+            metadata={"is_stdlib": is_stdlib},
+        )
+
+    def test_non_aliased_import_excluded_despite_propagate_to_root_module(self):
+        """Non-aliased imports must be EXCLUDED even when the module matches PropagateToRoot.
+
+        Regression: BasedModel imported (non-aliased) in `pkg.core.types.embeddings`
+        was previously picked up by PropagateToRoot (priority 300) and propagated
+        to the package root with target_module=embeddings, creating a circular dep.
+        ExcludeNonAliasedImports (priority 550) must fire first and block it.
+        """
+        engine = self._make_engine()
+        sym = self._sym("BasedModel", MemberType.IMPORTED, SymbolProvenance.IMPORTED)
+        # Module pattern matches PropagateToRoot's .*core\.types\..* pattern
+        result = engine.evaluate(sym, "pkg.core.types.embeddings")
+        assert result.action == RuleAction.EXCLUDE
+        assert result.reason == "Matched rule: ExcludeNonAliasedImports"
+
+    def test_aliased_import_still_included(self):
+        """Aliased imports (alias_imported) must still be included via ExportImportedSymbols."""
+        engine = self._make_engine()
+        sym = self._sym("BasedModel", MemberType.IMPORTED, SymbolProvenance.ALIAS_IMPORTED)
+        result = engine.evaluate(sym, "pkg.core.types.embeddings")
+        assert result.action == RuleAction.INCLUDE
+        assert result.reason == "Matched rule: ExportImportedSymbols"
+
+    def test_defined_class_still_included(self):
+        """Defined classes are unaffected by ExcludeNonAliasedImports."""
+        engine = self._make_engine()
+        sym = self._sym("BasedModel", MemberType.CLASS, SymbolProvenance.DEFINED_HERE)
+        result = engine.evaluate(sym, "pkg.core.types.models")
+        assert result.action == RuleAction.INCLUDE
+
+    def test_non_aliased_import_in_unmatched_module_also_excluded(self):
+        """ExcludeNonAliasedImports applies everywhere, not just PropagateToRoot modules."""
+        engine = self._make_engine()
+        sym = self._sym("SomeHelper", MemberType.IMPORTED, SymbolProvenance.IMPORTED)
+        result = engine.evaluate(sym, "pkg.utils.helpers")
+        assert result.action == RuleAction.EXCLUDE
+        assert result.reason == "Matched rule: ExcludeNonAliasedImports"
