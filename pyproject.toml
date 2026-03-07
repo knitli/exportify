@@ -7,6 +7,7 @@
 [project]
 name = "exportify"
 description = "Export, __all__, and lazy import management for Python projects."
+readme = "README.md"
 requires-python = ">=3.12"
 license-files = ["LICENSE-Apache-2.0", "LICENSE-MIT", "LICENSES/*"]
 authors = [
@@ -36,7 +37,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
-  "cyclopts>=4.5.0",
+  "cyclopts>=4.8.0",
   "lateimport>=0.1.0",
   "pyyaml>=6.0.3",
   "rich>=14.3.0",
@@ -58,9 +59,9 @@ dev = [
   "pytest-cov>=7.0.0",
   "pytest-env>=1.5.0",
   "pytest-mock>=3.15.1",
-  "ruff>=0.15.0",
-  "ty>=0.0.18",
-  "uv>=0.10.4"
+  "ruff>=0.15.5",
+  "ty>=0.0.21",
+  "uv>=0.10.9"
 ]
 
 [build-system]
