@@ -67,9 +67,7 @@ class ConsistencyChecker:
 
         return issues
 
-    def _validate_file_exports(
-        self, init_file: Path, issues: list[ConsistencyIssue]
-    ) -> None:
+    def _validate_file_exports(self, init_file: Path, issues: list[ConsistencyIssue]) -> None:
         content = init_file.read_text()
         tree = ast.parse(content)
 
@@ -79,24 +77,20 @@ class ConsistencyChecker:
 
         # Check if __all__ and _dynamic_imports match
         if all_exports is not None and dynamic_imports is not None:
-            self._collect_warnings_and_errors(
-                all_exports, dynamic_imports, issues, init_file
-            )
+            self._collect_warnings_and_errors(all_exports, dynamic_imports, issues, init_file)
         # Check for duplicates in __all__
         if all_exports is not None:
             duplicates = [x for x in all_exports if all_exports.count(x) > 1]
             unique_duplicates = set(duplicates)
-            issues.extend(
-                [
-                    ConsistencyIssue(
-                        severity="warning",
-                        location=init_file,
-                        message=f"Duplicate export '{name}' in __all__",
-                        line=None,
-                    )
-                    for name in unique_duplicates
-                ]
-            )
+            issues.extend([
+                ConsistencyIssue(
+                    severity="warning",
+                    location=init_file,
+                    message=f"Duplicate export '{name}' in __all__",
+                    line=None,
+                )
+                for name in unique_duplicates
+            ])
 
     def _collect_warnings_and_errors(
         self,
@@ -151,9 +145,7 @@ class ConsistencyChecker:
                     ):
                         exports = []
                         exports.extend(
-                            elt.value
-                            for elt in node.value.elts
-                            if isinstance(elt, ast.Constant)
+                            elt.value for elt in node.value.elts if isinstance(elt, ast.Constant)
                         )
                         return exports
         return None

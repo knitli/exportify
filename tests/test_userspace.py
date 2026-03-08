@@ -103,12 +103,18 @@ type MyMapping = MappingProxyType[str, int]
     assert '"MyType",' in code.content
     assert '"MyMapping",' in code.content
     assert '"OtherPropagated",' in code.content
-    assert '"OtherPropagated":' in code.content
-    assert '"MyClass":' not in code.content
-    assert '"MyType":' not in code.content
-    assert '"MyMapping":' not in code.content
 
-    assert "from types import MappingProxyType" not in code.managed_section
+    # - ONLY OtherPropagated should be in _dynamic_imports
+    # MyClass is already imported in userspace.
+    # MyType and MyMapping are defined in userspace.
+    assert '"OtherPropagated":' in code.content
+    assert '"MyClass":' not in code.managed_section
+    assert '"MyType":' not in code.managed_section
+    assert '"MyMapping":' not in code.managed_section
+
+    # - Infrastructure imports (MappingProxyType)
+    # The generator currently emits this if needed for _dynamic_imports
+    assert "from types import MappingProxyType" in code.managed_section
 
     if tmp_path.exists():
         tmp_path.unlink()

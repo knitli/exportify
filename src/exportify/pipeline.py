@@ -170,7 +170,6 @@ class Pipeline:
         # 2. It has exports (own or propagated) AND it has children (it's a directory)
         # 3. It's a directory (parent) in our source tree
         is_existing_package = manifest.module_path in self._package_modules
-        has_exports = len(manifest.all_exports) > 0
 
         # Use graph to check if it's a parent of other modules
         node = self.graph.modules.get(manifest.module_path)
