@@ -166,7 +166,7 @@ def test_generate_multiple_exports(generator: CodeGenerator):
 
 
 def test_type_alias_in_type_checking_block(generator: CodeGenerator):
-    """Test type aliases go in TYPE_CHECKING block and NOT in _dynamic_imports."""
+    """Test type aliases go in TYPE_CHECKING block and ARE in _dynamic_imports."""
     exports = [
         make_lazy_export("MyClass", "test.module.sub"),
         make_lazy_export("MyType", "test.module.sub", is_type_only=True),
@@ -184,8 +184,8 @@ def test_type_alias_in_type_checking_block(generator: CodeGenerator):
     assert "MyClass" in code.content
     assert "from test.module.sub import (" in code.content
 
-    # MyType should NOT be in _dynamic_imports
-    assert '"MyType":' not in code.content
+    # MyType SHOULD be in _dynamic_imports now so it's available at runtime
+    assert '"MyType": (__spec__.parent, "sub"),' in code.content
 
     # MyClass should be in _dynamic_imports with new format
     assert '"MyClass": (__spec__.parent, "sub"),' in code.content
@@ -856,7 +856,7 @@ def test_generate_barrel_style(temp_dir):
 
 
 def test_barrel_managed_section_with_type_only(temp_dir):
-    """Test barrel output wraps type-only exports in TYPE_CHECKING block."""
+    """Test barrel output emits all exports as direct imports."""
     generator_barrel = CodeGenerator(temp_dir, output_style="barrel")
     exports = [
         make_lazy_export("RuntimeClass", "test.module.runtime"),
@@ -865,12 +865,10 @@ def test_barrel_managed_section_with_type_only(temp_dir):
     manifest = make_manifest("test.module", own_exports=exports)
     code = generator_barrel.generate(manifest)
 
-    assert "from typing import TYPE_CHECKING" in code.content
-    assert "if TYPE_CHECKING:" in code.content
-    # TypeAlias inside TYPE_CHECKING block
-    assert "TypeAlias" in code.content
-    # RuntimeClass as direct import
+    # Both should be direct imports now
     assert "from .runtime import RuntimeClass" in code.content
+    assert "from .types import TypeAlias" in code.content
+    assert "if TYPE_CHECKING:" not in code.content
 
 
 def test_barrel_managed_section_no_type_only(temp_dir):

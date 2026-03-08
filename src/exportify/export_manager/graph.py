@@ -339,7 +339,7 @@ class PropagationGraph:
             public_name=decision.export_name,
             target_module=decision.module_path,
             target_object=decision.source_symbol.name,
-            is_type_only=decision.source_symbol.member_type == "type_alias",  # Simple check for now
+            is_type_only=False,  # Type aliases are runtime objects and should be in _dynamic_imports
         )
 
     def debug_export(self, name: str) -> str:

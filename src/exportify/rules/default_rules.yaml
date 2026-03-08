@@ -102,12 +102,6 @@ rules:
   # Priority 1000: Explicit exclusions
   # These rules run first to prevent unwanted exports
   # ===================================================================
-  - name: ExcludePrivateSymbols
-    priority: 1000
-    description: Skip all private symbols (names starting with underscore)
-    match:
-      name_pattern: ^_.*
-    action: exclude
 
   - name: ExcludeStdlibImports
     priority: 1000
@@ -137,6 +131,12 @@ rules:
       name_pattern: ^__.*__$
     action: exclude
 
+  - name: ExcludePrivateSymbols
+    priority: 997
+    description: Skip all private symbols (names starting with underscore)
+    match:
+      name_pattern: ^_.*
+    action: exclude
   # ===================================================================
   # Priority 950: Import and Variable Exclusions
   # ===================================================================
@@ -153,15 +153,6 @@ rules:
         - member_type: imported
         - provenance: imported
     action: exclude
-
-  - name: ExportPublicVariables
-    priority: 910
-    description: Exclude public variables (snake_case module-level assignments)
-    match:
-      member_type: variable
-      name_pattern: ^[a-z0-9_]+$
-    action: exclude
-    propagate: none
 
   # ===================================================================
   # Priority 900: Special component exclusions
@@ -354,6 +345,15 @@ rules:
       name_pattern: ^[a-z0-9_]+$ # only snake_case public functions
     action: include
     propagate: parent
+
+  - name: ExportPublicVariables
+    priority: 200
+    description: Exclude public variables (snake_case module-level assignments)
+    match:
+      member_type: variable
+      name_pattern: ^[a-z0-9_]+$
+    action: exclude
+    propagate: none
 
   # ===================================================================
   # Priority 0: Default fallback behaviors

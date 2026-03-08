@@ -67,7 +67,9 @@ class ConsistencyChecker:
 
         return issues
 
-    def _validate_file_exports(self, init_file: Path, issues: list[ConsistencyIssue]) -> None:
+    def _validate_file_exports(
+        self, init_file: Path, issues: list[ConsistencyIssue]
+    ) -> None:
         content = init_file.read_text()
         tree = ast.parse(content)
 
@@ -77,20 +79,24 @@ class ConsistencyChecker:
 
         # Check if __all__ and _dynamic_imports match
         if all_exports is not None and dynamic_imports is not None:
-            self._collect_warnings_and_errors(all_exports, dynamic_imports, issues, init_file)
+            self._collect_warnings_and_errors(
+                all_exports, dynamic_imports, issues, init_file
+            )
         # Check for duplicates in __all__
         if all_exports is not None:
             duplicates = [x for x in all_exports if all_exports.count(x) > 1]
             unique_duplicates = set(duplicates)
-            issues.extend([
-                ConsistencyIssue(
-                    severity="warning",
-                    location=init_file,
-                    message=f"Duplicate export '{name}' in __all__",
-                    line=None,
-                )
-                for name in unique_duplicates
-            ])
+            issues.extend(
+                [
+                    ConsistencyIssue(
+                        severity="warning",
+                        location=init_file,
+                        message=f"Duplicate export '{name}' in __all__",
+                        line=None,
+                    )
+                    for name in unique_duplicates
+                ]
+            )
 
     def _collect_warnings_and_errors(
         self,
@@ -141,11 +147,13 @@ class ConsistencyChecker:
                     if (
                         isinstance(target, ast.Name)
                         and target.id == "__all__"
-                        and isinstance(node.value, ast.List)
+                        and isinstance(node.value, ast.List | ast.Tuple)
                     ):
                         exports = []
                         exports.extend(
-                            elt.value for elt in node.value.elts if isinstance(elt, ast.Constant)
+                            elt.value
+                            for elt in node.value.elts
+                            if isinstance(elt, ast.Constant)
                         )
                         return exports
         return None
@@ -160,28 +168,66 @@ class ConsistencyChecker:
             Dict mapping export names to (module, obj) tuples, or None if not found
         """
         for node in ast.walk(tree):
-            if isinstance(node, ast.Assign):
-                for target in node.targets:
-                    if (
-                        isinstance(target, ast.Name)
-                        and target.id == "_dynamic_imports"
-                        and isinstance(node.value, ast.Dict)
-                    ):
-                        imports = {}
-                        for key, value in zip(node.value.keys, node.value.values, strict=False):
-                            if (
-                                isinstance(key, ast.Constant)
-                                and isinstance(value, ast.Tuple)
-                                and len(value.elts) >= 2
-                            ):
-                                module_node = value.elts[0]
-                                obj_node = value.elts[1]
-                                if isinstance(module_node, ast.Constant) and isinstance(
-                                    obj_node, ast.Constant
-                                ):
-                                    imports[key.value] = (module_node.value, obj_node.value)
-                        return imports
+            value_node = self._find_dynamic_imports_node(node)
+            if value_node is None:
+                continue
+
+            # Support both direct dict and MappingProxyType:
+            # _dynamic_imports = {"A": ("mod", "obj")}
+            # _dynamic_imports = MappingProxyType({"A": ("mod", "obj")})
+            dict_node = None
+            if isinstance(value_node, ast.Dict):
+                dict_node = value_node
+            elif (
+                isinstance(value_node, ast.Call)
+                and isinstance(value_node.func, ast.Name)
+                and value_node.func.id == "MappingProxyType"
+                and value_node.args
+                and isinstance(value_node.args[0], ast.Dict)
+            ):
+                dict_node = value_node.args[0]
+
+            if dict_node:
+                return self._parse_dynamic_imports_dict(dict_node)
+
+            # If we found the target but it was an empty Dict/MappingProxyType, return empty dict
+            if isinstance(value_node, ast.Dict) or (
+                isinstance(value_node, ast.Call)
+                and isinstance(value_node.func, ast.Name)
+                and value_node.func.id == "MappingProxyType"
+            ):
+                return {}
+
         return None
+
+    def _find_dynamic_imports_node(self, node: ast.AST) -> ast.AST | None:
+        """Find the value node for a _dynamic_imports assignment."""
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "_dynamic_imports":
+                    return node.value
+        elif (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == "_dynamic_imports"
+        ):
+            return node.value
+        return None
+
+    def _parse_dynamic_imports_dict(self, dict_node: ast.Dict) -> dict[str, tuple[str, str]]:
+        """Parse a dictionary node into a dynamic imports mapping."""
+        imports = {}
+        for key, value in zip(dict_node.keys, dict_node.values, strict=False):
+            if (
+                isinstance(key, ast.Constant)
+                and isinstance(value, ast.Tuple)
+                and len(value.elts) >= 2
+            ):
+                module_node = value.elts[0]
+                obj_node = value.elts[1]
+                if isinstance(module_node, ast.Constant) and isinstance(obj_node, ast.Constant):
+                    imports[key.value] = (module_node.value, obj_node.value)
+        return imports
 
 
 __all__ = ["ConsistencyChecker"]

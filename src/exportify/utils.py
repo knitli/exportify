@@ -190,6 +190,45 @@ def formatting_tools_available() -> bool:
     return _has_ruff() or _has_isort() or _has_black()
 
 
+def _run_ruff_format(
+    content: str, stdin_filename_args: list[str], *, verbose: bool = False
+) -> str | None:
+    """Run ruff format via subprocess and return formatted content if successful."""
+    import subprocess
+
+    ruff_binary = shutil.which("ruff") or f"{shutil.which('uvx')} ruff"
+    if not ruff_binary:
+        return None
+    result = subprocess.run(
+        [ruff_binary, "format", "--verbose" if verbose else "--quiet", *stdin_filename_args, "-"],
+        input=content,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode == 0:
+        stdout_message = result.stdout.strip()
+        result = subprocess.run(
+            [
+                ruff_binary,
+                "check",
+                "--fix",
+                "--verbose" if verbose else "--quiet",
+                *stdin_filename_args,
+                "-",
+            ],
+            input=content,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    if result.returncode == 0:
+        stdout_message += f"\n\n{result.stdout.strip()}"
+        stdout_message += "\nAll checks passed after formatting."
+        return stdout_message
+    return result.stderr.strip() if result.stderr else None
+
+
 def format_content(content: str, *, filename: Path | None = None, verbose: bool = False) -> str:
     """Format Python source code using the first available formatter via stdin.
 
@@ -214,23 +253,9 @@ def format_content(content: str, *, filename: Path | None = None, verbose: bool 
 
     stdin_filename_args = ["--stdin-filename", str(filename)] if filename is not None else []
 
-    if ruff_binary := shutil.which("ruff"):
-        result = subprocess.run(
-            [
-                ruff_binary,
-                "format",
-                "--verbose" if verbose else "--quiet",
-                *stdin_filename_args,
-                "-",
-            ],
-            input=content,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode == 0:
-            return result.stdout
-    elif isort_binary := shutil.which("isort"):
+    if shutil.which("ruff"):
+        return _run_ruff_format(content, stdin_filename_args, verbose=verbose) or content
+    if isort_binary := shutil.which("isort"):
         result = subprocess.run(
             [isort_binary, "-v" if verbose else "-q", *stdin_filename_args, "-"],
             input=content,
@@ -250,23 +275,8 @@ def format_content(content: str, *, filename: Path | None = None, verbose: bool 
         )
         if result.returncode == 0:
             return result.stdout
-    elif uv_binary := shutil.which("uvx"):
-        result = subprocess.run(
-            [
-                uv_binary,
-                "ruff",
-                "format",
-                "--verbose" if verbose else "--quiet",
-                *stdin_filename_args,
-                "-",
-            ],
-            input=content,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode == 0:
-            return result.stdout
+    elif shutil.which("uvx"):
+        return _run_ruff_format(content, stdin_filename_args, verbose=verbose) or content
     return content
 
 
