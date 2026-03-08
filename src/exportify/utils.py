@@ -196,37 +196,43 @@ def _run_ruff_format(
     """Run ruff format via subprocess and return formatted content if successful."""
     import subprocess
 
-    ruff_binary = shutil.which("ruff") or f"{shutil.which('uvx')} ruff"
+    ruff_binary = shutil.which("ruff")
+    if not ruff_binary and shutil.which("uvx"):
+        ruff_binary = "uvx ruff"
+
     if not ruff_binary:
         return None
+
+    # 1. Run ruff format
+    # Use split() if ruff_binary is "uvx ruff"
+    cmd = ruff_binary.split() if " " in ruff_binary else [ruff_binary]
     result = subprocess.run(
-        [ruff_binary, "format", "--verbose" if verbose else "--quiet", *stdin_filename_args, "-"],
+        [*cmd, "format", "--quiet", *stdin_filename_args, "-"],
         input=content,
         capture_output=True,
         text=True,
         check=False,
     )
+    if result.returncode != 0:
+        return None
+
+    formatted_content = result.stdout
+
+    # 2. Run ruff check --fix on the formatted content
+    result = subprocess.run(
+        [*cmd, "check", "--fix", "--quiet", *stdin_filename_args, "-"],
+        input=formatted_content,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
     if result.returncode == 0:
-        stdout_message = result.stdout.strip()
-        result = subprocess.run(
-            [
-                ruff_binary,
-                "check",
-                "--fix",
-                "--verbose" if verbose else "--quiet",
-                *stdin_filename_args,
-                "-",
-            ],
-            input=content,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    if result.returncode == 0:
-        stdout_message += f"\n\n{result.stdout.strip()}"
-        stdout_message += "\nAll checks passed after formatting."
-        return stdout_message
-    return result.stderr.strip() if result.stderr else None
+        # Return the final content (from stdout if any, else use formatted_content)
+        # Note: ruff check --fix - usually outputs the fixed content to stdout
+        return result.stdout or formatted_content
+
+    return None
 
 
 def format_content(content: str, *, filename: Path | None = None, verbose: bool = False) -> str:

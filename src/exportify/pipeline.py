@@ -147,12 +147,6 @@ class Pipeline:
 
         for manifest in manifests.values():
             if not self._should_generate_init(manifest):
-                skipped_files.append(
-                    SkippedFile(
-                        path=Path(manifest.module_path),
-                        reason="Not a package or has no exports to generate",
-                    )
-                )
                 continue
 
             try:
@@ -174,7 +168,7 @@ class Pipeline:
         # It needs one if:
         # 1. It already has one (recorded in self._package_modules)
         # 2. It has exports (own or propagated) AND it has children (it's a directory)
-        # 3. It's the root package being processed (optional, but good for consistency)
+        # 3. It's a directory (parent) in our source tree
         is_existing_package = manifest.module_path in self._package_modules
         has_exports = len(manifest.all_exports) > 0
 
@@ -182,7 +176,10 @@ class Pipeline:
         node = self.graph.modules.get(manifest.module_path)
         is_parent = bool(node and node.children)
 
-        return is_existing_package or (has_exports and is_parent)
+        # Generate if it exists OR if it is a parent (directory package)
+        # Even if it has no exports yet, a package usually needs an __init__.py
+        # but here we focus on those that are parents of our discovered modules.
+        return is_existing_package or is_parent
 
     def _process_manifest(
         self, manifest: ExportManifest, *, dry_run: bool
@@ -333,7 +330,7 @@ class Pipeline:
             parts[-1] = relative.stem
             is_package = False
 
-        module_path = ".".join(parts) if parts else "root"
+        module_path = ".".join(parts) if parts else ""
 
         # Track package modules so the generator only writes __init__.py for them.
         if is_package:
