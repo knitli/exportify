@@ -71,7 +71,7 @@ uv run ty check
 ```bash
 uv run exportify --help
 uv run exportify check
-uv run exportify generate --dry-run
+uv run exportify sync --dry-run
 ```
 
 ## Code Style
@@ -105,13 +105,12 @@ Test files have relaxed lint rules (see `ruff.toml` `[lint.per-file-ignores]`).
 src/exportify/
   cli.py                     # CLI entry point (cyclopts App, registers all commands)
   commands/                  # CLI command implementations
-    check.py                 # exportify check
-    fix.py                   # exportify fix
-    generate.py              # exportify generate
-    status.py                # exportify status
-    doctor.py                # exportify doctor
     init.py                  # exportify init
-    clear_cache.py           # exportify clear-cache
+    sync.py                  # exportify sync
+    check.py                 # exportify check
+    undo.py                  # exportify undo
+    doctor.py                # exportify doctor
+    cache.py                 # exportify cache
     utils.py                 # Shared CLI helpers (output, config loading, file collection)
   export_manager/            # Core pipeline components
     rules.py                 # Rule engine — evaluates YAML rules against symbols

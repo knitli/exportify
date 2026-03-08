@@ -47,20 +47,18 @@ Python 3.12+ required.
 # Create a default config file (.exportify/config.yaml)
 exportify init
 
-# Check current state — runs all checks by default
+# Check current project consistency — runs all checks by default
 exportify check
 
-# Bootstrap __init__.py files for packages that don't have one
-exportify generate
+# Sync exports and __all__ to match your rules
+# Creates missing __init__.py files and updates existing ones
+exportify sync
 
-# Preview what fix would change without writing anything
-exportify fix --dry-run
+# Preview what sync would change without writing anything
+exportify sync --dry-run
 
-# Sync exports and __all__ to match rules
-exportify fix
-
-# Show overall export/import health
-exportify status
+# Run health checks and show current status
+exportify doctor
 ```
 
 ## Documentation
@@ -207,19 +205,19 @@ from .compat import legacy_function  # kept across regeneration
 # ... generated section below (managed by exportify)
 ```
 
-Everything above the sentinel is left untouched on every `fix` or `generate` run.
+Everything above the sentinel is left untouched on every `sync` run.
 
 ## CLI Reference
 
 | Command | Description |
 |---------|-------------|
-| `exportify check` | Check exports and `__all__` declarations for consistency |
-| `exportify fix` | Sync exports and `__all__` to match rules |
-| `exportify generate` | Bootstrap new `__init__.py` files for packages missing one |
-| `exportify status` | Show current export/import health status |
-| `exportify doctor` | Run health checks and provide actionable advice |
-| `exportify init` | Initialize exportify with a default config file |
-| `exportify clear-cache` | Clear the analysis cache |
+| `exportify init` | Initialize project configuration |
+| `exportify check` | Validate exports and `__all__` consistency |
+| `exportify sync` | Align project code with export rules |
+| `exportify undo` | Restore files from the last `sync` run |
+| `exportify doctor` | Run system health checks |
+| `exportify cache clear` | Clear the analysis cache |
+| `exportify cache stats` | Show cache statistics |
 
 See the [full CLI reference](docs/cli-reference.md) for all flags and options.
 

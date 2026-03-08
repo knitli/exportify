@@ -25,7 +25,7 @@ exportify init
 exportify init --dry-run
 
 # Write to a custom location
-exportify init --output path/to/rules.yaml
+exportify init path/to/rules.yaml
 
 # Overwrite an existing config file
 exportify init --force
@@ -161,9 +161,9 @@ success, errors = verify_migration(
 ## Next Steps After Init
 
 1. **Review the generated YAML**: Check `.exportify/config.yaml`
-2. **Run verification**: `exportify check --source src/yourpackage`
+2. **Run verification**: `exportify check`
 3. **Customize rules**: Add project-specific rules as needed
-4. **Generate exports**: `exportify generate --source src/yourpackage`
+4. **Sync exports**: `exportify sync`
 
 ## Architecture
 

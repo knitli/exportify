@@ -124,78 +124,71 @@ To get machine-readable output:
 exportify check --json
 ```
 
-## Step 3: Generate Missing `__init__.py` Files
+## Step 3: Synchronize Your Project
 
-If your packages are missing `__init__.py` files, generate them:
+Align your `__init__.py` files and `__all__` declarations with your rules:
 
 ```bash
-# Preview what would be created
-exportify generate --dry-run
+# Preview what would be changed
+exportify sync --dry-run
 
-# Write the files
-exportify generate
+# Apply the changes (creates and updates files)
+exportify sync
 ```
 
-Generated files contain:
+The `sync` command:
+- Creates missing `__init__.py` files in package directories
+- Updates `_dynamic_imports` and `__all__` in `__init__.py` files
+- Updates `__all__` in regular modules to match export rules
+- Preserves manually written code above the managed exports sentinel
 
+Generated files contain:
 - `__all__` — the list of exported names, determined by your rules
 - `_dynamic_imports` — a mapping used by `lateimport` for lazy loading
 - `__getattr__` — the lazy-loading hook
 - `TYPE_CHECKING` block — type-only imports for type checker compatibility
 
-To generate for a specific module only:
+To sync a specific module or package only:
 
 ```bash
-exportify generate --module src/mypackage/core
+exportify sync src/mypackage/core
 ```
 
-## Step 4: Fix Existing Files
-
-To update `__all__` and `_dynamic_imports` in existing files to match your rules:
+To sync only `__all__` in regular modules:
 
 ```bash
-# Preview changes
-exportify fix --dry-run
-
-# Apply changes
-exportify fix
+exportify sync --module-all
 ```
 
-You can target specific checks:
+## Step 4: Validate and Monitor
+
+Confirm the current state of your project:
 
 ```bash
-# Only fix __all__ in regular modules
-exportify fix --module-all
-
-# Only fix __init__.py files
-exportify fix --package-all --dynamic-imports
-```
-
-When `fix` encounters a package directory with no `__init__.py`, it warns and suggests running `generate` first.
-
-## Step 5: Validate
-
-Confirm the current state of your package:
-
-```bash
-exportify status
+exportify doctor --short
 ```
 
 Output:
 
 ```
-Cache: 42 entries, 98% hit rate
-Rules: .exportify/config.yaml (6 rules loaded)
-Last check: 2 minutes ago — 0 errors, 0 warnings
+[bold]Exportify Status Snapshot[/bold]
+
+Cache Status:
+  Entries: 42/42 valid
+  Hit rate: 98.0%
+
+Configuration:
+  Rules: ✓ .exportify/config.yaml
+
+System:
+  Status: Ready
 ```
 
-For a deeper health check:
+For a deeper health check including cache health, rule configuration, export conflicts, and performance:
 
 ```bash
 exportify doctor
 ```
-
-This checks cache health, rule configuration, export conflicts, and performance, then provides specific recommendations.
 
 ## Understanding the Generated Output
 
@@ -219,7 +212,7 @@ if TYPE_CHECKING:
 # === MANAGED EXPORTS ===
 
 # This section is automatically managed by exportify.
-# Manual edits below this line will be overwritten on the next `fix` or `generate` run.
+# Manual edits below this line will be overwritten on the next `sync` run.
 
 from types import MappingProxyType
 
@@ -267,9 +260,11 @@ _registry: dict[str, type] = {}
 # === MANAGED EXPORTS ===
 ```
 
-**Managed zone** (below the sentinel) — fully controlled by exportify, rewritten on each `fix` or `generate` run.
+Managed zone (below the sentinel) — fully controlled by exportify, rewritten on each `sync` run.
 
-If a file has no sentinel, exportify treats the entire file as preserved and will not write to it unless you explicitly run `generate` (which creates the sentinel) or add the sentinel manually.
+
+If a file has no sentinel, exportify treats the entire file as preserved and will not write to it unless you add the sentinel manually or run `sync` (which creates the sentinel for new or empty files).
+
 
 ## Next Steps
 

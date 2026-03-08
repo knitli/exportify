@@ -71,12 +71,12 @@ Remember: the first matching rule wins. If an exclude rule at priority 900 and a
 
 ## Cache Seems Stale or Unexpected Results
 
-**Symptom**: Running `exportify check` or `exportify fix` does not reflect recent changes to your source files, or produces results inconsistent with what you see in the files.
+**Symptom**: Running `exportify check` or `exportify sync` does not reflect recent changes to your source files, or produces results inconsistent with what you see in the files.
 
 **Fix**: Clear the cache and re-run:
 
 ```bash
-exportify clear-cache
+exportify cache clear
 exportify check
 ```
 
@@ -85,7 +85,7 @@ The cache is keyed by file path and SHA-256 hash of the file contents. It should
 Check cache statistics:
 
 ```bash
-exportify status --verbose
+exportify cache stats
 ```
 
 The cache is stored at `.exportify/cache/analysis_cache.json`. You can delete it manually if needed. Exportify will rebuild it on the next run.
@@ -100,17 +100,17 @@ The `--lateimports` check verifies that every `lateimport()` / `LateImport` call
 
 **Common causes**:
 
-1. **Module was moved or renamed.** If you moved a module and ran `exportify fix`, the old `_dynamic_imports` entries may still point to the old path. Run `exportify fix` again to regenerate them.
+1. **Module was moved or renamed.** If you moved a module and ran `exportify sync`, the old `_dynamic_imports` entries may still point to the old path. Run `exportify sync` again to regenerate them.
 
 2. **Typo in a manually written import.** Check the module path in your `__init__.py` against the actual file path.
 
 3. **`lateimport` not in your dependencies.** The lateimports check is automatically skipped if `lateimport` is not listed as a project dependency. If you see the check running and failing unexpectedly, verify your `pyproject.toml` or `requirements.txt`.
 
-**Note**: `exportify fix` does not modify `lateimport()` call paths directly — it regenerates `_dynamic_imports` from your rules. If the check still fails after running `fix`, the issue is in your source files, not the generated output.
+**Note**: `exportify sync` does not modify `lateimport()` call paths directly — it regenerates `_dynamic_imports` from your rules. If the check still fails after running `sync`, the issue is in your source files, not the generated output.
 
 ## Generated File Overwrites Custom Code
 
-**Symptom**: Running `exportify fix` or `exportify generate` removes custom imports, initialization code, or comments you added to `__init__.py`.
+**Symptom**: Running `exportify sync` removes custom imports, initialization code, or comments you added to `__init__.py`.
 
 **Cause**: Exportify manages everything below the `# === MANAGED EXPORTS ===` sentinel. Anything you write below the sentinel will be overwritten.
 
@@ -168,41 +168,42 @@ Currently supported schema versions: `"1.0"`.
 
 **Fix**:
 
-To sync `__all__` in regular modules (non-`__init__.py`):
-
-```bash
-exportify fix --module-all
-```
-
-To sync `__all__` in `__init__.py` files:
-
-```bash
-exportify fix --package-all
-```
-
 To sync everything at once:
 
 ```bash
-exportify fix
+exportify sync
+```
+
+To sync only `__all__` in regular modules (non-`__init__.py`):
+
+```bash
+exportify sync --module-all
+```
+
+To sync only `__init__.py` files:
+
+```bash
+exportify sync --package-all
 ```
 
 Use `--dry-run` first to preview what would change:
 
 ```bash
-exportify fix --dry-run
+exportify sync --dry-run
 ```
 
 ## Analysis Is Slow
 
-**Symptom**: `exportify check` or `exportify generate` takes a long time on a large codebase.
+**Symptom**: `exportify check` or `exportify sync` takes a long time on a large codebase.
 
-**Expected behavior**: The first run after installation (or after `clear-cache`) analyzes every file from scratch. Subsequent runs use cached results and should be fast.
+**Expected behavior**: The first run after installation (or after `cache clear`) analyzes every file from scratch. Subsequent runs use cached results and should be fast.
 
 Check cache statistics to confirm the cache is being used:
 
 ```bash
-exportify status --verbose
+exportify cache stats
 ```
+
 
 If the hit rate is low despite having run exportify before, the cache may be getting invalidated on every run. Possible causes:
 
@@ -240,14 +241,14 @@ The lazy loading pattern (`lateimport` + `__getattr__`) is what exportify genera
 
 ### Can I use this without `lateimport`?
 
-Yes. The `lateimport` checks (`exportify check --lateimports`) are automatically skipped if `lateimport` is not listed in your project dependencies. The `generate` and `fix` commands use the `lateimport`-based lazy loading pattern by default; if your project doesn't use `lateimport`, the generated files will still be syntactically valid but the `__getattr__` hook will reference an unavailable function. Add `lateimport` to your dependencies to use the full feature set, or customize your config to suppress generation of the lazy-load section.
+Yes. The `lateimport` checks (`exportify check --lateimports`) are automatically skipped if `lateimport` is not listed in your project dependencies. The `sync` command uses the `lateimport`-based lazy loading pattern by default; if your project doesn't use `lateimport`, the generated files will still be syntactically valid but the `__getattr__` hook will reference an unavailable function. Add `lateimport` to your dependencies to use the full feature set, or customize your config to suppress generation of the lazy-load section.
 
 ### Does exportify modify my source files?
 
 Exportify writes to:
 
 - `__init__.py` files (the managed zone, below `# === MANAGED EXPORTS ===`)
-- `__all__` declarations in regular modules when you run `exportify fix --module-all`
+- `__all__` declarations in regular modules when you run `exportify sync --module-all`
 
 It never modifies any other source files.
 
