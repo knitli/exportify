@@ -18,18 +18,18 @@ from lateimport import create_late_getattr
 
 
 if TYPE_CHECKING:
+    from exportify.commands.cache import CacheCommand
     from exportify.commands.check import CheckCommand
-    from exportify.commands.clear_cache import ClearCacheCommand
     from exportify.commands.doctor import DoctorCommand
-    from exportify.commands.fix import FixCommand
-    from exportify.commands.generate import GenerateCommand
     from exportify.commands.init import InitCommand
-    from exportify.commands.status import StatusCommand
+    from exportify.commands.sync import SyncCommand
     from exportify.commands.undo import UndoCommand
     from exportify.commands.utils import (
         CONSOLE,
         DEFAULT_CONFIG_PATH,
         collect_py_files,
+        get_all_source_roots,
+        load_config_and_rules,
         load_rules,
         path_to_module,
         print_error,
@@ -40,20 +40,21 @@ if TYPE_CHECKING:
         print_success,
         print_validation_results,
         print_warning,
+        resolve_checks,
     )
 
 _dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({
     "CONSOLE": (__spec__.parent, "utils"),
     "DEFAULT_CONFIG_PATH": (__spec__.parent, "utils"),
+    "CacheCommand": (__spec__.parent, "cache"),
     "CheckCommand": (__spec__.parent, "check"),
-    "ClearCacheCommand": (__spec__.parent, "clear_cache"),
     "DoctorCommand": (__spec__.parent, "doctor"),
-    "FixCommand": (__spec__.parent, "fix"),
-    "GenerateCommand": (__spec__.parent, "generate"),
     "InitCommand": (__spec__.parent, "init"),
-    "StatusCommand": (__spec__.parent, "status"),
+    "SyncCommand": (__spec__.parent, "sync"),
     "UndoCommand": (__spec__.parent, "undo"),
     "collect_py_files": (__spec__.parent, "utils"),
+    "get_all_source_roots": (__spec__.parent, "utils"),
+    "load_config_and_rules": (__spec__.parent, "utils"),
     "load_rules": (__spec__.parent, "utils"),
     "path_to_module": (__spec__.parent, "utils"),
     "print_error": (__spec__.parent, "utils"),
@@ -64,6 +65,7 @@ _dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({
     "print_success": (__spec__.parent, "utils"),
     "print_validation_results": (__spec__.parent, "utils"),
     "print_warning": (__spec__.parent, "utils"),
+    "resolve_checks": (__spec__.parent, "utils"),
 })
 
 __getattr__ = create_late_getattr(_dynamic_imports, globals(), __name__)
@@ -71,15 +73,15 @@ __getattr__ = create_late_getattr(_dynamic_imports, globals(), __name__)
 __all__ = (
     "CONSOLE",
     "DEFAULT_CONFIG_PATH",
+    "CacheCommand",
     "CheckCommand",
-    "ClearCacheCommand",
     "DoctorCommand",
-    "FixCommand",
-    "GenerateCommand",
     "InitCommand",
-    "StatusCommand",
+    "SyncCommand",
     "UndoCommand",
     "collect_py_files",
+    "get_all_source_roots",
+    "load_config_and_rules",
     "load_rules",
     "path_to_module",
     "print_error",
@@ -90,6 +92,7 @@ __all__ = (
     "print_success",
     "print_validation_results",
     "print_warning",
+    "resolve_checks",
 )
 
 

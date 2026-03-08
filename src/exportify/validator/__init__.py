@@ -29,18 +29,17 @@ from lateimport import create_late_getattr
 if TYPE_CHECKING:
     from exportify.validator.consistency import ConsistencyChecker
     from exportify.validator.resolver import ImportResolver
-    from exportify.validator.validator import LateImportValidator, ValidationError
+    from exportify.validator.validator import LateImportValidator
 
 _dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({
     "ConsistencyChecker": (__spec__.parent, "consistency"),
     "ImportResolver": (__spec__.parent, "resolver"),
     "LateImportValidator": (__spec__.parent, "validator"),
-    "ValidationError": (__spec__.parent, "validator"),
 })
 
 __getattr__ = create_late_getattr(_dynamic_imports, globals(), __name__)
 
-__all__ = ("ConsistencyChecker", "ImportResolver", "LateImportValidator", "ValidationError")
+__all__ = ("ConsistencyChecker", "ImportResolver", "LateImportValidator")
 
 
 def __dir__() -> list[str]:

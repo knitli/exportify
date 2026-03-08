@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Annotated, NoReturn
 
 if TYPE_CHECKING:
     from exportify.common.cache import JSONAnalysisCache
-    from exportify.common.config import SpdxConfig
+    from exportify.common.config import ExportifyConfig, SpdxConfig
     from exportify.export_manager import RuleEngine
 
 from cyclopts import App, Parameter
@@ -189,7 +189,17 @@ def sync(
     ] = None,
     package_all: Annotated[
         bool | None,
-        Parameter(name="package-all", help="Only sync \\_\\_all\\_\\_ and exports in \\_\\_init\\_\\_.py files"),
+        Parameter(
+            name="package-all",
+            help="Only sync \\_\\_all\\_\\_ and exports in \\_\\_init\\_\\_.py files",
+        ),
+    ] = None,
+    dynamic_imports: Annotated[
+        bool | None,
+        Parameter(
+            name="dynamic-imports",
+            help="Only sync \\_dynamic\\_imports and \\_\\_all\\_\\_ in \\_\\_init\\_\\_.py files",
+        ),
     ] = None,
     dry_run: Annotated[bool, Parameter(help="Show changes without writing files")] = False,
     verbose: Annotated[bool, Parameter(help="Show detailed output")] = False,
@@ -224,32 +234,18 @@ def sync(
     from exportify.common.cache import JSONAnalysisCache
 
     checks_to_run = resolve_checks(
-        {"module_all", "package_all"},
+        {"module_all", "package_all", "dynamic_imports"},
         module_all=module_all,
         package_all=package_all,
+        dynamic_imports=dynamic_imports,
     )
 
-    print_info("Dry run mode — no files will be written") if dry_run else print_info(
-        "Synchronizing project with export rules..."
-    )
-    CONSOLE.print()
+    _print_sync_header(dry_run=dry_run)
 
     source_root = source or detect_source_root()
     rules, config = load_config_and_rules(verbose=verbose)
 
-    spdx_config: SpdxConfig | None = None
-    output_style_value = "lazy"
-    exclude_paths: list[str] = []
-
-    if config:
-        spdx_config = config.spdx
-        output_style_value = config.output_style.value
-        exclude_paths = config.exclude_paths
-    else:
-        print_warning(f"No config file found (set {CONFIG_ENV_VAR} or create .exportify.yaml)")
-        print_info("Using default rules and lazy output style")
-
-    CONSOLE.print()
+    spdx_config, output_style_value, exclude_paths = _get_config_values(config)
 
     # Collect all source roots: primary + any additional from config
     all_source_roots = get_all_source_roots(source)
@@ -259,70 +255,180 @@ def sync(
 
     # Snapshot for undo
     if not dry_run:
-        all_py_files = (
-            collect_py_files(paths, source)
-            if paths
-            else [f for root in all_source_roots for f in root.rglob("*.py")]
-        )
-        SnapshotManager(locate_project_root()).capture(all_py_files)
-        if verbose:
-            print_info(f"Snapshot captured ({len(all_py_files)} file(s))")
+        _capture_snapshot(all_source_roots, paths, source, verbose=verbose)
 
+    total_changed = _process_source_roots(
+        all_source_roots,
+        paths,
+        source,
+        source_root,
+        output,
+        rules,
+        cache,
+        checks_to_run,
+        output_style_value,
+        spdx_config,
+        exclude_paths,
+        dry_run=dry_run,
+        verbose=verbose,
+        raise_exit=_raise_system_exit,
+    )
+
+    _print_sync_footer(total_changed, dry_run=dry_run)
+
+
+def _print_sync_header(*, dry_run: bool) -> None:
+    """Print the start of the sync command output."""
+    if dry_run:
+        print_info("Dry run mode — no files will be written")
+    else:
+        print_info("Synchronizing project with export rules...")
+    CONSOLE.print()
+
+
+def _get_config_values(config: ExportifyConfig | None) -> tuple[SpdxConfig | None, str, list[str]]:
+    """Extract and validate configuration values."""
+    if config:
+        return config.spdx, config.output_style.value, config.exclude_paths
+
+    print_warning(f"No config file found (set {CONFIG_ENV_VAR} or create .exportify.yaml)")
+    print_info("Using default rules and lazy output style")
+    return None, "lazy", []
+
+
+def _capture_snapshot(
+    all_source_roots: list[Path], paths: tuple[Path, ...], source: Path | None, *, verbose: bool
+) -> None:
+    """Capture a snapshot of the current state for undo."""
+    all_py_files = (
+        collect_py_files(paths, source)
+        if paths
+        else [f for root in all_source_roots for f in root.rglob("*.py")]
+    )
+    SnapshotManager(locate_project_root()).capture(all_py_files)
+    if verbose:
+        print_info(f"Snapshot captured ({len(all_py_files)} file(s))")
+
+
+def _process_source_roots(
+    all_source_roots: list[Path],
+    paths: tuple[Path, ...],
+    source: Path | None,
+    source_root: Path,
+    output: Path | None,
+    rules: RuleEngine,
+    cache: JSONAnalysisCache,
+    checks_to_run: set[str],
+    output_style_value: str,
+    spdx_config: SpdxConfig | None,
+    exclude_paths: list[str],
+    *,
+    dry_run: bool,
+    verbose: bool,
+    raise_exit: Callable[[str], NoReturn],
+) -> int:
+    """Process all source roots and return total changed files."""
     total_changed = 0
-
     for root in all_source_roots:
         root_paths = [
-            p
-            for p in paths
-            if p.is_relative_to(root) or p.resolve().is_relative_to(root.resolve())
+            p for p in paths if p.is_relative_to(root) or p.resolve().is_relative_to(root.resolve())
         ]
 
         if paths and not root_paths:
             continue
 
-        # Collect files for this root for module_all sync
         if "module_all" in checks_to_run:
-            root_py_files = (
-                [f for f in collect_py_files(paths, source) if f.is_relative_to(root)]
-                if paths
-                else list(root.rglob("*.py"))
-            )
-            total_changed += _sync_module_all_files(
-                root_py_files, root, rules, dry_run=dry_run, verbose=verbose
+            total_changed += _run_module_all_sync(
+                root, paths, source, rules, dry_run=dry_run, verbose=verbose
             )
 
-        # Run pipeline for package_all sync
-        if "package_all" in checks_to_run:
-            if not root_paths and not paths:
-                total_changed += _run_pipeline_for_root(
-                    root=root,
-                    source_root=source_root,
-                    output=output,
-                    module=None,
-                    rules=rules,
-                    cache=cache,
-                    output_style_value=output_style_value,
-                    spdx_config=spdx_config,
-                    exclude_paths=exclude_paths,
-                    dry_run=dry_run,
-                    raise_exit=_raise_system_exit,
-                )
-            else:
-                for mod_path in root_paths:
-                    total_changed += _run_pipeline_for_root(
-                        root=root,
-                        source_root=source_root,
-                        output=output,
-                        module=mod_path,
-                        rules=rules,
-                        cache=cache,
-                        output_style_value=output_style_value,
-                        spdx_config=spdx_config,
-                        exclude_paths=exclude_paths,
-                        dry_run=dry_run,
-                        raise_exit=_raise_system_exit,
-                    )
+        if "package_all" in checks_to_run or "dynamic_imports" in checks_to_run:
+            total_changed += _run_package_all_sync(
+                root,
+                source_root,
+                output,
+                root_paths,
+                paths,
+                rules,
+                cache,
+                output_style_value,
+                spdx_config,
+                exclude_paths,
+                dry_run=dry_run,
+                raise_exit=raise_exit,
+            )
+    return total_changed
 
+
+def _run_module_all_sync(
+    root: Path,
+    paths: tuple[Path, ...],
+    source: Path | None,
+    rules: RuleEngine,
+    *,
+    dry_run: bool,
+    verbose: bool,
+) -> int:
+    """Run __all__ sync for regular modules in a source root."""
+    root_py_files = (
+        [f for f in collect_py_files(paths, source) if f.is_relative_to(root)]
+        if paths
+        else list(root.rglob("*.py"))
+    )
+    return _sync_module_all_files(root_py_files, root, rules, dry_run=dry_run, verbose=verbose)
+
+
+def _run_package_all_sync(
+    root: Path,
+    source_root: Path,
+    output: Path | None,
+    root_paths: list[Path],
+    paths: tuple[Path, ...],
+    rules: RuleEngine,
+    cache: JSONAnalysisCache,
+    output_style_value: str,
+    spdx_config: SpdxConfig | None,
+    exclude_paths: list[str],
+    *,
+    dry_run: bool,
+    raise_exit: Callable[[str], NoReturn],
+) -> int:
+    """Run package-level __all__ sync (pipeline) in a source root."""
+    if not root_paths and not paths:
+        return _run_pipeline_for_root(
+            root=root,
+            source_root=source_root,
+            output=output,
+            module=None,
+            rules=rules,
+            cache=cache,
+            output_style_value=output_style_value,
+            spdx_config=spdx_config,
+            exclude_paths=exclude_paths,
+            dry_run=dry_run,
+            raise_exit=raise_exit,
+        )
+
+    changed = 0
+    for mod_path in root_paths:
+        changed += _run_pipeline_for_root(
+            root=root,
+            source_root=source_root,
+            output=output,
+            module=mod_path,
+            rules=rules,
+            cache=cache,
+            output_style_value=output_style_value,
+            spdx_config=spdx_config,
+            exclude_paths=exclude_paths,
+            dry_run=dry_run,
+            raise_exit=raise_exit,
+        )
+    return changed
+
+
+def _print_sync_footer(total_changed: int, *, dry_run: bool) -> None:
+    """Print the final status of the sync command."""
     CONSOLE.print()
     if total_changed == 0:
         print_success("Everything is already in sync — no changes needed")

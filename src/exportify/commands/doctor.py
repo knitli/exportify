@@ -7,7 +7,9 @@
 
 from __future__ import annotations
 
-from cyclopts import App
+from typing import Annotated
+
+from cyclopts import App, Parameter
 from rich.panel import Panel
 
 from exportify.commands.utils import CONSOLE, print_info, print_success, print_warning
@@ -21,7 +23,9 @@ DoctorCommand = App("doctor", help="Run system health checks", console=CONSOLE)
 @DoctorCommand.default
 def doctor(
     *,
-    short: Annotated[bool, Parameter(help="Show a quick snapshot instead of full health check")] = False,
+    short: Annotated[
+        bool, Parameter(help="Show a quick snapshot instead of full health check")
+    ] = False,
 ) -> None:
     """Check Exportify cache and configuration health.
 
@@ -40,7 +44,11 @@ def doctor(
         exportify doctor --short
     """
     CONSOLE.print()
-    title = "[bold]Exportify System Health Check[/bold]" if not short else "[bold]Exportify Status Snapshot[/bold]"
+    title = (
+        "[bold]Exportify System Health Check[/bold]"
+        if not short
+        else "[bold]Exportify Status Snapshot[/bold]"
+    )
     CONSOLE.print(Panel(title, expand=False))
     CONSOLE.print()
 
@@ -68,20 +76,21 @@ def doctor(
 
     rules_path = find_config_file()
 
-    if rules_path is not None:
+    if rules_path is None:
         if short:
-            CONSOLE.print(f"[bold]Configuration:[/bold]\n  Rules: [green]✓[/green] {rules_path}")
-        else:
-            print_success(f"Rules file found: {rules_path}")
-    else:
-        if short:
-            CONSOLE.print("[bold]Configuration:[/bold]\n  Rules: [yellow]–[/yellow] Not found (using defaults)")  # noqa: RUF001
+            CONSOLE.print(
+                "[bold]Configuration:[/bold]\n  Rules: [yellow]–[/yellow] Not found (using defaults)"  # noqa: RUF001
+            )
         else:
             print_warning("No config file found")
             CONSOLE.print(
                 f"  [dim]Recommendation: Create .exportify.yaml or set {CONFIG_ENV_VAR}[/dim]"
             )
 
+    elif short:
+        CONSOLE.print(f"[bold]Configuration:[/bold]\n  Rules: [green]✓[/green] {rules_path}")
+    else:
+        print_success(f"Rules file found: {rules_path}")
     CONSOLE.print()
 
     # Overall status / Readiness

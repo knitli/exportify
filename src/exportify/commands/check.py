@@ -30,7 +30,9 @@ from exportify.commands.utils import (
 from exportify.utils import detect_source_root
 
 
-CheckCommand = App("check", help="Validate exports and \\_\\_all\\_\\_ consistency", console=CONSOLE)
+CheckCommand = App(
+    "check", help="Validate exports and \\_\\_all\\_\\_ consistency", console=CONSOLE
+)
 
 
 def _display_all_modifications(result, added: str, removed: str, created: str):
@@ -230,7 +232,8 @@ def check(
     dynamic_imports: Annotated[
         bool | None,
         Parameter(
-            name="dynamic-imports", help="Check \\_dynamic\\_imports entries resolve and match \\_\\_all\\_\\_"
+            name="dynamic-imports",
+            help="Check \\_dynamic\\_imports entries resolve and match \\_\\_all\\_\\_",
         ),
     ] = None,
     module_all: Annotated[
@@ -239,7 +242,10 @@ def check(
     ] = None,
     package_all: Annotated[
         bool | None,
-        Parameter(name="package-all", help="Check \\_\\_all\\_\\_ and exports in \\_\\_init\\_\\_.py files"),
+        Parameter(
+            name="package-all",
+            help="Check \\_\\_all\\_\\_ and exports in \\_\\_init\\_\\_.py files",
+        ),
     ] = None,
     strict: Annotated[bool, Parameter(help="Exit non-zero on warnings")] = False,
     json_output: Annotated[bool, Parameter(name="json", help="Output results as JSON")] = False,

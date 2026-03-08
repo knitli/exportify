@@ -337,7 +337,9 @@ class CodeGenerator:
         else:
             return parsed.preserved_code
 
-    def _generate_managed_section(self, manifest: ExportManifest, preserved_section: str = "") -> str:
+    def _generate_managed_section(
+        self, manifest: ExportManifest, preserved_section: str = ""
+    ) -> str:
         """Generate the managed section below sentinel, dispatching on output style."""
         if self._output_style == "barrel":
             return self._generate_barrel_managed_section(manifest, preserved_section)
@@ -368,14 +370,16 @@ class CodeGenerator:
             for node in tree.body:
                 if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name == name:
                     return True
-                if isinstance(node, ast.Assign):
-                    if any(
-                        isinstance(t, ast.Name) and t.id == name for t in node.targets
-                    ):
-                        return True
-                if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-                    if node.target.id == name:
-                        return True
+                if isinstance(node, ast.Assign) and any(
+                    isinstance(t, ast.Name) and t.id == name for t in node.targets
+                ):
+                    return True
+                if (
+                    isinstance(node, ast.AnnAssign)
+                    and isinstance(node.target, ast.Name)
+                    and node.target.id == name
+                ):
+                    return True
         return False
 
     def _get_preserved_runtime_imports(self, preserved_section: str) -> set[tuple[str, str]]:
@@ -394,13 +398,14 @@ class CodeGenerator:
         with contextlib.suppress(SyntaxError, Exception):
             tree = ast.parse(preserved_section)
             for node in tree.body:
-                if isinstance(node, ast.ImportFrom) and node.module:
-                    for alias in node.names:
-                        accessible = alias.asname if alias.asname else alias.name
+                if not isinstance(node, (ast.Import, ast.ImportFrom)):
+                    continue
+                for alias in node.names:
+                    if isinstance(node, ast.ImportFrom) and node.module:
+                        accessible = alias.asname or alias.name
                         found.add((node.module, accessible))
-                elif isinstance(node, ast.Import):
-                    for alias in node.names:
-                        accessible = alias.asname if alias.asname else alias.name
+                    elif isinstance(node, ast.Import):
+                        accessible = alias.asname or alias.name
                         found.add((alias.name, accessible))
         return found
 
@@ -408,49 +413,80 @@ class CodeGenerator:
         self, manifest: ExportManifest, preserved_section: str = ""
     ) -> str:
         """Generate the managed section using lazy lateimport pattern."""
-        # Sort exports using the custom sort key
         all_exports = sorted(manifest.all_exports, key=lambda x: _export_sort_key(x.public_name))
 
         if not all_exports:
             return "__all__ = ()"
 
-        # Only symbols from submodules (propagated) need lazy loading.
-        # Symbols defined directly in __init__.py (own_exports) are already in
-        # the module's namespace — putting them in _dynamic_imports would create
-        # self-referential circular imports.
         prop_exports = sorted(
             manifest.propagated_exports, key=lambda x: _export_sort_key(x.public_name)
         )
 
         if not prop_exports:
-            # All exports are defined directly in this __init__.py.  No lazy
-            # import machinery is needed; just emit __all__ and __dir__.
-            parts = [self._generate_all_tuple(all_exports)]
-            if not self._has_preserved_definition(preserved_section, "__dir__"):
-                parts.extend([
-                    "",
-                    "def __dir__() -> list[str]:",
-                    '    """List available attributes for the package."""',
-                    "    return list(__all__)",
-                ])
-            return "\n".join(parts)
+            return self._generate_all_only_section(all_exports, preserved_section)
 
-        # Determine which infrastructure imports are already in the preserved section
-        # so we don't emit duplicate imports.
+        parts: list[str] = []
+
+        # 1. Infrastructure imports
+        infra_imports = self._generate_infra_imports(prop_exports, preserved_section)
+        if infra_imports:
+            parts.extend((infra_imports, ""))
+        # 2. TYPE_CHECKING block
+        type_lines = self._generate_type_checking_imports(prop_exports)
+        parts.extend([
+            "if TYPE_CHECKING:",
+            *[f"    {line}" for line in type_lines],
+            "",
+            self._generate_dynamic_imports_dict(prop_exports, manifest.module_path),
+        ])
+        # 4. __getattr__
+        if not self._has_preserved_definition(preserved_section, "__getattr__"):
+            parts.extend([
+                "",
+                "__getattr__ = create_late_getattr(_dynamic_imports, globals(), __name__)",
+            ])
+
+        # 5. __all__ and __dir__
+        parts.extend(["", self._generate_all_tuple(all_exports)])
+
+        if not self._has_preserved_definition(preserved_section, "__dir__"):
+            parts.extend([
+                "",
+                "def __dir__() -> list[str]:",
+                '    """List available attributes for the package."""',
+                "    return list(__all__)",
+            ])
+
+        return "\n".join(parts)
+
+    def _generate_all_only_section(
+        self, all_exports: Sequence[LazyExport], preserved_section: str
+    ) -> str:
+        """Generate a section containing only __all__ and __dir__."""
+        parts = [self._generate_all_tuple(all_exports)]
+        if not self._has_preserved_definition(preserved_section, "__dir__"):
+            parts.extend([
+                "",
+                "def __dir__() -> list[str]:",
+                '    """List available attributes for the package."""',
+                "    return list(__all__)",
+            ])
+        return "\n".join(parts)
+
+    def _generate_infra_imports(
+        self, prop_exports: Sequence[LazyExport], preserved_section: str
+    ) -> str:
+        """Generate infrastructure imports (typing, types, lateimport)."""
         preserved_runtime = self._get_preserved_runtime_imports(preserved_section)
         has_preserved_getattr = self._has_preserved_definition(preserved_section, "__getattr__")
-        has_preserved_dir = self._has_preserved_definition(preserved_section, "__dir__")
+
         needs_type_checking = ("typing", "TYPE_CHECKING") not in preserved_runtime
         needs_mapping_proxy = ("types", "MappingProxyType") not in preserved_runtime
-        # Only import create_late_getattr if we're actually going to emit __getattr__
         needs_create_late_getattr = (
             not has_preserved_getattr
             and ("lateimport", "create_late_getattr") not in preserved_runtime
         )
 
-        type_lines = self._generate_type_checking_imports(prop_exports)
-
-        # Build infrastructure import lines (two groups, separated by a blank line).
         infra_group1 = []
         if needs_type_checking:
             infra_group1.append("from typing import TYPE_CHECKING")
@@ -461,59 +497,30 @@ class CodeGenerator:
         if needs_create_late_getattr:
             infra_group2.append("from lateimport import create_late_getattr")
 
-        parts: list[str] = []
+        lines = []
         if infra_group1:
-            parts.extend(infra_group1)
+            lines.extend(infra_group1)
         if infra_group2:
-            if parts:
-                parts.append("")
-            parts.extend(infra_group2)
-        if parts:
-            parts.append("")
+            if lines:
+                lines.append("")
+            lines.extend(infra_group2)
 
-        parts.extend([
-            "if TYPE_CHECKING:",
-            *[f"    {line}" for line in type_lines],
-        ])
-        # 3. _dynamic_imports dictionary (MappingProxyType wrapper)
-        # Only for propagated (submodule) runtime exports — never for symbols
-        # defined directly in __init__.py, which are already in the namespace.
+        return "\n".join(lines)
+
+    def _generate_dynamic_imports_dict(
+        self, prop_exports: Sequence[LazyExport], package_path: str
+    ) -> str:
+        """Generate the _dynamic_imports dictionary string."""
         runtime_prop_exports = [e for e in prop_exports if not e.is_type_only]
 
-        parts.extend([
-            "",
-            "_dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({",
-        ])
+        lines = ["_dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({"]
 
         for export in runtime_prop_exports:
-            # Extract relative module name from full path
-            relative_module = self._extract_relative_module(
-                export.target_module, manifest.module_path
-            )
-            parts.append(f'    "{export.public_name}": (__spec__.parent, "{relative_module}"),')
+            relative_module = self._extract_relative_module(export.target_module, package_path)
+            lines.append(f'    "{export.public_name}": (__spec__.parent, "{relative_module}"),')
 
-        parts.append("})")
-
-        if not has_preserved_getattr:
-            parts.extend([
-                "",
-                "__getattr__ = create_late_getattr(_dynamic_imports, globals(), __name__)",
-            ])
-
-        parts.extend([
-            "",
-            # __all__ covers ALL exports: own (directly defined) + propagated (lazy)
-            self._generate_all_tuple(all_exports),
-        ])
-
-        if not has_preserved_dir:
-            parts.extend([
-                "",
-                "def __dir__() -> list[str]:",
-                '    """List available attributes for the package."""',
-                "    return list(__all__)",
-            ])
-        return "\n".join(parts)
+        lines.append("})")
+        return "\n".join(lines)
 
     def _generate_barrel_managed_section(
         self, manifest: ExportManifest, preserved_section: str = ""

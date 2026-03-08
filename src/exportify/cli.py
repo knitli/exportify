@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 
-from cyclopts import App, Parameter
+from cyclopts import App
 
 from exportify import __version__
 from exportify.commands.utils import CONSOLE
@@ -34,12 +34,27 @@ app = App(
 )
 
 
-app.command("exportify.commands.init:InitCommand", name="init", help="Initialize Exportify in a project")
-app.command("exportify.commands.sync:SyncCommand", name="sync", help="Synchronize project with export rules")
-app.command("exportify.commands.check:CheckCommand", name="check", help="Validate exports and \\_\\_all\\_\\_ consistency")
-app.command("exportify.commands.doctor:DoctorCommand", name="doctor", help="Run system health checks")
-app.command("exportify.commands.undo:UndoCommand", name="undo", help="Restore files from the last sync run")
-app.command("exportify.commands.cache:CacheCommand", name="cache", help="Manage analysis results and cache")
+app.command(
+    "exportify.commands.init:InitCommand", name="init", help="Initialize Exportify in a project"
+)
+app.command(
+    "exportify.commands.sync:SyncCommand", name="sync", help="Synchronize project with export rules"
+)
+app.command(
+    "exportify.commands.check:CheckCommand",
+    name="check",
+    help="Validate exports and \\_\\_all\\_\\_ consistency",
+)
+app.command(
+    "exportify.commands.doctor:DoctorCommand", name="doctor", help="Run system health checks"
+)
+app.command(
+    "exportify.commands.undo:UndoCommand", name="undo", help="Restore files from the last sync run"
+)
+app.command(
+    "exportify.commands.cache:CacheCommand", name="cache", help="Manage analysis results and cache"
+)
+
 
 def main() -> None:
     """Main entry point for the CLI."""

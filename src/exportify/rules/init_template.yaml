@@ -44,7 +44,7 @@ schema_version: "1.0"
 # ---------------------------------------------------------------------------
 # Explicit project identification. Not required — exportify auto-detects these
 # values from pyproject.toml or directory layout — but providing them ensures
-# consistent, deterministic behaviour across environments and exportify versions.
+# consistent, deterministic behavior across environments and exportify versions.
 #
 # project:
 #   project_name: "mypackage"
@@ -92,12 +92,13 @@ schema_version: "1.0"
 # Rules are evaluated highest-priority-first; the first match wins.
 # Priority bands:
 #   1000      — absolute exclusions (private members, dunders)
-#   950–900   — stdlib / infrastructure exclusions
+#   950       — import re-export defaults (exclude non-aliased)
+#   900       — stdlib / infrastructure exclusions
 #   800       — test / development exclusions
-#   700       — primary export rules (classes, functions, constants)
-#   600–500   — import re-export handling
+#   600       — explicit re-export rules (aliased imports)
 #   300–400   — propagation overrides / project-specific rules
-#   0–200     — defaults and fallbacks
+#   100–200   — primary export rules (classes, functions, constants)
+#   0         — defaults and fallbacks
 rules:
   # ===================================================================
   # Priority 1000: Explicit exclusions
@@ -123,11 +124,31 @@ rules:
     match:
       name_pattern: ^__.*__$
     action: exclude
+
   # ===================================================================
-  # Priority 950: Stdlib / typing infrastructure exclusions
+  # Priority 950: Import re-export defaults
+  # ===================================================================
+  - name: ExcludeNonAliasedImports
+    priority: 950
+    description: >-
+      Exclude non-aliased imported symbols from re-export. When a symbol is
+      imported without an alias (e.g. `from .models import BasedModel`), it is
+      almost certainly for internal use only — not to be re-exported. Aliased
+      imports (handled by ExportImportedSymbols at 600) are the explicit signal
+      that a symbol is intended for public re-export. Without this rule,
+      catch-all "include" rules would inadvertently re-export every internal
+      import, creating circular dependencies and incorrect module paths.
+    match:
+      all_of:
+        - member_type: imported
+        - provenance: imported
+    action: exclude
+
+  # ===================================================================
+  # Priority 900: Stdlib / typing infrastructure exclusions
   # ===================================================================
   - name: ExcludeStdlibImports
-    priority: 950
+    priority: 900
     description: >-
       Exclude stdlib imports from being re-exported. Standard library symbols
       imported into a module (e.g. TYPE_CHECKING, MappingProxyType, Path) are
@@ -187,50 +208,6 @@ rules:
       name_pattern: ^dev_.*
     action: exclude
   # ===================================================================
-  # Priority 700: Defined symbols (high priority exports)
-  # Export symbols defined in the module itself
-  # ===================================================================
-  - name: ExportDefinedClasses
-    priority: 700
-    description: Export classes defined in this module
-    match:
-      member_type: class
-    action: include
-    propagate: root
-  - name: ExportDefinedFunctions
-    priority: 700
-    description: Export functions defined in this module (including async)
-    match:
-      member_type: function
-    action: include
-    propagate: parent
-  - name: ExportSpecialConstants
-    priority: 702
-    description: Export constants in constants.py and file_extensions.py to root
-    match:
-      all_of:
-        - member_type: constant
-        - any_of:
-            - module_pattern: .*\.constants$
-            - module_pattern: .*\.file_extensions$
-    action: include
-    propagate: root
-  - name: ExportDefinedConstants
-    priority: 700
-    description: Export constants (SCREAMING_SNAKE_CASE variables)
-    match:
-      member_type: constant
-      name_pattern: ^[A-Z0-9_]+$
-    action: include
-    propagate: parent
-  - name: ExportTypeAliases
-    priority: 700
-    description: Export type aliases (both Python 3.12+ and pre-3.12 style)
-    match:
-      member_type: type_alias
-    action: include
-    propagate: root
-  # ===================================================================
   # Priority 600: Import handling
   # Determine which imported symbols to re-export
   # ===================================================================
@@ -275,6 +252,52 @@ rules:
   #   action: include
   #   propagate: root
   # ===================================================================
+
+  # ===================================================================
+  # Priority 200: General defined symbols
+  # These are fallback rules for symbols defined in the module itself.
+  # They are lower priority than the 300-series propagation overrides.
+  # ===================================================================
+  - name: ExportDefinedClasses
+    priority: 200
+    description: Export classes defined in this module
+    match:
+      member_type: class
+    action: include
+    propagate: root
+  - name: ExportDefinedFunctions
+    priority: 200
+    description: Export functions defined in this module (including async)
+    match:
+      member_type: function
+    action: include
+    propagate: parent
+  - name: ExportSpecialConstants
+    priority: 202
+    description: Export constants in constants.py and file_extensions.py to root
+    match:
+      all_of:
+        - member_type: constant
+        - any_of:
+            - module_pattern: .*\.constants$
+            - module_pattern: .*\.file_extensions$
+    action: include
+    propagate: root
+  - name: ExportDefinedConstants
+    priority: 200
+    description: Export constants (SCREAMING_SNAKE_CASE variables)
+    match:
+      member_type: constant
+      name_pattern: ^[A-Z0-9_]+$
+    action: include
+    propagate: parent
+  - name: ExportTypeAliases
+    priority: 200
+    description: Export type aliases (both Python 3.12+ and pre-3.12 style)
+    match:
+      member_type: type_alias
+    action: include
+    propagate: root
 
   # ===================================================================
   # Priority 0: Default fallback

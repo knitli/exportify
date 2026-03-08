@@ -162,14 +162,28 @@ class RuleEngine:
         self, symbol: DetectedSymbol, module_path: str, criteria: RuleMatchCriteria
     ) -> bool:
         """Check if all parent-level criteria are satisfied."""
-        if criteria.name_exact and symbol.name != criteria.name_exact:
+        if not self._check_name_criteria(symbol.name, criteria):
+            return False
+
+        if not self._check_module_criteria(module_path, criteria):
+            return False
+
+        return self._check_type_provenance_criteria(symbol, criteria)
+
+    def _check_name_criteria(self, name: str, criteria: RuleMatchCriteria) -> bool:
+        """Check name-based criteria."""
+        if criteria.name_exact and name != criteria.name_exact:
             return False
 
         if criteria.name_pattern:
             pattern = self._get_compiled_pattern(criteria.name_pattern)
-            if not pattern.match(symbol.name):
+            if not pattern.match(name):
                 return False
 
+        return True
+
+    def _check_module_criteria(self, module_path: str, criteria: RuleMatchCriteria) -> bool:
+        """Check module-based criteria."""
         if criteria.module_exact and module_path != criteria.module_exact:
             return False
 
@@ -178,6 +192,12 @@ class RuleEngine:
             if not pattern.match(module_path):
                 return False
 
+        return True
+
+    def _check_type_provenance_criteria(
+        self, symbol: DetectedSymbol, criteria: RuleMatchCriteria
+    ) -> bool:
+        """Check member type and provenance criteria."""
         if criteria.member_type and symbol.member_type != criteria.member_type:
             return False
 

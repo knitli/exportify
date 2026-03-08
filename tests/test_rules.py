@@ -1259,11 +1259,7 @@ class TestDefaultRulesYaml:
     """
 
     _DEFAULT_RULES = (
-        Path(__file__).parent.parent
-        / "src"
-        / "exportify"
-        / "rules"
-        / "default_rules.yaml"
+        Path(__file__).parent.parent / "src" / "exportify" / "rules" / "default_rules.yaml"
     )
 
     def _make_engine(self) -> RuleEngine:

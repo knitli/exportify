@@ -18,13 +18,14 @@ from lateimport import create_late_getattr
 
 
 if TYPE_CHECKING:
-    from exportify.common.cache import CircuitBreaker, CircuitState, JSONAnalysisCache, T
+    from exportify.common.cache import CircuitBreaker, CircuitState, JSONAnalysisCache
     from exportify.common.config import (
         CONFIG_ENV_VAR,
         DEFAULT_CACHE_SUBDIR,
         DEFAULT_CONFIG_NAMES,
         DEFAULT_SNAPSHOT_DIR,
         ExportifyConfig,
+        ProjectConfig,
         SpdxConfig,
         detect_lateimport_dependency,
         find_config_file,
@@ -71,7 +72,6 @@ _dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({
     "DEFAULT_CACHE_SUBDIR": (__spec__.parent, "config"),
     "DEFAULT_CONFIG_NAMES": (__spec__.parent, "config"),
     "DEFAULT_SNAPSHOT_DIR": (__spec__.parent, "config"),
-    "T": (__spec__.parent, "cache"),
     "AnalysisResult": (__spec__.parent, "types"),
     "CacheEntry": (__spec__.parent, "types"),
     "CacheStatistics": (__spec__.parent, "types"),
@@ -92,6 +92,7 @@ _dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({
     "LazyExport": (__spec__.parent, "types"),
     "MemberType": (__spec__.parent, "types"),
     "OutputStyle": (__spec__.parent, "types"),
+    "ProjectConfig": (__spec__.parent, "config"),
     "PropagationLevel": (__spec__.parent, "types"),
     "Rule": (__spec__.parent, "types"),
     "RuleAction": (__spec__.parent, "types"),
@@ -145,6 +146,7 @@ __all__ = (
     "LazyExport",
     "MemberType",
     "OutputStyle",
+    "ProjectConfig",
     "PropagationLevel",
     "Rule",
     "RuleAction",
@@ -158,7 +160,6 @@ __all__ = (
     "SourceLocation",
     "SpdxConfig",
     "SymbolProvenance",
-    "T",
     "UpdatedFile",
     "ValidationConfig",
     "ValidationError",

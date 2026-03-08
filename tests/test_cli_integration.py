@@ -82,61 +82,38 @@ class TestCLICheckCommand:
 
 
 @pytest.mark.integration
-class TestCLIFixCommand:
-    """Test fix command."""
+class TestCLISyncCommand:
+    """Test sync command (formerly fix and generate)."""
 
-    def test_fix_dry_run(self, tmp_path: Path):
+    def test_sync_dry_run(self, tmp_path: Path):
         """Dry-run mode doesn't write files."""
         pkg = tmp_path / "pkg"
         pkg.mkdir()
         (pkg / "mod.py").write_text("class Foo: pass")
 
-        (pkg / "__init__.py").write_text("")
+        init_file = pkg / "__init__.py"
+        init_file.write_text("")
 
-        exit_code, stdout, stderr = run_cli("fix", "--source", str(tmp_path), "--dry-run")
+        exit_code, stdout, stderr = run_cli("sync", "--source", str(tmp_path), "--dry-run")
 
         assert exit_code == 0, f"Failed: {stderr}"
         assert "dry run" in (stdout + stderr).lower() or "Dry run" in (stdout + stderr)
 
-    def test_fix_module_all_dry_run(self, tmp_path: Path):
-        """Fix --module-all --dry-run works."""
+    def test_sync_module_all_dry_run(self, tmp_path: Path):
+        """Sync --module-all --dry-run works."""
         pkg = tmp_path / "pkg"
         pkg.mkdir()
         (pkg / "__init__.py").write_text("")
         (pkg / "mod.py").write_text("class Foo: pass\ndef bar(): pass")
 
         exit_code, _stdout, stderr = run_cli(
-            "fix", "--source", str(tmp_path), "--module-all", "--dry-run"
+            "sync", "--source", str(tmp_path), "--module-all", "--dry-run"
         )
 
         assert exit_code == 0, f"Failed: {stderr}"
 
-
-@pytest.mark.integration
-class TestCLIGenerateCommand:
-    """Test generate command."""
-
-    def test_generate_dry_run(self, tmp_path: Path):
-        """Dry-run mode doesn't write files."""
-        # Create module
-        pkg = tmp_path / "pkg"
-        pkg.mkdir()
-        (pkg / "mod.py").write_text("class Foo: pass")
-
-        init_file = pkg / "__init__.py"
-        existed_before = init_file.exists()
-
-        exit_code, stdout, stderr = run_cli("generate", "--source", str(tmp_path), "--dry-run")
-
-        assert exit_code == 0, f"Failed: {stderr}"
-        assert "dry run" in stdout.lower() or "Dry run" in stdout
-
-        # No files should be written in dry-run
-        if not existed_before:
-            assert not init_file.exists()
-
-    def test_generate_creates_files(self, tmp_path: Path):
-        """Generate creates __init__.py files."""
+    def test_sync_creates_files(self, tmp_path: Path):
+        """Sync creates missing __init__.py files."""
         # Create module
         pkg = tmp_path / "pkg"
         pkg.mkdir()
@@ -148,19 +125,19 @@ def bar():
     pass
 """)
 
-        exit_code, _stdout, stderr = run_cli("generate", "--source", str(tmp_path))
+        exit_code, _stdout, stderr = run_cli("sync", "--source", str(tmp_path))
 
         assert exit_code == 0, f"Failed: {stderr}"
 
         # Check if __init__.py was created
         init_file = pkg / "__init__.py"
-        if init_file.exists():
-            content = init_file.read_text()
-            # Should have some export mechanism
-            assert "__all__" in content or "import" in content.lower()
+        assert init_file.exists()
+        content = init_file.read_text()
+        # Should have some export mechanism
+        assert "__all__" in content or "import" in content.lower()
 
-    def test_generate_preserves_manual_content(self, tmp_path: Path):
-        """Generate preserves existing manual exports."""
+    def test_sync_preserves_manual_content(self, tmp_path: Path):
+        """Sync preserves existing manual exports."""
         # Create package with existing __init__.py
         pkg = tmp_path / "pkg"
         pkg.mkdir()
@@ -176,14 +153,16 @@ __all__ = ["Manual"]
 '''
         init_file.write_text(manual_content)
 
-        exit_code, _stdout, stderr = run_cli("generate", "--source", str(tmp_path))
+        exit_code, _stdout, stderr = run_cli("sync", "--source", str(tmp_path))
 
-        # Should complete (may or may not preserve content depending on implementation)
+        # Should complete
         assert exit_code == 0, f"Failed: {stderr}"
 
-        # File should still exist and be valid
+        # File should still exist and contain original manual content
         assert init_file.exists()
-        assert len(init_file.read_text()) > 0
+        content = init_file.read_text()
+        assert '"""Manual docstring."""' in content
+        assert "from .other import Manual" in content
 
 
 @pytest.mark.integration
@@ -198,11 +177,11 @@ class TestCLICacheIntegration:
         (pkg / "mod.py").write_text("class Foo: pass")
 
         # First run
-        run_cli("fix", "--dry-run", "--source", str(pkg))
+        run_cli("sync", "--dry-run", "--source", str(pkg))
 
         # Second run
         time.sleep(0.1)  # Small delay
-        exit_code2, _stdout2, _stderr2 = run_cli("fix", "--dry-run", "--source", str(pkg))
+        exit_code2, _stdout2, _stderr2 = run_cli("sync", "--dry-run", "--source", str(pkg))
 
         assert exit_code2 == 0
 
@@ -211,8 +190,8 @@ class TestCLICacheIntegration:
 class TestCLIEndToEnd:
     """Test complete workflows."""
 
-    def test_check_then_generate(self, tmp_path: Path):
-        """Complete workflow: check → generate."""
+    def test_check_then_sync(self, tmp_path: Path):
+        """Complete workflow: check → sync."""
         pkg = tmp_path / "pkg"
         pkg.mkdir()
         (pkg / "__init__.py").write_text("")
@@ -230,15 +209,15 @@ _private = "secret"
         exit1, _stdout1, stderr1 = run_cli("check", str(pkg))
         assert exit1 == 0, f"Check failed: {stderr1}"
 
-        # Step 2: Generate
-        exit2, _stdout2, stderr2 = run_cli("generate", "--source", str(tmp_path))
-        assert exit2 == 0, f"Generate failed: {stderr2}"
+        # Step 2: Sync
+        exit2, _stdout2, stderr2 = run_cli("sync", "--source", str(tmp_path))
+        assert exit2 == 0, f"Sync failed: {stderr2}"
 
         # Verify file created
         init_file = pkg / "__init__.py"
-        if init_file.exists():
-            content = init_file.read_text()
-            assert len(content) > 0
+        assert init_file.exists()
+        content = init_file.read_text()
+        assert len(content) > 0
 
     def test_generated_file_is_valid_python(self, tmp_path: Path):
         """Generated files are syntactically valid."""
@@ -253,20 +232,20 @@ def test_func():
     pass
 """)
 
-        # Generate
-        exit_code, _stdout, stderr = run_cli("generate", "--source", str(tmp_path))
+        # Sync
+        exit_code, _stdout, stderr = run_cli("sync", "--source", str(tmp_path))
         assert exit_code == 0, f"Failed: {stderr}"
 
         # Verify syntax
         init_file = pkg / "__init__.py"
-        if init_file.exists():
-            import ast
+        assert init_file.exists()
+        import ast
 
-            content = init_file.read_text()
-            try:
-                ast.parse(content)
-            except SyntaxError as e:
-                pytest.fail(f"Generated file has syntax error: {e}")
+        content = init_file.read_text()
+        try:
+            ast.parse(content)
+        except SyntaxError as e:
+            pytest.fail(f"Generated file has syntax error: {e}")
 
 
 @pytest.mark.integration
@@ -283,7 +262,7 @@ class TestCLIErrorHandling:
         # Ensure find_config_file() returns None regardless of working directory.
         monkeypatch.setattr("exportify.common.config.find_config_file", lambda: None)
 
-        exit_code, _stdout, _stderr = run_cli("fix", "--dry-run", "--source", str(pkg))
+        exit_code, _stdout, _stderr = run_cli("sync", "--dry-run", "--source", str(pkg))
 
         assert exit_code == 0
 
@@ -317,7 +296,7 @@ class TestCLIHelp:
         exit_code, stdout, _stderr = run_cli("--help")
 
         assert exit_code == 0
-        assert "check" in stdout or "generate" in stdout or "fix" in stdout
+        assert "check" in stdout or "sync" in stdout or "init" in stdout
 
     def test_check_help(self):
         """Check command help works."""
@@ -326,19 +305,12 @@ class TestCLIHelp:
         assert exit_code == 0
         assert "source" in stdout.lower() or "check" in stdout.lower()
 
-    def test_fix_help(self):
-        """Fix command help works."""
-        exit_code, stdout, _stderr = run_cli("fix", "--help")
+    def test_sync_help(self):
+        """Sync command help works."""
+        exit_code, stdout, _stderr = run_cli("sync", "--help")
 
         assert exit_code == 0
-        assert "dry-run" in stdout.lower() or "fix" in stdout.lower()
-
-    def test_generate_help(self):
-        """Generate command help works."""
-        exit_code, stdout, _stderr = run_cli("generate", "--help")
-
-        assert exit_code == 0
-        assert "dry-run" in stdout.lower() or "generate" in stdout.lower()
+        assert "dry-run" in stdout.lower() or "sync" in stdout.lower()
 
 
 @pytest.mark.integration
@@ -357,8 +329,8 @@ class TestKnownIssues:
         (pkg / "mod.py").write_text("class Foo: pass")
 
         # Create rules
-        (tmp_path / ".codeweaver").mkdir()
-        (tmp_path / ".codeweaver/lateimport_rules.yaml").write_text("""
+        (tmp_path / ".exportify").mkdir()
+        (tmp_path / ".exportify/config.yaml").write_text("""
 schema_version: "1.0"
 rules:
   - name: "include-all"
@@ -368,13 +340,13 @@ rules:
     action: include
 """)
 
-        # Generate
-        run_cli("generate", "--source", str(tmp_path))
+        # Sync
+        run_cli("sync", "--source", str(tmp_path))
 
-        if init_file.exists():
-            content = init_file.read_text()
-            count = content.count("from __future__ import annotations")
-            assert count <= 1, f"Found {count} future imports, expected 1"
+        assert init_file.exists()
+        content = init_file.read_text()
+        count = content.count("from __future__ import annotations")
+        assert count <= 1, f"Found {count} future imports, expected 1"
 
     def test_check_no_lateimports_blacklist(self, tmp_path: Path):
         """check --no-lateimports (blacklist mode) runs without crashing."""
@@ -387,24 +359,17 @@ rules:
 
         assert exit_code == 0, f"Failed: {stderr}"
 
-    def test_fix_warns_on_missing_init(self, tmp_path: Path):
-        """fix warns when a package directory has no __init__.py and suggests generate."""
+    def test_sync_auto_creates_init(self, tmp_path: Path):
+        """sync creates missing __init__.py automatically."""
         pkg = tmp_path / "pkg"
         pkg.mkdir()
         # Intentionally no __init__.py
         (pkg / "mod.py").write_text("class Foo: pass")
 
-        exit_code, stdout, stderr = run_cli("fix", "--source", str(tmp_path))
+        exit_code, _stdout, stderr = run_cli("sync", "--source", str(tmp_path))
         assert exit_code == 0, f"Failed: {stderr}"
-        combined = stdout + stderr
-        # Should warn about missing __init__.py
-        assert "__init__.py" in combined or "init" in combined.lower(), (
-            f"Expected warning about missing __init__.py, got: {combined!r}"
-        )
-        # Should suggest running generate
-        assert "generate" in combined.lower(), (
-            f"Expected suggestion to run generate, got: {combined!r}"
-        )
+
+        assert (pkg / "__init__.py").exists()
 
     def test_check_package_all_flag(self, tmp_path: Path):
         """check --package-all runs without error."""

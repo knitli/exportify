@@ -261,9 +261,9 @@ class PropagationGraph:
                         # Fewer module segments = closer ancestor to the target module.
                         new_depth = len(new_module.split("."))
                         old_depth = len(old_module.split("."))
-                        if new_depth < old_depth:
-                            node.propagated_exports[name] = entry
-                        elif new_depth == old_depth and new_module < old_module:
+                        if new_depth < old_depth or (
+                            new_depth == old_depth and new_module < old_module
+                        ):
                             node.propagated_exports[name] = entry
                         # else keep existing (shallower or alphabetically first)
                     else:

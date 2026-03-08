@@ -22,7 +22,6 @@ import time
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import NoReturn
 
 from exportify import ExportManifest
 from exportify.analysis.ast_parser import ASTParser
@@ -114,8 +113,7 @@ class Pipeline:
         """
         logger.info("Discovering Python files in %s", source_root)
         python_files = self.file_discovery.discover_python_files(
-            source_root,
-            exclude_patterns=self.exclude_paths or None,
+            source_root, exclude_patterns=self.exclude_paths or None
         )
         self.stats.files_discovered = len(python_files)
         logger.info("Found %d Python files in %s", len(python_files), source_root)
@@ -141,86 +139,111 @@ class Pipeline:
     def _generate_code(
         self, manifests: dict[str, ExportManifest], *, dry_run: bool = False
     ) -> tuple[list[GeneratedFile], list[UpdatedFile], list[SkippedFile]]:
-        """Generate code for a single export manifest.
-
-        Args:
-            manifest: ExportManifest to generate code for
-        Returns:
-            GeneratedCode with content and metadata
-        """
-
-        def _raise_error(
-            error: type[Exception], message: str, original_error: Exception | str | None = None
-        ) -> NoReturn:
-            if isinstance(original_error, Exception):
-                raise error(f"{message}: {original_error}") from original_error
-            raise error(message)
-
+        """Generate code for all manifests."""
         logger.info("Generating code for %d modules", len(manifests))
         generated_files = []
         updated_files = []
         skipped_files = []
 
         for manifest in manifests.values():
-            # Only generate __init__.py for actual packages, not leaf modules.
-            # Leaf modules (.py files) exist in the graph for propagation only.
-            if manifest.module_path not in self._package_modules:
+            if not self._should_generate_init(manifest):
                 skipped_files.append(
                     SkippedFile(
                         path=Path(manifest.module_path),
-                        reason="Not a package module (no __init__.py)",
+                        reason="Not a package or has no exports to generate",
                     )
                 )
                 continue
+
             try:
-                code = self.generator.generate(manifest)
-
-                # Determine if file exists
-                target = self.generator._get_target_path(manifest.module_path)
-                file_existed = target.exists()
-
-                # Format content before write so dry-run and written file are identical
-                formatted = format_content(code.content, filename=target)
-
-                if not dry_run:
-                    result = self.generator.file_writer.write_file(target, formatted)
-                    if not result.success:
-                        if result.error and "syntax error" in result.error.lower():
-                            _raise_error(
-                                SyntaxError,
-                                f"Syntax error in generated code for {manifest.module_path}",
-                                result.error,
-                            )
-                        _raise_error(OSError, f"Failed to write {target}", result.error)
-                    self.stats.files_written += 1
-
-                # Record generation (formatted content so dry-run output matches written file)
-                if file_existed:
-                    updated_files.append(
-                        UpdatedFile(
-                            path=target,
-                            old_content="",  # Would need to read for full diff
-                            new_content=formatted,
-                            changes=[f"Updated {len(manifest.all_exports)} exports"],
-                        )
-                    )
-                else:
-                    generated_files.append(
-                        GeneratedFile(
-                            path=target,
-                            content=formatted,
-                            exports=manifest.export_names,
-                            source_modules=list({e.target_module for e in manifest.all_exports}),
-                            timestamp=time.time(),
-                            hash=code.hash,
-                        )
-                    )
-
+                gen, up, skip = self._process_manifest(manifest, dry_run=dry_run)
+                if gen:
+                    generated_files.append(gen)
+                if up:
+                    updated_files.append(up)
+                if skip:
+                    skipped_files.append(skip)
             except Exception as e:
                 logger.exception("Failed to generate %s", manifest.module_path)
                 self.stats.errors.append(f"{manifest.module_path}: {e}")
 
         return generated_files, updated_files, skipped_files
+
+    def _should_generate_init(self, manifest: ExportManifest) -> bool:
+        """Determine if this module needs an __init__.py."""
+        # It needs one if:
+        # 1. It already has one (recorded in self._package_modules)
+        # 2. It has exports (own or propagated) AND it has children (it's a directory)
+        # 3. It's the root package being processed (optional, but good for consistency)
+        is_existing_package = manifest.module_path in self._package_modules
+        has_exports = len(manifest.all_exports) > 0
+
+        # Use graph to check if it's a parent of other modules
+        node = self.graph.modules.get(manifest.module_path)
+        is_parent = bool(node and node.children)
+
+        return is_existing_package or (has_exports and is_parent)
+
+    def _process_manifest(
+        self, manifest: ExportManifest, *, dry_run: bool
+    ) -> tuple[GeneratedFile | None, UpdatedFile | None, SkippedFile | None]:
+        """Generate and potentially write code for a single manifest."""
+        code = self.generator.generate(manifest)
+
+        # Determine if file exists and read its content for comparison
+        target = self.generator._get_target_path(manifest.module_path)
+        file_existed = target.exists()
+        existing_content = target.read_text(encoding="utf-8") if file_existed else ""
+
+        # Format content before write so dry-run and written file are identical
+        formatted = format_content(code.content, filename=target)
+
+        if not dry_run:
+            self._write_manifest_file(manifest, target, formatted)
+
+        # Record generation
+        if file_existed:
+            # Only record as updated if content actually changed.
+            # Normalize line endings for comparison.
+            if (
+                formatted.replace("\r\n", "\n").strip()
+                != existing_content.replace("\r\n", "\n").strip()
+            ):
+                return (
+                    None,
+                    UpdatedFile(
+                        path=target,
+                        old_content=existing_content,
+                        new_content=formatted,
+                        changes=[f"Updated {len(manifest.all_exports)} exports"],
+                    ),
+                    None,
+                )
+            return None, None, SkippedFile(path=target, reason="Already in sync")
+
+        return (
+            GeneratedFile(
+                path=target,
+                content=formatted,
+                exports=manifest.export_names,
+                source_modules=list({e.target_module for e in manifest.all_exports}),
+                timestamp=time.time(),
+                hash=code.hash,
+            ),
+            None,
+            None,
+        )
+
+    def _write_manifest_file(self, manifest: ExportManifest, target: Path, content: str) -> None:
+        """Write generated code to disk."""
+        result = self.generator.file_writer.write_file(target, content)
+        if not result.success:
+            if result.error and "syntax error" in result.error.lower():
+                raise SyntaxError(
+                    f"Syntax error in generated code for {manifest.module_path}: {result.error}"
+                )
+            raise OSError(f"Failed to write {target}: {result.error}")
+        self.stats.files_written += 1
 
     def run(
         self, source_root: Path, *, dry_run: bool = False, module: Path | None = None

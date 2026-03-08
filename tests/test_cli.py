@@ -164,20 +164,20 @@ class TestPrintHelperFunctions:
         )
 
     def test_print_generation_results_success(self, capsys):
-        """_print_generation_results prints success output."""
-        from exportify.commands.generate import _print_generation_results
+        """_print_sync_results prints success output."""
+        from exportify.commands.sync import _print_sync_results
 
         result = self._make_generation_result(success=True)
-        _print_generation_results(result)
+        _print_sync_results(result)
         # Doesn't raise; rich console output goes to its own stdout handle
 
     def test_print_generation_results_failure(self):
-        """_print_generation_results handles failure case with errors."""
-        from exportify.commands.generate import _print_generation_results
+        """_print_sync_results handles failure case with errors."""
+        from exportify.commands.sync import _print_sync_results
 
         result = self._make_generation_result(success=False, errors=["broken pipe", "parse error"])
         # Should not raise
-        _print_generation_results(result)
+        _print_sync_results(result)
 
     def test_print_validation_results_success(self):
         """_print_validation_results handles success."""
@@ -440,107 +440,98 @@ class TestResolveChecks:
     """Test check resolution logic."""
 
     def test_all_none_returns_all_checks(self):
-        from exportify.commands.check import _resolve_checks
+        from exportify.commands.utils import resolve_checks
 
-        result = _resolve_checks(
-            lateimports=None, dynamic_imports=None, module_all=None, package_all=None
+        all_checks = {"lateimports", "dynamic_imports", "module_all", "package_all"}
+        result = resolve_checks(
+            all_checks, lateimports=None, dynamic_imports=None, module_all=None, package_all=None
         )
-        assert result == {"lateimports", "dynamic_imports", "module_all", "package_all"}
+        assert result == all_checks
 
     def test_one_true_whitelist_mode_returns_subset(self):
-        from exportify.commands.check import _resolve_checks
+        from exportify.commands.utils import resolve_checks
 
-        # In whitelist mode (any True), result is a strict subset of all checks.
-        # Note: due to set zip ordering, the exact mapped check may differ from the flag name.
-        result = _resolve_checks(
-            lateimports=True, dynamic_imports=None, module_all=None, package_all=None
-        )
         all_checks = {"lateimports", "dynamic_imports", "module_all", "package_all"}
-        assert len(result) == 1
-        assert result.issubset(all_checks)
+        result = resolve_checks(
+            all_checks, lateimports=True, dynamic_imports=None, module_all=None, package_all=None
+        )
+        assert result == {"lateimports"}
 
     def test_multiple_true_whitelist_mode(self):
-        from exportify.commands.check import _resolve_checks
+        from exportify.commands.utils import resolve_checks
 
-        # Whitelist mode: result is a non-empty strict subset
-        result = _resolve_checks(
-            lateimports=True, dynamic_imports=True, module_all=None, package_all=None
-        )
         all_checks = {"lateimports", "dynamic_imports", "module_all", "package_all"}
-        assert len(result) == 2
-        assert result.issubset(all_checks)
+        result = resolve_checks(
+            all_checks, lateimports=True, dynamic_imports=True, module_all=None, package_all=None
+        )
+        assert result == {"lateimports", "dynamic_imports"}
 
     def test_all_false_blacklist_returns_nothing(self):
-        from exportify.commands.check import _resolve_checks
+        from exportify.commands.utils import resolve_checks
 
-        result = _resolve_checks(
-            lateimports=False, dynamic_imports=False, module_all=False, package_all=False
-        )
-        assert result == set()
-
-    def test_all_none_blacklist_all_returns_empty(self):
-        from exportify.commands.check import _resolve_checks
-
-        # All explicitly False = blacklist everything
-        result = _resolve_checks(
-            lateimports=False, dynamic_imports=False, module_all=False, package_all=False
+        all_checks = {"lateimports", "dynamic_imports", "module_all", "package_all"}
+        result = resolve_checks(
+            all_checks,
+            lateimports=False,
+            dynamic_imports=False,
+            module_all=False,
+            package_all=False,
         )
         assert result == set()
 
     def test_blacklist_mode_reduces_from_all(self):
-        from exportify.commands.check import _resolve_checks
+        from exportify.commands.utils import resolve_checks
 
-        # Some False flags reduce the result from the full set
-        result = _resolve_checks(
-            lateimports=False, dynamic_imports=None, module_all=None, package_all=None
-        )
         all_checks = {"lateimports", "dynamic_imports", "module_all", "package_all"}
-        assert len(result) == 3
-        assert result.issubset(all_checks)
+        result = resolve_checks(
+            all_checks, lateimports=False, dynamic_imports=None, module_all=None, package_all=None
+        )
+        assert result == {"dynamic_imports", "module_all", "package_all"}
 
     def test_true_takes_priority_whitelist_mode(self):
-        """True flag enables whitelist mode, result is a strict subset."""
-        from exportify.commands.check import _resolve_checks
+        """True flag enables whitelist mode, ignoring False flags."""
+        from exportify.commands.utils import resolve_checks
 
-        result = _resolve_checks(
-            lateimports=True, dynamic_imports=False, module_all=None, package_all=None
-        )
         all_checks = {"lateimports", "dynamic_imports", "module_all", "package_all"}
-        # Whitelist mode: exactly one element returned (only the True position mapped)
-        assert len(result) == 1
-        assert result.issubset(all_checks)
+        result = resolve_checks(
+            all_checks, lateimports=True, dynamic_imports=False, module_all=None, package_all=None
+        )
+        assert result == {"lateimports"}
 
 
 class TestResolveFixChecks:
     """Test fix check resolution logic."""
 
     def test_all_none_returns_all_fix_checks(self):
-        from exportify.commands.fix import _resolve_fix_checks
+        from exportify.commands.utils import resolve_checks
 
-        result = _resolve_fix_checks(dynamic_imports=None, module_all=None, package_all=None)
-        assert result == {"dynamic_imports", "module_all", "package_all"}
+        all_checks = {"dynamic_imports", "module_all", "package_all"}
+        result = resolve_checks(all_checks, dynamic_imports=None, module_all=None, package_all=None)
+        assert result == all_checks
 
     def test_one_true_whitelist_returns_subset(self):
-        from exportify.commands.fix import _resolve_fix_checks
+        from exportify.commands.utils import resolve_checks
 
-        # Whitelist mode returns exactly one check (due to set zip ordering may differ)
-        result = _resolve_fix_checks(dynamic_imports=True, module_all=None, package_all=None)
-        all_fix_checks = {"dynamic_imports", "module_all", "package_all"}
-        assert len(result) == 1
-        assert result.issubset(all_fix_checks)
+        all_checks = {"dynamic_imports", "module_all", "package_all"}
+        result = resolve_checks(all_checks, dynamic_imports=True, module_all=None, package_all=None)
+        assert result == {"dynamic_imports"}
 
     def test_one_false_blacklist_reduces_set(self):
-        from exportify.commands.fix import _resolve_fix_checks
+        from exportify.commands.utils import resolve_checks
 
-        result = _resolve_fix_checks(dynamic_imports=False, module_all=None, package_all=None)
-        all_fix_checks = {"dynamic_imports", "module_all", "package_all"}
-        assert len(result) == 2
-        assert result.issubset(all_fix_checks)
+        all_checks = {"dynamic_imports", "module_all", "package_all"}
+        result = resolve_checks(
+            all_checks, dynamic_imports=False, module_all=None, package_all=None
+        )
+        assert result == {"module_all", "package_all"}
 
     def test_all_false_returns_empty(self):
-        from exportify.commands.fix import _resolve_fix_checks
+        from exportify.commands.utils import resolve_checks
 
-        result = _resolve_fix_checks(dynamic_imports=False, module_all=False, package_all=False)
+        all_checks = {"dynamic_imports", "module_all", "package_all"}
+        result = resolve_checks(
+            all_checks, dynamic_imports=False, module_all=False, package_all=False
+        )
         assert result == set()
 
 
@@ -746,34 +737,34 @@ class TestDoctorCommand:
 
 @pytest.mark.integration
 class TestStatusCommand:
-    """Test status command."""
+    """Test doctor --short command (the new status)."""
 
     def test_status_runs(self):
-        """status command executes without error."""
-        exit_code, _stdout, stderr = run_cli("status")
+        """doctor --short executes without error."""
+        exit_code, _stdout, stderr = run_cli("doctor", "--short")
         assert exit_code == 0, f"Failed: {stderr}"
 
     def test_status_verbose(self):
-        """status --verbose shows more information."""
-        exit_code, _stdout, stderr = run_cli("status", "--verbose")
+        """doctor (full) executes without error."""
+        exit_code, _stdout, stderr = run_cli("doctor")
         assert exit_code == 0, f"Failed: {stderr}"
 
     def test_status_help(self):
-        exit_code, _stdout, _ = run_cli("status", "--help")
+        exit_code, _stdout, _ = run_cli("doctor", "--help")
         assert exit_code == 0
 
 
 @pytest.mark.integration
 class TestClearCacheCommand:
-    """Test clear-cache command."""
+    """Test cache clear command."""
 
     def test_clear_cache_runs(self):
-        """clear-cache command executes without error."""
-        exit_code, _stdout, stderr = run_cli("clear-cache")
+        """cache clear executes without error."""
+        exit_code, _stdout, stderr = run_cli("cache", "clear")
         assert exit_code == 0, f"Failed: {stderr}"
 
     def test_clear_cache_help(self):
-        exit_code, _stdout, _ = run_cli("clear-cache", "--help")
+        exit_code, _stdout, _ = run_cli("cache", "clear", "--help")
         assert exit_code == 0
 
 
@@ -904,86 +895,72 @@ class TestCheckCommandExtended:
 
 
 @pytest.mark.integration
-class TestFixCommandExtended:
-    """Extended tests for the fix command."""
+class TestSyncCommandExtended:
+    """Extended tests for the sync command (formerly generate and fix)."""
 
-    def test_fix_verbose(self, tmp_path):
-        """fix --verbose shows detailed output."""
+    def test_sync_verbose(self, tmp_path):
+        """sync --verbose shows detailed output."""
         pkg = tmp_path / "pkg"
         pkg.mkdir()
         (pkg / "__init__.py").write_text("")
         (pkg / "mod.py").write_text("class Foo: pass")
 
-        exit_code, _, stderr = run_cli("fix", "--source", str(tmp_path), "--verbose")
+        exit_code, _, stderr = run_cli("sync", "--source", str(tmp_path), "--verbose")
         assert exit_code == 0, f"Failed: {stderr}"
 
-    def test_fix_package_all_dry_run(self, tmp_path):
-        """fix --package-all --dry-run works."""
+    def test_sync_package_all_dry_run(self, tmp_path):
+        """sync --package-all --dry-run works."""
         pkg = tmp_path / "pkg"
         pkg.mkdir()
         (pkg / "__init__.py").write_text("")
         (pkg / "mod.py").write_text("class Foo: pass")
 
         exit_code, _, stderr = run_cli(
-            "fix", "--source", str(tmp_path), "--package-all", "--dry-run"
+            "sync", "--source", str(tmp_path), "--package-all", "--dry-run"
         )
         assert exit_code == 0, f"Failed: {stderr}"
 
-    def test_fix_dynamic_imports_dry_run(self, tmp_path):
-        """fix --dynamic-imports --dry-run works."""
-        pkg = tmp_path / "pkg"
+    def test_sync_all_in_sync_message(self, tmp_path):
+        """sync reports 'already in sync' when nothing to change."""
+        src = tmp_path / "src"
+        src.mkdir()
+        pkg = src / "pkg"
         pkg.mkdir()
         (pkg / "__init__.py").write_text("")
         (pkg / "mod.py").write_text("class Foo: pass")
 
-        exit_code, _, stderr = run_cli(
-            "fix", "--source", str(tmp_path), "--dynamic-imports", "--dry-run"
-        )
-        assert exit_code == 0, f"Failed: {stderr}"
+        # First sync to get it in sync
+        run_cli("sync", "--source", str(src))
 
-    def test_fix_all_in_sync_message(self, tmp_path):
-        """fix reports 'in sync' when nothing to change."""
-        pkg = tmp_path / "pkg"
-        pkg.mkdir()
-        (pkg / "__init__.py").write_text("")
-        (pkg / "mod.py").write_text("class Foo: pass")
-
-        exit_code, _stdout, _ = run_cli(
-            "fix", "--source", str(tmp_path), "--module-all", "--dry-run"
-        )
+        # Second sync should report success
+        exit_code, stdout, _ = run_cli("sync", "--source", str(src), "--dry-run")
         assert exit_code == 0
+        assert "completed successfully" in stdout.lower()
 
-
-@pytest.mark.integration
-class TestGenerateCommandExtended:
-    """Extended tests for the generate command."""
-
-    def test_generate_with_module_flag(self, tmp_path):
-        """generate --module targets specific module."""
+    def test_sync_with_path_arg(self, tmp_path):
+        """sync with positional path targets specific path."""
         pkg = tmp_path / "pkg"
         pkg.mkdir()
         (pkg / "mod.py").write_text("class Foo: pass")
 
-        exit_code, _, stderr = run_cli("generate", "--source", str(tmp_path), "--module", str(pkg))
+        exit_code, _, stderr = run_cli("sync", str(pkg), "--source", str(tmp_path))
         assert exit_code == 0, f"Failed: {stderr}"
 
-    def test_generate_with_output_dir(self, tmp_path):
-        """generate --output directs output to another directory."""
+    def test_sync_with_output_dir(self, tmp_path):
+        """sync --output directs output to another directory."""
         pkg = tmp_path / "pkg"
         pkg.mkdir()
         (pkg / "mod.py").write_text("class Foo: pass")
         out_dir = tmp_path / "out"
         out_dir.mkdir()
 
-        exit_code, _, stderr = run_cli(
-            "generate", "--source", str(tmp_path), "--output", str(out_dir)
-        )
+        exit_code, _, stderr = run_cli("sync", "--source", str(tmp_path), "--output", str(out_dir))
         assert exit_code == 0, f"Failed: {stderr}"
 
-    def test_generate_nonexistent_source_exits_nonzero(self, tmp_path):
-        """generate exits non-zero when source doesn't exist."""
+    def test_sync_nonexistent_source_exits_nonzero(self, tmp_path):
+        """sync exits non-zero when source doesn't exist."""
         nonexistent = tmp_path / "nonexistent_src"
-        exit_code, _, _ = run_cli("generate", "--source", str(nonexistent))
+        exit_code, _, _ = run_cli("sync", "--source", str(nonexistent))
         assert exit_code != 0
 
 

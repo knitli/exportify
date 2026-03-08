@@ -127,6 +127,7 @@ addopts = [
   "--cov-report=html",
   "--cov-report=term-missing",
   "--cov=exportify",
+  "--import-mode=importlib",
   "-ra",
   "-v",
 ]
@@ -137,8 +138,9 @@ filterwarnings = [
 ]
 minversion = "9.0"
 python_classes = ["Test*"]
-python_files = ["test_*.py"]
+python_files = ["*_test.py", "test_*.py"]
 python_functions = ["test_*"]
+pythonpath = ["./src"]
 testpaths = ["tests"]
 
 [tool.ty.environment]

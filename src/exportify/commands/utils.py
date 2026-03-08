@@ -49,15 +49,14 @@ def get_all_source_roots(source_override: Path | None = None) -> list[Path]:
     source_root = source_override or detect_source_root()
     additional_source_roots: list[Path] = []
 
-    config_path = find_config_file()
-    if config_path:
+    if config_path := find_config_file():
         config = load_config(config_path)
         additional_source_roots = config.project.additional_source_paths
 
     return [source_root, *additional_source_roots]
 
 
-def load_config_and_rules(verbose: bool = False) -> tuple[RuleEngine, ExportifyConfig | None]:
+def load_config_and_rules(*, verbose: bool = False) -> tuple[RuleEngine, ExportifyConfig | None]:
     """Load config and rules, falling back to defaults if not found."""
     rules = RuleEngine()
     config_path = find_config_file()
@@ -66,7 +65,21 @@ def load_config_and_rules(verbose: bool = False) -> tuple[RuleEngine, ExportifyC
     if config_path is None:
         if verbose:
             print_warning(f"No config file found (set {CONFIG_ENV_VAR} or create .exportify.yaml)")
-            print_info("Using default rules")
+            print_info("Using built-in default rules")
+
+        # Load bundled default rules
+        try:
+            import importlib.resources as pkg_resources
+
+            from exportify import rules as rules_pkg
+
+            with pkg_resources.as_file(
+                pkg_resources.files(rules_pkg) / "default_rules.yaml"
+            ) as default_rules_path:
+                rules.load_rules([default_rules_path])
+        except Exception as e:
+            if verbose:
+                print_error(f"Failed to load built-in default rules: {e}")
     else:
         rules.load_rules([config_path])
         config = load_config(config_path)

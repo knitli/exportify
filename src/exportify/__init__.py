@@ -63,7 +63,7 @@ if TYPE_CHECKING:
     from exportify.analysis.ast_parser import ASTParser
     from exportify.cli import main
     from exportify.common.cache import CircuitBreaker, CircuitState, JSONAnalysisCache
-    from exportify.common.config import ExportifyConfig, SpdxConfig
+    from exportify.common.config import ExportifyConfig, ProjectConfig, SpdxConfig
     from exportify.common.snapshot import SnapshotEntry, SnapshotManager, SnapshotManifest
     from exportify.common.types import (
         AnalysisResult,
@@ -125,10 +125,12 @@ if TYPE_CHECKING:
     from exportify.utils import (
         detect_lateimport_dependency,
         detect_source_root,
+        find_project_name,
         format_content,
         format_file,
         formatting_tools_available,
         locate_project_root,
+        write_gitignore_patterns,
     )
     from exportify.validator.consistency import ConsistencyChecker
     from exportify.validator.resolver import ImportResolver
@@ -174,6 +176,7 @@ _dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({
     "ParsedSections": (__spec__.parent, "export_manager.section_parser"),
     "Pipeline": (__spec__.parent, "pipeline"),
     "PipelineStats": (__spec__.parent, "pipeline"),
+    "ProjectConfig": (__spec__.parent, "common.config"),
     "PropagationGraph": (__spec__.parent, "export_manager.graph"),
     "PropagationLevel": (__spec__.parent, "common.types"),
     "Rule": (__spec__.parent, "common.types"),
@@ -203,6 +206,7 @@ _dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({
     "cli_init": (__spec__.parent, "migration"),
     "detect_lateimport_dependency": (__spec__.parent, "utils"),
     "detect_source_root": (__spec__.parent, "utils"),
+    "find_project_name": (__spec__.parent, "utils"),
     "format_content": (__spec__.parent, "utils"),
     "format_file": (__spec__.parent, "utils"),
     "formatting_tools_available": (__spec__.parent, "utils"),
@@ -211,6 +215,7 @@ _dynamic_imports: MappingProxyType[str, tuple[str, str]] = MappingProxyType({
     "main": (__spec__.parent, "cli"),
     "migrate_to_yaml": (__spec__.parent, "migration"),
     "verify_migration": (__spec__.parent, "migration"),
+    "write_gitignore_patterns": (__spec__.parent, "utils"),
 })
 
 __getattr__ = create_late_getattr(_dynamic_imports, globals(), __name__)
@@ -257,6 +262,7 @@ __all__ = (
     "ParsedSections",
     "Pipeline",
     "PipelineStats",
+    "ProjectConfig",
     "PropagationGraph",
     "PropagationLevel",
     "Rule",
@@ -285,6 +291,7 @@ __all__ = (
     "cli_init",
     "detect_lateimport_dependency",
     "detect_source_root",
+    "find_project_name",
     "format_content",
     "format_file",
     "formatting_tools_available",
@@ -292,6 +299,7 @@ __all__ = (
     "main",
     "migrate_to_yaml",
     "verify_migration",
+    "write_gitignore_patterns",
 )
 
 
