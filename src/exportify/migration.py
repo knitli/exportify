@@ -332,8 +332,8 @@ def _rule_from_yaml(rule_dict: dict) -> ExtractedRule:
 
 
 def _load_init_template() -> tuple[str, list[ExtractedRule]]:
-    """Read the bundled init template and parse it into ExtractedRule objects."""
-    template_path = Path(__file__).parent / "rules" / "init_template.yaml"
+    """Read the bundled default rules template and parse it into ExtractedRule objects."""
+    template_path = Path(__file__).parent / "rules" / "default_rules.yaml"
     yaml_content = template_path.read_text(encoding="utf-8")
     data = yaml.safe_load(yaml_content)
     rules = [_rule_from_yaml(r) for r in data.get("rules", [])]
@@ -385,7 +385,7 @@ def migrate_to_yaml(
 ) -> MigrationResult:
     """Generate default exportify configuration and optionally write it.
 
-    Loads the bundled ``init_template.yaml`` — the full default rule set with
+    Loads the bundled ``default_rules.yaml`` — the full default rule set with
     correct propagation settings — and writes it to ``output_path``.
 
     Args:
