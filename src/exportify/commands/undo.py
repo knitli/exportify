@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Knitli Inc.
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
-"""Implementation of the ``undo`` command — restores files from the last fix snapshot."""
+"""Implementation of the ``undo`` command — restores files from the last sync snapshot."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from exportify.commands.utils import CONSOLE, print_info, print_success, print_w
 from exportify.common.snapshot import SnapshotManager
 
 
-UndoCommand = App(console=CONSOLE)
+UndoCommand = App("undo", help="Restore files from the last sync run", console=CONSOLE)
 
 
 @UndoCommand.default
@@ -22,10 +22,10 @@ def undo(
     *paths: Annotated[Path, Parameter(help="Files or directories to restore (default: all)")],
     verbose: Annotated[bool, Parameter(help="Show each restored file")] = False,
 ) -> None:
-    """Restore files modified by the last fix run.
+    """Restore files modified by the last sync run.
 
-    Reads the snapshot taken before the most recent ``fix`` run and
-    restores the original content.  Idempotent — safe to run multiple times.
+    Reads the snapshot taken before the most recent ``sync`` run and
+    restores the original content. Idempotent — safe to run multiple times.
 
     If paths are given, only matching files are restored.
 
@@ -37,7 +37,7 @@ def undo(
     manager = SnapshotManager()
 
     if not manager.has_snapshot():
-        print_warning("No snapshot found — run `exportify fix` first to create one.")
+        print_warning("No snapshot found — run `exportify sync` first to create one.")
         return
 
     path_list = list(paths) or None

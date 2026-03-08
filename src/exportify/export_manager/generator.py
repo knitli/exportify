@@ -214,8 +214,9 @@ class CodeGenerator:
         if target.exists():
             manual_section = self._preserve_manual_section(target.read_text())
 
-        # Generate managed section
-        managed_section = self._generate_managed_section(manifest)
+        # Generate managed section (pass preserved section so we can skip
+        # infrastructure imports that already exist there)
+        managed_section = self._generate_managed_section(manifest, manual_section)
 
         spdx_header = self._spdx_config.build_header() if self._spdx_config else None
         return GeneratedCode.create(
@@ -336,13 +337,76 @@ class CodeGenerator:
         else:
             return parsed.preserved_code
 
-    def _generate_managed_section(self, manifest: ExportManifest) -> str:
+    def _generate_managed_section(self, manifest: ExportManifest, preserved_section: str = "") -> str:
         """Generate the managed section below sentinel, dispatching on output style."""
         if self._output_style == "barrel":
-            return self._generate_barrel_managed_section(manifest)
-        return self._generate_lazy_managed_section(manifest)
+            return self._generate_barrel_managed_section(manifest, preserved_section)
+        return self._generate_lazy_managed_section(manifest, preserved_section)
 
-    def _generate_lazy_managed_section(self, manifest: ExportManifest) -> str:
+    def _has_preserved_definition(self, preserved_section: str, name: str) -> bool:
+        """Return True if the preserved section defines *name* at the top level.
+
+        Checks for:
+        - Function definitions: ``def name(...)``
+        - Assignments: ``name = ...`` or ``name: type = ...``
+
+        Used to avoid emitting duplicate ``__dir__`` or ``__getattr__`` when the
+        user has written their own implementation in the preserved (non-managed)
+        block.
+
+        Args:
+            preserved_section: The preserved code above the sentinel.
+            name: Identifier to look for (e.g. ``"__dir__"``, ``"__getattr__"``).
+
+        Returns:
+            ``True`` if *name* is defined at module scope in the preserved section.
+        """
+        if not preserved_section:
+            return False
+        with contextlib.suppress(SyntaxError, Exception):
+            tree = ast.parse(preserved_section)
+            for node in tree.body:
+                if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name == name:
+                    return True
+                if isinstance(node, ast.Assign):
+                    if any(
+                        isinstance(t, ast.Name) and t.id == name for t in node.targets
+                    ):
+                        return True
+                if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                    if node.target.id == name:
+                        return True
+        return False
+
+    def _get_preserved_runtime_imports(self, preserved_section: str) -> set[tuple[str, str]]:
+        """Return (module, accessible_name) pairs for top-level imports in preserved_section.
+
+        Only top-level (non-conditional) imports are considered — these are the names
+        available in the module's runtime namespace.  Imports inside ``if TYPE_CHECKING:``
+        or other conditional blocks are not included.
+
+        Used to avoid emitting duplicate infrastructure imports when the user's preserved
+        code already imports the same name (e.g., ``from types import MappingProxyType``).
+        """
+        if not preserved_section:
+            return set()
+        found: set[tuple[str, str]] = set()
+        with contextlib.suppress(SyntaxError, Exception):
+            tree = ast.parse(preserved_section)
+            for node in tree.body:
+                if isinstance(node, ast.ImportFrom) and node.module:
+                    for alias in node.names:
+                        accessible = alias.asname if alias.asname else alias.name
+                        found.add((node.module, accessible))
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        accessible = alias.asname if alias.asname else alias.name
+                        found.add((alias.name, accessible))
+        return found
+
+    def _generate_lazy_managed_section(
+        self, manifest: ExportManifest, preserved_section: str = ""
+    ) -> str:
         """Generate the managed section using lazy lateimport pattern."""
         # Sort exports using the custom sort key
         all_exports = sorted(manifest.all_exports, key=lambda x: _export_sort_key(x.public_name))
@@ -361,25 +425,56 @@ class CodeGenerator:
         if not prop_exports:
             # All exports are defined directly in this __init__.py.  No lazy
             # import machinery is needed; just emit __all__ and __dir__.
-            parts = [
-                self._generate_all_tuple(all_exports),
-                "",
-                "def __dir__() -> list[str]:",
-                '    """List available attributes for the package."""',
-                "    return list(__all__)",
-            ]
+            parts = [self._generate_all_tuple(all_exports)]
+            if not self._has_preserved_definition(preserved_section, "__dir__"):
+                parts.extend([
+                    "",
+                    "def __dir__() -> list[str]:",
+                    '    """List available attributes for the package."""',
+                    "    return list(__all__)",
+                ])
             return "\n".join(parts)
 
+        # Determine which infrastructure imports are already in the preserved section
+        # so we don't emit duplicate imports.
+        preserved_runtime = self._get_preserved_runtime_imports(preserved_section)
+        has_preserved_getattr = self._has_preserved_definition(preserved_section, "__getattr__")
+        has_preserved_dir = self._has_preserved_definition(preserved_section, "__dir__")
+        needs_type_checking = ("typing", "TYPE_CHECKING") not in preserved_runtime
+        needs_mapping_proxy = ("types", "MappingProxyType") not in preserved_runtime
+        # Only import create_late_getattr if we're actually going to emit __getattr__
+        needs_create_late_getattr = (
+            not has_preserved_getattr
+            and ("lateimport", "create_late_getattr") not in preserved_runtime
+        )
+
         type_lines = self._generate_type_checking_imports(prop_exports)
-        parts = [
-            "from typing import TYPE_CHECKING",
-            "from types import MappingProxyType",
-            "",
-            "from lateimport import create_late_getattr",
-            "",
+
+        # Build infrastructure import lines (two groups, separated by a blank line).
+        infra_group1 = []
+        if needs_type_checking:
+            infra_group1.append("from typing import TYPE_CHECKING")
+        if needs_mapping_proxy:
+            infra_group1.append("from types import MappingProxyType")
+
+        infra_group2 = []
+        if needs_create_late_getattr:
+            infra_group2.append("from lateimport import create_late_getattr")
+
+        parts: list[str] = []
+        if infra_group1:
+            parts.extend(infra_group1)
+        if infra_group2:
+            if parts:
+                parts.append("")
+            parts.extend(infra_group2)
+        if parts:
+            parts.append("")
+
+        parts.extend([
             "if TYPE_CHECKING:",
             *[f"    {line}" for line in type_lines],
-        ]
+        ])
         # 3. _dynamic_imports dictionary (MappingProxyType wrapper)
         # Only for propagated (submodule) runtime exports — never for symbols
         # defined directly in __init__.py, which are already in the namespace.
@@ -399,20 +494,30 @@ class CodeGenerator:
 
         parts.append("})")
 
+        if not has_preserved_getattr:
+            parts.extend([
+                "",
+                "__getattr__ = create_late_getattr(_dynamic_imports, globals(), __name__)",
+            ])
+
         parts.extend([
-            "",
-            "__getattr__ = create_late_getattr(_dynamic_imports, globals(), __name__)",
             "",
             # __all__ covers ALL exports: own (directly defined) + propagated (lazy)
             self._generate_all_tuple(all_exports),
-            "",
-            "def __dir__() -> list[str]:",
-            '    """List available attributes for the package."""',
-            "    return list(__all__)",
         ])
+
+        if not has_preserved_dir:
+            parts.extend([
+                "",
+                "def __dir__() -> list[str]:",
+                '    """List available attributes for the package."""',
+                "    return list(__all__)",
+            ])
         return "\n".join(parts)
 
-    def _generate_barrel_managed_section(self, manifest: ExportManifest) -> str:
+    def _generate_barrel_managed_section(
+        self, manifest: ExportManifest, preserved_section: str = ""
+    ) -> str:
         """Generate the managed section using barrel (direct import) pattern.
 
         Produces ``from .<module> import Name`` style imports instead of lazy
@@ -421,6 +526,8 @@ class CodeGenerator:
 
         Args:
             manifest: Export manifest describing what to expose.
+            preserved_section: Code in the preserved (non-managed) section.
+                Used to avoid emitting duplicate ``__dir__`` definitions.
 
         Returns:
             Formatted string for the managed section (without the sentinel
@@ -446,14 +553,15 @@ class CodeGenerator:
             parts.append("")
             parts.extend(self._barrel_import_lines(runtime, manifest.module_path, indent=""))
 
-        parts.extend([
-            "",
-            self._generate_all_tuple(exports),
-            "",
-            "def __dir__() -> list[str]:",
-            '    """List available attributes for the package."""',
-            "    return list(__all__)",
-        ])
+        parts.extend(["", self._generate_all_tuple(exports)])
+
+        if not self._has_preserved_definition(preserved_section, "__dir__"):
+            parts.extend([
+                "",
+                "def __dir__() -> list[str]:",
+                '    """List available attributes for the package."""',
+                "    return list(__all__)",
+            ])
         return "\n".join(parts)
 
     def _barrel_import_lines(

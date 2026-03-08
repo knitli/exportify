@@ -15,15 +15,18 @@ from cyclopts import App, Parameter
 from exportify.commands.utils import (
     CONSOLE,
     collect_py_files,
+    get_all_source_roots,
+    load_config_and_rules,
     load_rules,
     path_to_module,
     print_error,
     print_info,
     print_success,
     print_warning,
+    resolve_checks,
 )
 from exportify.common.cache import JSONAnalysisCache
-from exportify.common.config import SpdxConfig, find_config_file, load_config
+from exportify.common.config import SpdxConfig
 from exportify.common.snapshot import SnapshotManager
 from exportify.export_manager import ModuleAllFixResult, RuleEngine
 from exportify.export_manager.module_all import fix_module_all
@@ -32,22 +35,6 @@ from exportify.utils import detect_source_root, format_file, locate_project_root
 
 
 FixCommand = App(console=CONSOLE)
-
-
-def _resolve_fix_checks(
-    *, dynamic_imports: bool | None, module_all: bool | None, package_all: bool | None
-) -> set[str]:
-    """Resolve which fix operations to run given bool|None flags.
-
-    Same logic as _resolve_checks but for the fix command (no lateimports).
-    """
-    all_checks = {"dynamic_imports", "module_all", "package_all"}
-    flag_values = [dynamic_imports, module_all, package_all]
-    explicit_true = {k for k, v in zip(all_checks, flag_values, strict=True) if v is True}
-    explicit_false = {k for k, v in zip(all_checks, flag_values, strict=True) if v is False}
-    if explicit_true:
-        return explicit_true
-    return all_checks - explicit_false if explicit_false else all_checks
 
 
 def _report_module_all_dry_run(py_file: Path, result: ModuleAllFixResult) -> None:
@@ -197,8 +184,11 @@ def fix(
         exportify fix --module-all
         exportify fix src/mypackage/core
     """
-    fixes_to_run = _resolve_fix_checks(
-        dynamic_imports=dynamic_imports, module_all=module_all, package_all=package_all
+    fixes_to_run = resolve_checks(
+        {"dynamic_imports", "module_all", "package_all"},
+        dynamic_imports=dynamic_imports,
+        module_all=module_all,
+        package_all=package_all,
     )
 
     print_info("Dry run mode — no files will be written") if dry_run else print_info(
@@ -207,18 +197,11 @@ def fix(
     CONSOLE.print()
 
     source_root = source or detect_source_root()
-    rules = load_rules(verbose=verbose)
+    rules, config = load_config_and_rules(verbose=verbose)
 
     # Load config for spdx and additional source roots
-    spdx_config: SpdxConfig | None = None
-    additional_source_roots: list[Path] = []
-    config_path = find_config_file()
-    if config_path is not None:
-        loaded_config = load_config(config_path)
-        spdx_config = loaded_config.spdx
-        additional_source_roots = loaded_config.project.additional_source_paths
-
-    all_source_roots = [source_root, *additional_source_roots]
+    spdx_config: SpdxConfig | None = config.spdx if config else None
+    all_source_roots = get_all_source_roots(source)
 
     # Collect all files upfront (for snapshot and per-root routing)
     if paths:

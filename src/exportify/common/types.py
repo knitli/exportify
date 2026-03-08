@@ -356,6 +356,7 @@ class AnalysisResult:
     file_hash: str  # SHA-256 of file content
     analysis_timestamp: float
     schema_version: str  # For cache invalidation
+    declared_all: list[str] | None = None  # Names in __all__ if declared, else None
 
 
 @dataclass(frozen=True)

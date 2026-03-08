@@ -22,7 +22,8 @@ from rich.panel import Panel
 
 from exportify.commands.utils import (
     CONSOLE,
-    find_config_file,
+    get_all_source_roots,
+    load_config_and_rules,
     print_error,
     print_info,
     print_success,
@@ -127,7 +128,7 @@ def _run_pipeline_for_root(
 
 @GenerateCommand.default
 def generate(
-    module: Annotated[Path | None, Parameter(help="Limit generation to this path")] = None,
+    *paths: Annotated[Path, Parameter(help="Files or directories to limit generation to")],
     source: Annotated[Path | None, Parameter(help="Source root directory")] = None,
     output: Annotated[
         Path | None, Parameter(help="Output directory (default: same as source)")
@@ -146,13 +147,16 @@ def generate(
     - lateimport() calls for lazy loading (or barrel imports if configured)
     - TYPE_CHECKING imports where appropriate
 
+    Pass one or more paths to limit generation to specific modules or packages.
+    Omit paths to process the entire project.
+
     Use `fix` to make targeted updates — syncing __all__ and _dynamic_imports
     without re-running the full pipeline.
 
     Examples:
         exportify generate
         exportify generate --dry-run
-        exportify generate --module src/mypackage/core
+        exportify generate src/mypackage/core
         exportify generate --source src/mypackage --output /tmp/test
     """
 
@@ -161,7 +165,7 @@ def generate(
         raise SystemExit(1)
 
     from exportify.common.cache import JSONAnalysisCache
-    from exportify.common.config import ExportifyConfig, load_config
+    from exportify.common.config import load_config
 
     source_root = source or detect_source_root()
 
@@ -170,27 +174,22 @@ def generate(
 
     # Load rules
     print_info("Loading export rules...")
-    rules = RuleEngine()
-    rules_path = find_config_file()
+    rules, config = load_config_and_rules(verbose=False)
 
-    config: ExportifyConfig | None = None
     spdx_config: SpdxConfig | None = None
-    if rules_path is None:
+    if config is None:
         print_warning(f"No config file found (set {CONFIG_ENV_VAR} or create .exportify.yaml)")
         print_info("Using default rules")
         output_style_value = "lazy"
     else:
-        rules.load_rules([rules_path])
-        print_success(f"Loaded rules from {rules_path}")
-        config = load_config(rules_path)
+        print_success("Loaded rules and configuration")
         output_style_value = config.output_style.value
         spdx_config = config.spdx
 
     CONSOLE.print()
 
     # Collect all source roots: primary + any additional from config
-    additional_source_roots: list[Path] = config.project.additional_source_paths if config else []
-    all_source_roots = [source_root, *additional_source_roots]
+    all_source_roots = get_all_source_roots(source)
 
     # Set up shared cache
     cache = JSONAnalysisCache()
@@ -201,26 +200,47 @@ def generate(
         CONSOLE.print()
 
     # Execute pipeline for each source root
-    if module:
-        print_info(f"Filtering to module: {module}")
+    if paths:
+        print_info(f"Filtering to paths: {', '.join(str(p) for p in paths)}")
         CONSOLE.print()
 
     exclude_paths: list[str] = config.exclude_paths if config else []
 
     for root in all_source_roots:
-        _run_pipeline_for_root(
-            root=root,
-            source_root=source_root,
-            output=output,
-            module=module,
-            rules=rules,
-            cache=cache,
-            output_style_value=output_style_value,
-            spdx_config=spdx_config,
-            exclude_paths=exclude_paths,
-            dry_run=dry_run,
-            raise_exit=_raise_system_exit,
-        )
+        root_paths = [p for p in paths if p.is_relative_to(root) or p.resolve().is_relative_to(root.resolve())]
+
+        if paths and not root_paths:
+            continue
+
+        if not root_paths:
+            _run_pipeline_for_root(
+                root=root,
+                source_root=source_root,
+                output=output,
+                module=None,
+                rules=rules,
+                cache=cache,
+                output_style_value=output_style_value,
+                spdx_config=spdx_config,
+                exclude_paths=exclude_paths,
+                dry_run=dry_run,
+                raise_exit=_raise_system_exit,
+            )
+        else:
+            for mod_path in root_paths:
+                _run_pipeline_for_root(
+                    root=root,
+                    source_root=source_root,
+                    output=output,
+                    module=mod_path,
+                    rules=rules,
+                    cache=cache,
+                    output_style_value=output_style_value,
+                    spdx_config=spdx_config,
+                    exclude_paths=exclude_paths,
+                    dry_run=dry_run,
+                    raise_exit=_raise_system_exit,
+                )
 
 
 if __name__ == "__main__":

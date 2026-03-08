@@ -12,21 +12,68 @@ from pathlib import Path
 from rich.console import Console
 from rich.panel import Panel
 
-from exportify.common.config import CONFIG_ENV_VAR, find_config_file
+from exportify.common.config import CONFIG_ENV_VAR, ExportifyConfig, find_config_file, load_config
 from exportify.export_manager import RuleEngine
+from exportify.types import ValidationReport
 from exportify.utils import detect_source_root, locate_project_root
 
 
 logger = logging.getLogger(__name__)
 
 
-from exportify.types import ValidationReport
-
-
 CONSOLE = Console(markup=True)
 
 
 DEFAULT_CONFIG_PATH = locate_project_root() / ".exportify" / "config.yaml"
+
+
+def resolve_checks(all_checks: set[str], **flags: bool | None) -> set[str]:
+    """Resolve which checks to run given bool|None flags.
+
+    Logic:
+    - If ANY flag is True (explicitly given) → whitelist mode: only run those checks.
+    - If ONLY False flags (--no-X) → blacklist mode: run everything except those.
+    - If all None (no flags given) → run all checks.
+    """
+    explicit_true = {k for k, v in flags.items() if v is True}
+    explicit_false = {k for k, v in flags.items() if v is False}
+
+    if explicit_true:
+        return explicit_true
+
+    return all_checks - explicit_false if explicit_false else all_checks
+
+
+def get_all_source_roots(source_override: Path | None = None) -> list[Path]:
+    """Get all source roots: primary (detected or overridden) + additional from config."""
+    source_root = source_override or detect_source_root()
+    additional_source_roots: list[Path] = []
+
+    config_path = find_config_file()
+    if config_path:
+        config = load_config(config_path)
+        additional_source_roots = config.project.additional_source_paths
+
+    return [source_root, *additional_source_roots]
+
+
+def load_config_and_rules(verbose: bool = False) -> tuple[RuleEngine, ExportifyConfig | None]:
+    """Load config and rules, falling back to defaults if not found."""
+    rules = RuleEngine()
+    config_path = find_config_file()
+    config: ExportifyConfig | None = None
+
+    if config_path is None:
+        if verbose:
+            print_warning(f"No config file found (set {CONFIG_ENV_VAR} or create .exportify.yaml)")
+            print_info("Using default rules")
+    else:
+        rules.load_rules([config_path])
+        config = load_config(config_path)
+        if verbose:
+            print_success(f"Loaded rules from {config_path}")
+
+    return rules, config
 
 
 def print_success(message: str) -> None:
@@ -187,18 +234,7 @@ def print_output_validation_concise(results: ValidationReport) -> None:
 
 def load_rules(verbose: bool = False) -> RuleEngine:  # noqa: FBT001
     """Load rules from config file, falling back to defaults."""
-    rules = RuleEngine()
-    rules_path = find_config_file()
-
-    if rules_path is None:
-        if verbose:
-            print_warning(f"No config file found (set {CONFIG_ENV_VAR} or create .exportify.yaml)")
-            print_info("Using default rules")
-    else:
-        rules.load_rules([rules_path])
-        if verbose:
-            print_success(f"Loaded rules from {rules_path}")
-
+    rules, _ = load_config_and_rules(verbose=verbose)
     return rules
 
 
@@ -248,6 +284,8 @@ __all__ = (
     "CONSOLE",
     "DEFAULT_CONFIG_PATH",
     "collect_py_files",
+    "get_all_source_roots",
+    "load_config_and_rules",
     "load_rules",
     "path_to_module",
     "print_error",
@@ -258,4 +296,5 @@ __all__ = (
     "print_success",
     "print_validation_results",
     "print_warning",
+    "resolve_checks",
 )

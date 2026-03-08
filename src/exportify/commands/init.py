@@ -21,7 +21,7 @@ from exportify.commands.utils import (
 )
 
 
-InitCommand = App(console=CONSOLE)
+InitCommand = App("init", help="Initialize Exportify in a project", console=CONSOLE)
 
 
 @InitCommand.default

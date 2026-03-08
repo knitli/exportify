@@ -270,6 +270,7 @@ class JSONAnalysisCache:
             file_hash=analysis_data.get("file_hash", file_hash),
             analysis_timestamp=analysis_data.get("analysis_timestamp", 0.0),
             schema_version=analysis_data.get("schema_version", "1.0"),
+            declared_all=analysis_data.get("declared_all"),
         )
 
     def get(self, file_path: Path, file_hash: str) -> AnalysisResult | None:

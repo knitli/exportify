@@ -15,6 +15,7 @@ from cyclopts import App, Parameter
 from exportify.commands.utils import (
     CONSOLE,
     collect_py_files,
+    get_all_source_roots,
     load_rules,
     path_to_module,
     print_error,
@@ -24,34 +25,12 @@ from exportify.commands.utils import (
     print_output_validation_verbose,
     print_success,
     print_warning,
+    resolve_checks,
 )
 from exportify.utils import detect_source_root
 
 
-CheckCommand = App("check", console=CONSOLE)
-
-
-def _resolve_checks(
-    *,
-    lateimports: bool | None,
-    dynamic_imports: bool | None,
-    module_all: bool | None,
-    package_all: bool | None,
-) -> set[str]:
-    """Resolve which checks to run given bool|None flags.
-
-    Logic:
-    - If ANY flag is True (explicitly given) → whitelist mode: only run those checks.
-    - If ONLY False flags (--no-X) → blacklist mode: run everything except those.
-    - If all None (no flags given) → run all checks.
-    """
-    all_checks = {"lateimports", "dynamic_imports", "module_all", "package_all"}
-    flag_values = [lateimports, dynamic_imports, module_all, package_all]
-    explicit_true = {k for k, v in zip(all_checks, flag_values, strict=True) if v is True}
-    explicit_false = {k for k, v in zip(all_checks, flag_values, strict=True) if v is False}
-    if explicit_true:
-        return explicit_true
-    return all_checks - explicit_false if explicit_false else all_checks
+CheckCommand = App("check", help="Validate exports and \\_\\_all\\_\\_ consistency", console=CONSOLE)
 
 
 def _display_all_modifications(result, added: str, removed: str, created: str):
@@ -251,16 +230,16 @@ def check(
     dynamic_imports: Annotated[
         bool | None,
         Parameter(
-            name="dynamic-imports", help="Check _dynamic_imports entries resolve and match __all__"
+            name="dynamic-imports", help="Check \\_dynamic\\_imports entries resolve and match \\_\\_all\\_\\_"
         ),
     ] = None,
     module_all: Annotated[
         bool | None,
-        Parameter(name="module-all", help="Check __all__ against export rules in modules"),
+        Parameter(name="module-all", help="Check \\_\\_all\\_\\_ against export rules in modules"),
     ] = None,
     package_all: Annotated[
         bool | None,
-        Parameter(name="package-all", help="Check __all__ and exports in __init__.py files"),
+        Parameter(name="package-all", help="Check \\_\\_all\\_\\_ and exports in \\_\\_init\\_\\_.py files"),
     ] = None,
     strict: Annotated[bool, Parameter(help="Exit non-zero on warnings")] = False,
     json_output: Annotated[bool, Parameter(name="json", help="Output results as JSON")] = False,
@@ -290,9 +269,9 @@ def check(
         exportify check --json
     """
     from exportify.common.cache import JSONAnalysisCache
-    from exportify.common.config import find_config_file, load_config
 
-    checks_to_run = _resolve_checks(
+    checks_to_run = resolve_checks(
+        {"lateimports", "dynamic_imports", "module_all", "package_all"},
         lateimports=lateimports,
         dynamic_imports=dynamic_imports,
         module_all=module_all,
@@ -307,13 +286,7 @@ def check(
     rules = load_rules(verbose=verbose)
     shared_cache = JSONAnalysisCache()
 
-    # Load additional source roots from config
-    additional_source_roots: list[Path] = []
-    config_path = find_config_file()
-    if config_path:
-        additional_source_roots = load_config(config_path).project.additional_source_paths
-
-    all_source_roots = [source_root, *additional_source_roots]
+    all_source_roots = get_all_source_roots(source)
 
     # Collect explicit files once (when user specified paths)
     explicit_py_files = collect_py_files(paths, source) if paths else []

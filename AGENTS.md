@@ -28,21 +28,15 @@ uv run ty check
 # Run all tests
 uv run pytest
 
-# Run a single test file
-uv run pytest tests/test_rules.py
-
-# Run a specific test
-uv run pytest tests/test_rules.py::test_priority_ordering
-
-# Run with markers
-uv run pytest -m integration
-uv run pytest -m "not benchmark"
-
 # Run the CLI
 uv run exportify --help
-uv run exportify validate
-uv run exportify generate --dry-run
-uv run exportify analyze --module src/mypackage/core
+uv run exportify init         # Initialize project configuration
+uv run exportify check        # Validate exports and __all__ consistency
+uv run exportify sync         # Align project code with export rules
+uv run exportify undo         # Restore files modified by the last sync
+uv run exportify doctor       # Run system and configuration health checks
+uv run exportify cache clear  # Delete cached analysis results
+uv run exportify cache stats  # Show cache statistics
 ```
 
 ## Architecture

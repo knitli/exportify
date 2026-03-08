@@ -76,12 +76,16 @@ class ASTParser:
         # Extract imports as strings for backward compatibility/caching
         imports = self._extract_imports(tree)
 
+        # Extract __all__ names if declared (used by pipeline to filter propagation)
+        declared_all = self._extract_declared_all(tree)
+
         return AnalysisResult(
             symbols=all_symbols,
             imports=imports,
             file_hash=file_hash,
             analysis_timestamp=time.time(),
             schema_version="1.0",
+            declared_all=declared_all,
         )
 
     def _extract_symbols(self, tree: ast.Module, file_path: Path) -> list[DetectedSymbol]:
@@ -390,6 +394,30 @@ class ASTParser:
 
         # Check if it's a known stdlib module or starts with underscore (internal)
         return top_level in common_stdlib or top_level.startswith("_")
+
+    def _extract_declared_all(self, tree: ast.Module) -> list[str] | None:
+        """Extract names from a top-level ``__all__`` assignment, if present.
+
+        Only the first ``__all__ = [...]`` or ``__all__ = (...)`` assignment at
+        module scope is considered.  Dynamic or augmented assignments are ignored.
+
+        Returns:
+            List of names from ``__all__``, or ``None`` if no ``__all__`` found.
+        """
+        for node in tree.body:
+            if (
+                isinstance(node, ast.Assign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+                and node.targets[0].id == "__all__"
+                and isinstance(node.value, ast.List | ast.Tuple)
+            ):
+                return [
+                    elt.value
+                    for elt in node.value.elts
+                    if isinstance(elt, ast.Constant) and isinstance(elt.value, str)
+                ]
+        return None
 
     def _create_symbol(
         self,
