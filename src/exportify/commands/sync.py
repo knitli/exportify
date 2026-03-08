@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Knitli Inc.
+#
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+
 """Implementation of the ``sync`` command for aligning project code with export rules."""
 
 from __future__ import annotations
