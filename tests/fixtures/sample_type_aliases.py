@@ -16,7 +16,8 @@ from typing import TYPE_CHECKING, TypeAlias
 
 
 if TYPE_CHECKING:
-    pass
+    # Dummy usage of type aliases to keep static analyzers happy.
+    test_file_path: FilePath | None = None
 
 # Pre-3.12 style type aliases (X: TypeAlias = Y)
 FilePath: TypeAlias = str | Path
