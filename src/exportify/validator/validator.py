@@ -61,29 +61,52 @@ class LateImportValidator:
         Returns:
             List of validation errors and warnings
         """
+        issues, _ = self._validate_file_with_metrics(file_path)
+        return issues
+
+    def _validate_file_with_metrics(
+        self, file_path: Path
+    ) -> tuple[list[ValidationError | ValidationWarning], int]:
+        """Validate a single Python file and count lateimport calls.
+
+        Args:
+            file_path: Path to Python file to validate
+
+        Returns:
+            Tuple of (list of issues, count of lateimport calls)
+        """
         try:
             content = file_path.read_text()
             tree = ast.parse(content)
         except SyntaxError as e:
-            return [
-                ValidationError(
-                    file=file_path,
-                    line=e.lineno,
-                    message=f"Syntax error: {e.msg}",
-                    suggestion="Fix syntax error",
-                    code="SYNTAX_ERROR",
-                )
-            ]
+            return (
+                [
+                    ValidationError(
+                        file=file_path,
+                        line=e.lineno,
+                        message=f"Syntax error: {e.msg}",
+                        suggestion="Fix syntax error",
+                        code="SYNTAX_ERROR",
+                    )
+                ],
+                0,
+            )
         except Exception as e:
-            return [
-                ValidationError(
-                    file=file_path,
-                    line=None,
-                    message=f"Validation failed: {e}",
-                    suggestion="Check file for errors",
-                    code="VALIDATION_ERROR",
-                )
-            ]
+            return (
+                [
+                    ValidationError(
+                        file=file_path,
+                        line=None,
+                        message=f"Validation failed: {e}",
+                        suggestion="Check file for errors",
+                        code="VALIDATION_ERROR",
+                    )
+                ],
+                0,
+            )
+
+        # Count lateimport calls checked
+        imports_checked = content.count("lateimport(")
 
         issues: list[ValidationError | ValidationWarning] = []
         has_all_declaration = self._collect_all_declaration_issues(file_path, tree, issues)
@@ -99,7 +122,7 @@ class LateImportValidator:
                 has_lateimport_calls=has_lateimport_calls,
             )
         )
-        return issues
+        return issues, imports_checked
 
     def _collect_all_declaration_issues(
         self, file_path: Path, tree: ast.AST, issues: list[ValidationError | ValidationWarning]
@@ -112,7 +135,7 @@ class LateImportValidator:
             for target in node.targets:
                 if isinstance(target, ast.Name) and target.id == "__all__":
                     has_all_declaration = True
-                    issues.extend(self._validate_all_declaration(file_path, node))
+                    issues.extend(self._validate_all_declaration(file_path, node, tree))
         return has_all_declaration
 
     def _check_structure_and_imports(
@@ -260,7 +283,7 @@ class LateImportValidator:
         imports_checked = 0
 
         for file_path in file_paths:
-            results = self.validate_file(file_path)
+            results, count = self._validate_file_with_metrics(file_path)
 
             # Separate errors and warnings
             errors = [r for r in results if isinstance(r, ValidationError)]
@@ -269,10 +292,8 @@ class LateImportValidator:
             all_errors.extend(errors)
             all_warnings.extend(warnings)
 
-            # Count lateimport calls checked
-            with contextlib.suppress(Exception):
-                content = file_path.read_text()
-                imports_checked += content.count("lateimport(")
+            # Add to metrics
+            imports_checked += count
 
         # Run consistency checks on __init__.py files
         init_files = [f for f in file_paths if f.name == "__init__.py"]
@@ -434,13 +455,14 @@ class LateImportValidator:
         return issues
 
     def _validate_all_declaration(
-        self, file_path: Path, node: ast.Assign
+        self, file_path: Path, node: ast.Assign, tree: ast.AST
     ) -> list[ValidationError | ValidationWarning]:
         """Validate __all__ declaration.
 
         Args:
             file_path: Path to file
             node: Assignment node for __all__
+            tree: Parsed AST tree for the file
 
         Returns:
             List of validation issues
@@ -457,11 +479,8 @@ class LateImportValidator:
             for elt in node.value.elts
             if isinstance(elt, ast.Constant) and isinstance(elt.value, str)
         )
-        # Read the file to find defined names
+        # Use provided tree to find defined names
         with contextlib.suppress(Exception):
-            content = file_path.read_text()
-            tree = ast.parse(content)
-
             # Collect defined names
             defined_names = set()
             for node_item in ast.walk(tree):
