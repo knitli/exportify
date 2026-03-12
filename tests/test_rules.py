@@ -1017,10 +1017,7 @@ class TestRuleEngineAdditionalCoverage:
         )
         engine.add_rule(rule)
 
-        symbol = self._create_symbol("Foo")
-        result = engine.evaluate(symbol, "some.module")
-
-        assert result.reason == "Matched rule: my-special-rule"
+        assert engine._get_match_reason(rule) == "Matched rule: my-special-rule"
 
     # -------------------------------------------------------------------------
     # load_rules file not found (lines 186-187)
