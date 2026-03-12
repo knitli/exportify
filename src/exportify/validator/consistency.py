@@ -33,11 +33,14 @@ class ConsistencyChecker:
         """
         self.project_root = project_root or Path.cwd()
 
-    def check_file_consistency(self, init_file: Path) -> list[ConsistencyIssue]:
+    def check_file_consistency(
+        self, init_file: Path, tree: ast.AST | None = None
+    ) -> list[ConsistencyIssue]:
         """Check consistency of an __init__.py file.
 
         Args:
             init_file: Path to __init__.py file
+            tree: Optional pre-parsed AST tree
 
         Returns:
             List of consistency issues found
@@ -45,7 +48,7 @@ class ConsistencyChecker:
         issues: list[ConsistencyIssue] = []
 
         try:
-            self._validate_file_exports(init_file, issues)
+            self._validate_file_exports(init_file, issues, tree=tree)
         except SyntaxError as e:
             issues.append(
                 ConsistencyIssue(
@@ -67,9 +70,12 @@ class ConsistencyChecker:
 
         return issues
 
-    def _validate_file_exports(self, init_file: Path, issues: list[ConsistencyIssue]) -> None:
-        content = init_file.read_text()
-        tree = ast.parse(content)
+    def _validate_file_exports(
+        self, init_file: Path, issues: list[ConsistencyIssue], tree: ast.AST | None = None
+    ) -> None:
+        if tree is None:
+            content = init_file.read_text()
+            tree = ast.parse(content)
 
         # Extract __all__ and _dynamic_imports
         all_exports = self._extract_all(tree)
