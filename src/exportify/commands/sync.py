@@ -22,6 +22,7 @@ from rich.panel import Panel
 from exportify.commands.utils import (
     CONSOLE,
     collect_py_files,
+    display_path,
     get_all_source_roots,
     load_config_and_rules,
     path_to_module,
@@ -76,7 +77,7 @@ def _print_sync_results(result: ExportGenerationResult) -> None:
 
 def _report_module_all_dry_run(py_file: Path, result: ModuleAllFixResult) -> None:
     """Print dry-run diff for a single module __all__ fix."""
-    print_info(f"Would update {py_file}")
+    print_info(f"Would update {display_path(py_file)}")
     if result.added:
         CONSOLE.print(f"  [green]+[/green] Add to __all__: {result.added}")
     if result.removed:
@@ -87,7 +88,7 @@ def _report_module_all_dry_run(py_file: Path, result: ModuleAllFixResult) -> Non
 
 def _report_module_all_applied(py_file: Path, result: ModuleAllFixResult, *, verbose: bool) -> None:
     """Print applied-fix info for a single module __all__ fix."""
-    print_success(f"Updated {py_file}")
+    print_success(f"Updated {display_path(py_file)}")
     if not verbose:
         return
     if result.added:

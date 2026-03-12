@@ -308,7 +308,9 @@ class LateImportValidator:
 
         for init_file in init_files:
             tree = parsed_trees.get(init_file)
-            consistency_issues = self.consistency_checker.check_file_consistency(init_file, tree=tree)
+            consistency_issues = self.consistency_checker.check_file_consistency(
+                init_file, tree=tree
+            )
             consistency_checks += len(consistency_issues)
 
             # Convert ConsistencyIssue to ValidationError/Warning
