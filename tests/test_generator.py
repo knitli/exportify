@@ -1003,7 +1003,6 @@ def test_validate_init_file_oserror(temp_dir, monkeypatch):
     errors = validate_init_file(init_file)
     assert len(errors) > 0
     assert "Permission denied" in errors[0]
-import pytest
 
 
 def test_has_preserved_definition_function(generator: CodeGenerator):
