@@ -172,6 +172,19 @@ my_var: int = 42
         finally:
             file_path.unlink()
 
+    def test_annotated_assignment_attribute_target(self, parser) -> None:
+        """Ignore annotated assignment to attributes (non-Name targets)."""
+        content = """
+self.x: int = 1
+"""
+        file_path = create_temp_file(content)
+        try:
+            result = parser.parse_file(file_path, "test.module")
+
+            assert len(result.symbols) == 0
+        finally:
+            file_path.unlink()
+
     def test_regular_variable(self, parser) -> None:
         """Extract regular variable."""
         content = """
