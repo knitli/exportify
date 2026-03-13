@@ -1004,7 +1004,7 @@ def test_validate_init_file_oserror(temp_dir, monkeypatch):
     assert len(errors) > 0
     assert "Permission denied" in errors[0]
 import pytest
-from exportify.export_manager.generator import CodeGenerator
+
 
 def test_has_preserved_definition_function(generator: CodeGenerator):
     """Test _has_preserved_definition detects a function."""
