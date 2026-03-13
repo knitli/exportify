@@ -1005,7 +1005,14 @@ class TestRuleEngineAdditionalCoverage:
 
     def test_get_match_reason_returns_rule_name(self):
         """_get_match_reason returns 'Matched rule: <name>' (line 181)."""
-        from exportify.common.types import Rule, RuleMatchCriteria
+        from exportify.common.types import (
+            DetectedSymbol,
+            MemberType,
+            SourceLocation,
+            SymbolProvenance,
+            Rule,
+            RuleMatchCriteria,
+        )
 
         engine = RuleEngine()
         rule = Rule(
@@ -1017,10 +1024,7 @@ class TestRuleEngineAdditionalCoverage:
         )
         engine.add_rule(rule)
 
-        symbol = self._create_symbol("Foo")
-        result = engine.evaluate(symbol, "some.module")
-
-        assert result.reason == "Matched rule: my-special-rule"
+        assert engine._get_match_reason(rule) == "Matched rule: my-special-rule"
 
     # -------------------------------------------------------------------------
     # load_rules file not found (lines 186-187)

@@ -52,14 +52,16 @@ class LateImportValidator:
         self.resolver = ImportResolver(project_root=self.project_root)
         self.consistency_checker = ConsistencyChecker(project_root=self.project_root)
 
-    def validate_file(self, file_path: Path) -> list[ValidationError | ValidationWarning]:
-        """Validate a single Python file.
+    def validate_file(
+        self, file_path: Path
+    ) -> tuple[list[ValidationError | ValidationWarning], int, ast.AST | None]:
+        """Validate a single Python file and count lateimport calls.
 
         Args:
             file_path: Path to Python file to validate
 
         Returns:
-            List of validation errors and warnings
+            Tuple of (list of issues, count of lateimport calls, parsed AST tree or None)
         """
         issues, _, _ = self._validate_file_with_metrics(file_path)
         return issues
@@ -151,11 +153,11 @@ class LateImportValidator:
         if not isinstance(tree, ast.Module):
             return has_type_checking_block, has_lateimport_calls
 
-        for i, node in enumerate(tree.body):
+        for node in tree.body:
             is_import = isinstance(node, (ast.Import, ast.ImportFrom))
             is_code = self._is_code_statement(node, is_import=is_import)
 
-            if is_import and seen_code and not self._is_type_checking_block(tree.body[:i]):
+            if is_import and seen_code:
                 issues.append(
                     ValidationWarning(
                         file=file_path,
@@ -252,7 +254,7 @@ class LateImportValidator:
         """
         all_issues: list[ValidationError | ValidationWarning] = []
         for file_path in file_paths:
-            issues = self.validate_file(file_path)
+            issues, _, _ = self.validate_file(file_path)
             all_issues.extend(issues)
         return all_issues
 
@@ -524,14 +526,11 @@ class LateImportValidator:
         """
         return isinstance(node.test, ast.Name) and node.test.id == "TYPE_CHECKING"
 
-    def _is_type_checking_block(self, nodes: list[ast.stmt]) -> bool:
+    def _is_type_checking_block(self) -> bool:
         """Check if we're currently in a TYPE_CHECKING block.
 
         This is a simplified check - it just looks for any TYPE_CHECKING if in the nodes.
         More sophisticated tracking would be needed for nested structures.
-
-        Args:
-            nodes: List of AST nodes to check (body up to current position)
 
         Returns:
             True if there's a TYPE_CHECKING block in the nodes (simplified)

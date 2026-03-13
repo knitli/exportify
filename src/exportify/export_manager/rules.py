@@ -112,7 +112,7 @@ class RuleEngine:
                     export_name=name,
                     propagation=rule.propagate or PropagationLevel.PARENT,
                     priority=rule.priority,
-                    reason=self._get_match_reason(symbol, module_path, rule),
+                    reason=self._get_match_reason(rule),
                     source_symbol=symbol,
                 )
 
@@ -220,7 +220,7 @@ class RuleEngine:
                 raise ValueError(f"Invalid regex pattern: {pattern_str!r}") from e
         return self._compiled_patterns[pattern_str]
 
-    def _get_match_reason(self, symbol: DetectedSymbol, module_path: str, rule: Rule) -> str:
+    def _get_match_reason(self, rule: Rule) -> str:
         """Generate human-readable reason for rule match."""
         return f"Matched rule: {rule.name}"
 

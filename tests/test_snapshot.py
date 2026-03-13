@@ -130,3 +130,29 @@ class TestSnapshotManagerRestore:
 
     def test_read_manifest_returns_none_when_missing(self, manager):
         assert manager.read_manifest() is None
+
+    def test_read_manifest_returns_none_on_invalid_json(self, manager):
+        manager.snapshot_dir.mkdir(parents=True, exist_ok=True)
+        manager.manifest_path.write_text("{ invalid json", encoding="utf-8")
+        assert manager.read_manifest() is None
+
+    def test_read_manifest_returns_none_on_missing_keys(self, manager):
+        manager.snapshot_dir.mkdir(parents=True, exist_ok=True)
+        # Missing "timestamp"
+        manager.manifest_path.write_text('{"entries": []}', encoding="utf-8")
+        assert manager.read_manifest() is None
+
+    def test_read_manifest_returns_none_on_invalid_types(self, manager):
+        manager.snapshot_dir.mkdir(parents=True, exist_ok=True)
+        # Should be a dict, not a list
+        manager.manifest_path.write_text("[]", encoding="utf-8")
+        assert manager.read_manifest() is None
+
+    def test_read_manifest_returns_none_on_invalid_entry_format(self, manager):
+        manager.snapshot_dir.mkdir(parents=True, exist_ok=True)
+        # Entry missing required keys will raise TypeError in SnapshotEntry(**e)
+        manager.manifest_path.write_text(
+            '{"timestamp": "2024-01-01T00:00:00Z", "entries": [{"invalid_key": "value"}]}',
+            encoding="utf-8",
+        )
+        assert manager.read_manifest() is None

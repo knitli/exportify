@@ -28,6 +28,7 @@ import textcase
 from exportify.analysis.ast_parser import ASTParser
 from exportify.common.types import RuleAction, SymbolProvenance
 from exportify.export_manager.rules import RuleEngine
+from exportify.utils import display_path
 
 
 # ---------------------------------------------------------------------------
@@ -117,7 +118,7 @@ def _compute_rule_actions(
     Returns:
         Mapping of symbol name to its :class:`~exportify.common.types.RuleAction`.
     """
-    result = ASTParser().parse_file(file, module_path)
+    result = ASTParser().parse_file(file)
     return {
         symbol.name: rules.evaluate(symbol, module_path).action
         for symbol in result.symbols
@@ -331,7 +332,7 @@ def check_module_all(file: Path, module_path: str, rules: RuleEngine) -> list[Mo
                 issue_type="no_all",
                 symbol_name="",
                 message=(
-                    f"{file}: __all__ is absent but {len(should_export)} export(s) "
+                    f"{display_path(file)}: __all__ is absent but {len(should_export)} export(s) "
                     f"are prescribed by rules: {sorted(should_export)}"
                 ),
             )
@@ -344,7 +345,7 @@ def check_module_all(file: Path, module_path: str, rules: RuleEngine) -> list[Mo
             issue_type="missing",
             symbol_name=name,
             message=(
-                f"{file}: '{name}' should be in __all__ (rules prescribe INCLUDE) but is absent"
+                f"{display_path(file)}: '{name}' should be in __all__ (rules prescribe INCLUDE) but is absent"
             ),
         )
         for name in sorted(should_export - actual)
@@ -355,7 +356,7 @@ def check_module_all(file: Path, module_path: str, rules: RuleEngine) -> list[Mo
             file=file,
             issue_type="extra",
             symbol_name=name,
-            message=(f"{file}: '{name}' is in __all__ but rules say EXCLUDE"),
+            message=(f"{display_path(file)}: '{name}' is in __all__ but rules say EXCLUDE"),
         )
         for name in sorted(actual & should_exclude)
     )
