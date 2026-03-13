@@ -159,7 +159,7 @@ convention = "google"
 
 [lint.per-file-ignores]
 "tests/fixtures/sample_type_aliases.py" = [
-  "UP040", # Type alias uses `TypeAlias` annotation instead of the `type` keyword
+  "UP040", # Intentionally using TypeAlias for backwards compatibility testing
 ]
 "tests/*.py" = [
   "ANN",
