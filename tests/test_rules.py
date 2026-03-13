@@ -1005,7 +1005,14 @@ class TestRuleEngineAdditionalCoverage:
 
     def test_get_match_reason_returns_rule_name(self):
         """_get_match_reason returns 'Matched rule: <name>' (line 181)."""
-        from exportify.common.types import DetectedSymbol, MemberType, SourceLocation, SymbolProvenance, Rule, RuleMatchCriteria
+        from exportify.common.types import (
+            DetectedSymbol,
+            MemberType,
+            SourceLocation,
+            SymbolProvenance,
+            Rule,
+            RuleMatchCriteria,
+        )
 
         engine = RuleEngine()
         rule = Rule(
