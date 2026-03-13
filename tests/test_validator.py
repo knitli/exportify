@@ -28,7 +28,7 @@ MyPath = Path
 """)
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         # Should have no errors (file has no lateimport calls, so nothing to validate)
         errors = [i for i in issues if isinstance(i, ValidationError)]
@@ -44,7 +44,7 @@ MyClass = lateimport("nonexistent.module", "MyClass")
 """)
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         errors = [i for i in issues if isinstance(i, ValidationError)]
         assert errors
@@ -61,7 +61,7 @@ Obj = lateimport("os", "NonExistentClass")
 """)
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         if errors := [i for i in issues if isinstance(i, ValidationError)]:
             assert any("NonExistentClass" in e.message for e in errors)
@@ -77,7 +77,7 @@ B = lateimport("nonexistent2", "Class2")
 """)
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         errors = [i for i in issues if isinstance(i, ValidationError)]
         assert len(errors) >= 2
@@ -93,7 +93,7 @@ class MyClass:
 """)
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         # Should have no errors (warnings about missing __all__ are acceptable)
         errors = [i for i in issues if isinstance(i, ValidationError)]
@@ -107,7 +107,7 @@ def broken(
 """)
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         errors = [i for i in issues if isinstance(i, ValidationError)]
         assert errors
@@ -300,7 +300,7 @@ MyClass = lateimport("module.path", "MyClass")
 """)
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         # Should have no errors about call syntax (may have resolution errors)
         syntax_errors = [
@@ -321,7 +321,7 @@ MyClass = lateimport("module.path")  # Missing second arg
 """)
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         errors = [
             i for i in issues if isinstance(i, ValidationError) and i.code == "INVALID_LATEIMPORT"
@@ -340,7 +340,7 @@ MyClass = lateimport(module_var, "MyClass")  # Variable, not literal
 """)
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         errors = [
             i
@@ -362,7 +362,7 @@ if TYPE_CHECKING:
 """)
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         # No warnings about TYPE_CHECKING structure
         type_warnings = [
@@ -386,7 +386,7 @@ if TYPE_CHECKING:
 """)
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         warnings = [
             i
@@ -412,7 +412,7 @@ MY_CONSTANT = 42
 """)
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         # No errors about undefined names
         all_errors = [
@@ -431,7 +431,7 @@ class MyClass:
 """)
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         errors = [
             i for i in issues if isinstance(i, ValidationError) and i.code == "UNDEFINED_IN_ALL"
@@ -451,7 +451,7 @@ def my_function():
 """)
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         warnings = [
             i for i in issues if isinstance(i, ValidationWarning) and "Missing __all__" in i.message
@@ -470,7 +470,7 @@ class MyClass:
 """)
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         # No warnings about import organization
         org_warnings = [
@@ -493,7 +493,7 @@ from pathlib import Path  # Import after code
 """)
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         warnings = [
             i
@@ -512,7 +512,7 @@ def broken(
 """)
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         errors = [i for i in issues if isinstance(i, ValidationError) and i.code == "SYNTAX_ERROR"]
         assert errors
@@ -523,7 +523,7 @@ def broken(
         test_file.write_text("")
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         # Should just warn about missing __all__
         errors = [i for i in issues if isinstance(i, ValidationError)]
@@ -535,7 +535,7 @@ def broken(
         test_file.write_text('"""Module docstring."""')
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         # Should just warn about missing __all__
         errors = [i for i in issues if isinstance(i, ValidationError)]
@@ -563,7 +563,7 @@ import late_import  # Should warn - import after code
 """)
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         # Should have errors and warnings
         errors = [i for i in issues if isinstance(i, ValidationError)]
@@ -585,7 +585,7 @@ lateimport("also", "bad", "extra")  # Should still validate
 """)
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         # All issues should be in a single list
         assert isinstance(issues, list)
@@ -761,7 +761,7 @@ _dynamic_imports = {
 
         monkeypatch.setattr(ast, "parse", bad_parse)
 
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
         errors = [i for i in issues if isinstance(i, ValidationError)]
         assert errors
         assert errors[0].code == "VALIDATION_ERROR"
@@ -790,7 +790,7 @@ MyClass = lateimport("pathlib", obj_var)
 """)
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         errors = [
             i
@@ -940,7 +940,7 @@ class MyClass:
 """)
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         # No UNDEFINED_IN_ALL errors should be raised when __all__ is a tuple
         all_errors = [
