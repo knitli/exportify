@@ -158,6 +158,9 @@ exclude = [
 convention = "google"
 
 [lint.per-file-ignores]
+"tests/fixtures/sample_type_aliases.py" = [
+  "UP040", # Intentionally using TypeAlias for backwards compatibility testing
+]
 "tests/*.py" = [
   "ANN",
   "C901",  # too complex
@@ -205,3 +208,6 @@ force-wrap-aliases = false
 lines-after-imports = 2
 lines-between-types = 1
 split-on-trailing-comma = false
+
+[lint.extend-per-file-ignores]
+"tests/fixtures/sample_type_aliases.py" = ["UP040"]

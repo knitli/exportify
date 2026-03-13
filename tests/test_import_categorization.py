@@ -45,7 +45,7 @@ import pandas as pd
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             # Find the aliased imports
             np_import = next(s for s in result.symbols if s.name == "np")
@@ -69,7 +69,7 @@ from typing import Dict as D
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             # Find the aliased imports
             p_import = next(s for s in result.symbols if s.name == "P")
@@ -97,7 +97,7 @@ import sys
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             # Find the non-aliased imports
             os_import = next(s for s in result.symbols if s.name == "os")
@@ -121,7 +121,7 @@ from typing import Dict
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             # Find the non-aliased imports
             path_import = next(s for s in result.symbols if s.name == "Path")
@@ -155,7 +155,7 @@ from typing import Dict as D
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             # Find all imports
             os_import = next(s for s in result.symbols if s.name == "operating_system")
@@ -199,7 +199,7 @@ import unittest
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             # All should be marked as stdlib and not re-exports (not aliased)
             for symbol in result.symbols:
@@ -222,7 +222,7 @@ from django.http import HttpRequest as Request
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             # Find the imports
             np_import = next(s for s in result.symbols if s.name == "np")
@@ -253,7 +253,7 @@ from sklearn.metrics import accuracy_score
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             # Find the imports
             numpy_import = next(s for s in result.symbols if s.name == "numpy")
@@ -280,7 +280,7 @@ from ...common import constants as c
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             # Find the imports
             u_import = next(s for s in result.symbols if s.name == "u")
@@ -303,7 +303,7 @@ from ...common import constants
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             # Find the imports
             utils_import = next(s for s in result.symbols if s.name == "utils")
@@ -346,7 +346,7 @@ from ..core import types as t
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             # Standard library - no alias → not re-export
             os_import = next(s for s in result.symbols if s.name == "os")
@@ -394,7 +394,7 @@ from pathlib import Path
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             for symbol in result.symbols:
                 # All imports should have these metadata fields
@@ -421,7 +421,7 @@ from pathlib import Path
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             os_import = next(s for s in result.symbols if s.name == "os")
             path_import = next(s for s in result.symbols if s.name == "Path")
@@ -442,7 +442,7 @@ from . import utils
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             utils_import = next(s for s in result.symbols if s.name == "utils")
 
@@ -463,7 +463,7 @@ from _collections import deque
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             thread_import = next(s for s in result.symbols if s.name == "_thread")
             deque_import = next(s for s in result.symbols if s.name == "deque")

@@ -10,6 +10,7 @@ Validates consistency between __init__.py and module definitions.
 from __future__ import annotations
 
 import ast
+import collections
 
 from pathlib import Path
 
@@ -86,8 +87,8 @@ class ConsistencyChecker:
             self._collect_warnings_and_errors(all_exports, dynamic_imports, issues, init_file)
         # Check for duplicates in __all__
         if all_exports is not None:
-            duplicates = [x for x in all_exports if all_exports.count(x) > 1]
-            unique_duplicates = set(duplicates)
+            counts = collections.Counter(all_exports)
+            unique_duplicates = {x for x, count in counts.items() if count > 1}
             issues.extend([
                 ConsistencyIssue(
                     severity="warning",

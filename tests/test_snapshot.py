@@ -147,3 +147,12 @@ class TestSnapshotManagerRestore:
         # Should be a dict, not a list
         manager.manifest_path.write_text("[]", encoding="utf-8")
         assert manager.read_manifest() is None
+
+    def test_read_manifest_returns_none_on_invalid_entry_format(self, manager):
+        manager.snapshot_dir.mkdir(parents=True, exist_ok=True)
+        # Entry missing required keys will raise TypeError in SnapshotEntry(**e)
+        manager.manifest_path.write_text(
+            '{"timestamp": "2024-01-01T00:00:00Z", "entries": [{"invalid_key": "value"}]}',
+            encoding="utf-8",
+        )
+        assert manager.read_manifest() is None
