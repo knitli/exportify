@@ -1,9 +1,27 @@
 # SPDX-FileCopyrightText: 2026 Knitli Inc.
+#
 # SPDX-License-Identifier: MIT OR Apache-2.0
-
 """Tests for module_all.py."""
 
-from exportify.export_manager.module_all import _export_sort_key
+from exportify.export_manager.module_all import _render_all, _export_sort_key
+
+
+def test_render_all_empty():
+    assert _render_all([], "list") == "__all__ = []"
+    assert _render_all([], "tuple") == "__all__ = ()"
+
+
+def test_render_all_single_item():
+    assert _render_all(["MyClass"], "list") == '__all__ = ["MyClass"]'
+    assert _render_all(["MyClass"], "tuple") == '__all__ = ("MyClass",)'
+
+
+def test_render_all_multiple_items():
+    expected_list = '__all__ = [\n    "A",\n    "B",\n]'
+    assert _render_all(["A", "B"], "list") == expected_list
+
+    expected_tuple = '__all__ = (\n    "A",\n    "B",\n)'
+    assert _render_all(["A", "B"], "tuple") == expected_tuple
 
 
 def test_export_sort_key_constant():
