@@ -34,3 +34,4 @@ type LineNumber = int
 type ColumnNumber = int
 type SymbolName = str
 type ModulePath = str
+# ruff: noqa: UP040
