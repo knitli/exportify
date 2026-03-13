@@ -155,7 +155,7 @@ class LateImportValidator:
             is_import = isinstance(node, (ast.Import, ast.ImportFrom))
             is_code = self._is_code_statement(node, is_import=is_import)
 
-            if is_import and seen_code and not self._is_type_checking_block():
+            if is_import and seen_code:
                 issues.append(
                     ValidationWarning(
                         file=file_path,
