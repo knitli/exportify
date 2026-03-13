@@ -118,7 +118,7 @@ def _compute_rule_actions(
     Returns:
         Mapping of symbol name to its :class:`~exportify.common.types.RuleAction`.
     """
-    result = ASTParser().parse_file(file, module_path)
+    result = ASTParser().parse_file(file)
     return {
         symbol.name: rules.evaluate(symbol, module_path).action
         for symbol in result.symbols

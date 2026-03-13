@@ -52,19 +52,7 @@ class LateImportValidator:
         self.resolver = ImportResolver(project_root=self.project_root)
         self.consistency_checker = ConsistencyChecker(project_root=self.project_root)
 
-    def validate_file(self, file_path: Path) -> list[ValidationError | ValidationWarning]:
-        """Validate a single Python file.
-
-        Args:
-            file_path: Path to Python file to validate
-
-        Returns:
-            List of validation errors and warnings
-        """
-        issues, _, _ = self._validate_file_with_metrics(file_path)
-        return issues
-
-    def _validate_file_with_metrics(
+    def validate_file(
         self, file_path: Path
     ) -> tuple[list[ValidationError | ValidationWarning], int, ast.AST | None]:
         """Validate a single Python file and count lateimport calls.
@@ -252,7 +240,7 @@ class LateImportValidator:
         """
         all_issues: list[ValidationError | ValidationWarning] = []
         for file_path in file_paths:
-            issues = self.validate_file(file_path)
+            issues, _, _ = self.validate_file(file_path)
             all_issues.extend(issues)
         return all_issues
 
@@ -286,7 +274,7 @@ class LateImportValidator:
         parsed_trees: dict[Path, ast.AST] = {}
 
         for file_path in file_paths:
-            results, count, tree = self._validate_file_with_metrics(file_path)
+            results, count, tree = self.validate_file(file_path)
 
             # Separate errors and warnings
             errors = [r for r in results if isinstance(r, ValidationError)]

@@ -38,7 +38,7 @@ from typing import TypeVar
 T = TypeVar('T')
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         t_sym = [e for e in result.symbols if e.name == "T"]
         assert len(t_sym) == 1
@@ -52,7 +52,7 @@ import typing
 T = typing.TypeVar('T')
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         t_sym = [e for e in result.symbols if e.name == "T"]
         assert len(t_sym) == 1
@@ -66,7 +66,7 @@ from typing import TypeVar
 T = TypeVar('T', int, str)
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         t_sym = [e for e in result.symbols if e.name == "T"]
         assert len(t_sym) == 1
@@ -80,7 +80,7 @@ from typing import TypeVar
 T = TypeVar('T', bound=int)
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         t_sym = [e for e in result.symbols if e.name == "T"]
         assert len(t_sym) == 1
@@ -94,7 +94,7 @@ from typing import TypeVar
 T_co = TypeVar('T_co', covariant=True)
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         t_sym = [e for e in result.symbols if e.name == "T_co"]
         assert len(t_sym) == 1
@@ -108,7 +108,7 @@ from typing import TypeVar
 T_contra = TypeVar('T_contra', contravariant=True)
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         t_sym = [e for e in result.symbols if e.name == "T_contra"]
         assert len(t_sym) == 1
@@ -122,7 +122,7 @@ from typing import TypeVar
 _T = TypeVar('_T')
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         t_sym = [e for e in result.symbols if e.name == "_T"]
         assert len(t_sym) == 1
@@ -139,7 +139,7 @@ V = TypeVar('V')
 T = TypeVar('T')
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         typevars = [e for e in result.symbols if e.member_type == MemberType.TYPE_VAR]
         assert len(typevars) == 3
@@ -157,7 +157,7 @@ from typing import ParamSpec
 P = ParamSpec('P')
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         p_sym = [e for e in result.symbols if e.name == "P"]
         assert len(p_sym) == 1
@@ -171,7 +171,7 @@ from typing import TypeVarTuple
 Ts = TypeVarTuple('Ts')
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         ts_sym = [e for e in result.symbols if e.name == "Ts"]
         assert len(ts_sym) == 1
@@ -185,7 +185,7 @@ import typing
 P = typing.ParamSpec('P')
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         p_sym = [e for e in result.symbols if e.name == "P"]
         assert len(p_sym) == 1
@@ -199,7 +199,7 @@ import typing
 Ts = typing.TypeVarTuple('Ts')
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         ts_sym = [e for e in result.symbols if e.name == "Ts"]
         assert len(ts_sym) == 1
@@ -217,7 +217,7 @@ from typing import TypeVar
 T = TypeVar('T')
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         t_sym = next(e for e in result.symbols if e.name == "T")
         assert t_sym.metadata.get("kind") == "TypeVar"
@@ -230,7 +230,7 @@ from typing import ParamSpec
 P = ParamSpec('P')
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         p_sym = next(e for e in result.symbols if e.name == "P")
         assert p_sym.metadata.get("kind") == "ParamSpec"
@@ -243,7 +243,7 @@ from typing import TypeVarTuple
 Ts = TypeVarTuple('Ts')
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         ts_sym = next(e for e in result.symbols if e.name == "Ts")
         assert ts_sym.metadata.get("kind") == "TypeVarTuple"
@@ -263,7 +263,7 @@ MyAlias: TypeAlias = int | str
 type ModernAlias = dict[str, int]
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         types = {e.name: e.member_type for e in result.symbols}
         assert types.get("T") == MemberType.TYPE_VAR
@@ -287,7 +287,7 @@ MAX_SIZE = 100
 config: dict = {}
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         types = {e.name: e.member_type for e in result.symbols}
         assert types.get("T") == MemberType.TYPE_VAR
