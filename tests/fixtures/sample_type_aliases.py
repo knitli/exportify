@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Knitli Inc.
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
+# ruff: noqa: UP040
 
 """Sample module with type aliases for testing the AST parser.
 
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
 
 # Pre-3.12 style type aliases (X: TypeAlias = Y)
 from typing import TypeAlias
+
 
 FilePath: TypeAlias = str | Path
 ModuleName: TypeAlias = str
