@@ -1060,7 +1060,7 @@ class TestRuleEngineAdditionalCoverage:
         """
         engine = RuleEngine()
         data = {"schema_version": "1.0", "rules": [], "extra_key": "value"}
-        result = engine._migrate_schema(data, from_version="1.0")
+        result = engine._migrate_schema(data)
         # Should return data unchanged (passthrough)
         assert result == data
 
