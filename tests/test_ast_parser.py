@@ -43,7 +43,7 @@ class MyClass:
 '''
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             assert len(result.symbols) == 1
             symbol = result.symbols[0]
@@ -70,7 +70,7 @@ class Third:
 '''
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             assert len(result.symbols) == 3
             names = [e.name for e in result.symbols]
@@ -87,7 +87,7 @@ class Outer:
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             # Only Outer should be extracted
             assert len(result.symbols) == 1
@@ -108,7 +108,7 @@ def my_function():
 '''
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
             assert len(result.symbols) == 1
             symbol = result.symbols[0]
             assert symbol.name == "my_function"
@@ -126,7 +126,7 @@ async def async_function():
 '''
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             assert len(result.symbols) == 1
             symbol = result.symbols[0]
@@ -144,7 +144,7 @@ class MyClass:
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             # Only class, not method
             assert len(result.symbols) == 1
@@ -163,7 +163,7 @@ my_var: int = 42
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             assert len(result.symbols) == 1
             symbol = result.symbols[0]
@@ -192,7 +192,7 @@ my_var = "value"
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             assert len(result.symbols) == 1
             symbol = result.symbols[0]
@@ -214,7 +214,7 @@ RETRY_COUNT = 3
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             assert len(result.symbols) == 3
             for symbol in result.symbols:
@@ -229,7 +229,7 @@ max_size = 100
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             assert len(result.symbols) == 1
             assert result.symbols[0].member_type == MemberType.VARIABLE
@@ -249,7 +249,7 @@ MyType: TypeAlias = int | str
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             # Find MyType (imports are also extracted)
             my_type = [e for e in result.symbols if e.name == "MyType"]
@@ -268,7 +268,7 @@ MyType: typing.TypeAlias = list[int]
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             my_type = [e for e in result.symbols if e.name == "MyType"]
             assert len(my_type) == 1
@@ -292,7 +292,7 @@ class MyClass:
 '''
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             assert result.symbols[0].docstring.startswith("This is a docstring")
         finally:
@@ -307,7 +307,7 @@ def my_func():
 '''
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             assert result.symbols[0].docstring == "Function docstring."
         finally:
@@ -321,7 +321,7 @@ class NoDoc:
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             assert result.symbols[0].docstring is None
         finally:
@@ -346,7 +346,7 @@ THIRD = 42
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             # First class is on line 4
             first = next(e for e in result.symbols if e.name == "First")
@@ -374,7 +374,7 @@ def broken(
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             assert len(result.symbols) == 0
             assert result.file_hash  # Should still have hash
@@ -390,7 +390,7 @@ class TestEmptyFileHandling:
         content = ""
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             assert len(result.symbols) == 0
             assert result.file_hash
@@ -404,7 +404,7 @@ class TestEmptyFileHandling:
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             assert len(result.symbols) == 0
         finally:
@@ -471,7 +471,7 @@ from pathlib import Path as P
             file_path.unlink()
 
     def _validate_args_present(self, parser, file_path, arg2, arg3):
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
         assert arg2 in result.imports
         assert arg3 in result.imports
 
@@ -494,7 +494,7 @@ my_var: str = "value"
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             assert len(result.symbols) == 4
 
@@ -516,7 +516,7 @@ class TestFileHash:
         content = "class Test:\n    pass\n"
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             expected_hash = hashlib.sha256(content.encode()).hexdigest()
             assert result.file_hash == expected_hash
@@ -531,8 +531,8 @@ class TestFileHash:
         file1 = create_temp_file(content1)
         file2 = create_temp_file(content2)
         try:
-            result1 = parser.parse_file(file1, "test.module1")
-            result2 = parser.parse_file(file2, "test.module2")
+            result1 = parser.parse_file(file1)
+            result2 = parser.parse_file(file2)
 
             assert result1.file_hash != result2.file_hash
         finally:
