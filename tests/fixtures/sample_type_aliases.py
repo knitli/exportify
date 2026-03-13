@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     # Dummy usage of type aliases to keep static analyzers happy.
     test_file_path: FilePath | None = None
 
+# ruff: noqa: UP040
 # Pre-3.12 style type aliases (X: TypeAlias = Y)
 FilePath: TypeAlias = str | Path
 ModuleName: TypeAlias = str
