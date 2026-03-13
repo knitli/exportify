@@ -13,6 +13,7 @@ and the module hierarchy.
 
 from __future__ import annotations
 
+import collections
 from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import TYPE_CHECKING, Literal
@@ -289,7 +290,7 @@ class PropagationGraph:
             # Check for duplicates in own_exports
             export_names = list(node.own_exports.keys())
             if len(export_names) != len(set(export_names)):
-                duplicates = [name for name in export_names if export_names.count(name) > 1]
+                duplicates = [name for name, count in collections.Counter(export_names).items() if count > 1]
                 raise ValueError(
                     f"❌ Error: Duplicate exports in module {module_path}\n\n"
                     f"  Duplicates: {', '.join(set(duplicates))}"
