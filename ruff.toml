@@ -157,6 +157,9 @@ exclude = [
 convention = "google"
 
 [lint.per-file-ignores]
+"tests/fixtures/sample_type_aliases.py" = [
+  "UP040"
+]
 "tests/*.py" = [
   "ANN",
   "C901",  # too complex
