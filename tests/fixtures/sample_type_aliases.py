@@ -12,14 +12,7 @@ realistic usage patterns from a package like exportify itself.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-
-if TYPE_CHECKING:
-    # Dummy usage of type aliases to keep static analyzers happy.
-    test_file_path: FilePath | None = None
-
-from typing import TypeAlias
+from typing import TYPE_CHECKING, TypeAlias
 
 # Pre-3.12 style type aliases (X: TypeAlias = Y)
 FilePath: TypeAlias = str | Path
@@ -30,9 +23,15 @@ ErrorMessage: TypeAlias = str
 ConfigDict: TypeAlias = dict[str, str | int | bool | list[str]]
 NamePair: TypeAlias = tuple[str, str]
 
+if TYPE_CHECKING:
+    # Dummy usage of type aliases to keep static analyzers happy.
+    test_file_path: FilePath | None = None
+
 # Python 3.12+ style type aliases (type X = Y)
 type FileContent = str
+type LineNumber = int
 type LineNumber = int
 type ColumnNumber = int
 type SymbolName = str
 type ModulePath = str
+# ruff: noqa: UP040
