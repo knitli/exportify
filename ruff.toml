@@ -158,6 +158,9 @@ exclude = [
 convention = "google"
 
 [lint.per-file-ignores]
+"tests/fixtures/sample_type_aliases.py" = [
+  "UP040", # Type alias uses `TypeAlias` annotation instead of the `type` keyword
+]
 "tests/*.py" = [
   "ANN",
   "C901",  # too complex
