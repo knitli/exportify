@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pytest
 
+from typing import cast
+
 from exportify.analysis.ast_parser import ASTParser
 from exportify.common.types import MemberType, SymbolProvenance
 
@@ -532,7 +534,7 @@ class TestStdlibModuleDetection:
     def test_empty_module_name(self, parser) -> None:
         """Test with empty or None module name."""
         assert parser._is_stdlib_module("") is False
-        assert parser._is_stdlib_module(None) is False
+        assert parser._is_stdlib_module(cast(str, None)) is False
 
     def test_common_stdlib_modules(self, parser) -> None:
         """Test with common stdlib modules."""
