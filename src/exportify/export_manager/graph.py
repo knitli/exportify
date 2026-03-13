@@ -285,16 +285,21 @@ class PropagationGraph:
             node.propagated_exports[name] = entry
 
     def _validate_no_duplicates(self) -> None:
-        """Validate no duplicate exports in same module."""
-        for module_path, node in self.modules.items():
-            # Check for duplicates in own_exports
-            export_names = list(node.own_exports.keys())
-            if len(export_names) != len(set(export_names)):
-                duplicates = [name for name, count in collections.Counter(export_names).items() if count > 1]
-                raise ValueError(
-                    f"❌ Error: Duplicate exports in module {module_path}\n\n"
-                    f"  Duplicates: {', '.join(set(duplicates))}"
-                )
+        """Validate no duplicate exports in same module.
+
+        Notes
+        -----
+        `ModuleNode.own_exports` is a `dict` keyed by export name, so it
+        cannot contain duplicate keys by construction: inserting the same
+        name multiple times will simply overwrite the previous entry.
+
+        As a result, detecting duplicates by inspecting
+        `node.own_exports.keys()` can never succeed. If duplicate detection
+        is required, it must be implemented at insertion time (for example,
+        in the code that populates `own_exports`) *before* overwriting any
+        existing entry.
+        """
+        return
 
     def _validate_propagation_sources(self) -> None:
         """Validate all propagated exports have valid source modules."""
