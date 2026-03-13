@@ -32,6 +32,7 @@ exclude = [
   "venv",
   "typings",
   "tests/fixtures/malformed.py",
+  "tests/fixtures/sample_type_aliases.py",
 ]
 extend-include = ["*.ipynb"]
 fix = true

@@ -67,8 +67,8 @@ class ASTParser:
             )
 
         # Extract symbols (both defined and imported)
-        defined_symbols = self._extract_symbols(tree, file_path)
-        imported_symbols = self._extract_import_symbols(tree, file_path)
+        defined_symbols = self._extract_symbols(tree)
+        imported_symbols = self._extract_import_symbols(tree)
         all_symbols = defined_symbols + imported_symbols
 
         # Extract imports as strings for backward compatibility/caching
@@ -86,12 +86,11 @@ class ASTParser:
             declared_all=declared_all,
         )
 
-    def _extract_symbols(self, tree: ast.Module, file_path: Path) -> list[DetectedSymbol]:
+    def _extract_symbols(self, tree: ast.Module) -> list[DetectedSymbol]:
         """Extract all exportable symbols from AST.
 
         Args:
             tree: Parsed AST module
-            file_path: Path to source file (for error reporting)
 
         Returns:
             List of detected symbols
@@ -252,7 +251,7 @@ class ASTParser:
         # Default to variable
         return MemberType.VARIABLE
 
-    def _extract_import_symbols(self, tree: ast.Module, file_path: Path) -> list[DetectedSymbol]:
+    def _extract_import_symbols(self, tree: ast.Module) -> list[DetectedSymbol]:
         """Extract import statements as ParsedSymbol objects.
 
         Categorizes imports with heuristic metadata to help distinguish likely re-exports
