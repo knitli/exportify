@@ -416,7 +416,7 @@ Missing = lateimport("completely.nonexistent.module", "Class")
 """)
 
         validator = LateImportValidator(project_root=tmp_path)
-        issues = validator.validate_file(test_file)
+        issues, _, _ = validator.validate_file(test_file)
 
         # Should detect missing module
         from exportify.common.types import ValidationError

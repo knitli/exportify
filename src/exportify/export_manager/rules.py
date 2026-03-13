@@ -244,12 +244,12 @@ class RuleEngine:
                 raise SchemaVersionError(f"Unsupported schema version {version}")
 
             if version != CURRENT_SCHEMA_VERSION:
-                data = self._migrate_schema(data, from_version=version)
+                data = self._migrate_schema(data)
 
             for rule_data in data.get("rules", []):
                 self.add_rule(self._parse_rule(rule_data, rule_file))
 
-    def _migrate_schema(self, data: dict, from_version: str) -> dict:
+    def _migrate_schema(self, data: dict) -> dict:
         """Migrate config - placeholder."""
         return data
 

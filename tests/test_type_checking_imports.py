@@ -75,7 +75,7 @@ class MyClass:
 """)
 
         parser = ASTParser()
-        result: AnalysisResult = parser.parse_file(temp_file, "mymodule")
+        result: AnalysisResult = parser.parse_file(temp_file)
 
         # Verify imports were extracted
         assert "import sys" in result.imports
@@ -96,7 +96,7 @@ def process(items: Sequence[int]) -> int:
 """)
 
         parser = ASTParser()
-        result = parser.parse_file(temp_file, "mymodule")
+        result = parser.parse_file(temp_file)
 
         assert "from collections.abc import Sequence" in result.imports
         assert "from typing import cast" in result.imports
@@ -121,7 +121,7 @@ class Service:
 """)
 
         parser = ASTParser()
-        result = parser.parse_file(temp_file, "mymodule")
+        result = parser.parse_file(temp_file)
 
         # Verify TYPE_CHECKING imports were found
         assert any("from typing import Any" in imp for imp in result.imports)
@@ -146,7 +146,7 @@ def get_user():
 """)
 
         parser = ASTParser()
-        result = parser.parse_file(temp_file, "mymodule")
+        result = parser.parse_file(temp_file)
 
         # All TYPE_CHECKING imports should be found
         type_checking_imports = [
@@ -179,7 +179,7 @@ class MyClass:
 """)
 
         parser = ASTParser()
-        result = parser.parse_file(temp_file, "mymodule")
+        result = parser.parse_file(temp_file)
 
         # Regular imports
         assert "import sys" in result.imports
@@ -269,7 +269,7 @@ if TYPE_CHECKING:
 """)
 
         parser = ASTParser()
-        result = parser.parse_file(temp_file, "mymodule")
+        result = parser.parse_file(temp_file)
 
         # Should extract imports even if nested
         assert any("from typing import Any" in imp for imp in result.imports)
@@ -286,7 +286,7 @@ else:
 """)
 
         parser = ASTParser()
-        result = parser.parse_file(temp_file, "mymodule")
+        result = parser.parse_file(temp_file)
 
         # Both branches should be extracted
         assert any("from .models import User" in imp for imp in result.imports)

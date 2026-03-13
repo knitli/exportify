@@ -1005,7 +1005,14 @@ class TestRuleEngineAdditionalCoverage:
 
     def test_get_match_reason_returns_rule_name(self):
         """_get_match_reason returns 'Matched rule: <name>' (line 181)."""
-        from exportify.common.types import Rule, RuleMatchCriteria
+        from exportify.common.types import (
+            DetectedSymbol,
+            MemberType,
+            SourceLocation,
+            SymbolProvenance,
+            Rule,
+            RuleMatchCriteria,
+        )
 
         engine = RuleEngine()
         rule = Rule(
@@ -1060,7 +1067,7 @@ class TestRuleEngineAdditionalCoverage:
         """
         engine = RuleEngine()
         data = {"schema_version": "1.0", "rules": [], "extra_key": "value"}
-        result = engine._migrate_schema(data, from_version="1.0")
+        result = engine._migrate_schema(data)
         # Should return data unchanged (passthrough)
         assert result == data
 
