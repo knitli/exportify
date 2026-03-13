@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 
 from typing import TypeAlias
 
+
 # Pre-3.12 style type aliases (X: TypeAlias = Y)
 FilePath: TypeAlias = str | Path
 ModuleName: TypeAlias = str
