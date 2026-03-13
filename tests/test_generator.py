@@ -538,6 +538,12 @@ def test_validate_init_file_missing_all(temp_dir: Path):
 # Sorting tests
 
 
+def test_generate_all_tuple_empty(generator: CodeGenerator):
+    """Test generating __all__ tuple with empty exports list."""
+    result = generator._generate_all_tuple([])
+    assert result == "__all__ = ()"
+
+
 def test_export_sorting_screaming_snake_pascal_snake(generator: CodeGenerator):
     """Test exports are sorted by custom key: SCREAMING_SNAKE, PascalCase, snake_case."""
     exports = [

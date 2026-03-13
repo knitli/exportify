@@ -351,7 +351,7 @@ class Pipeline:
             self.stats.cache_misses += 1
             self.stats.files_analyzed += 1
 
-            analysis = self.ast_parser.parse_file(file_path, module_path)
+            analysis = self.ast_parser.parse_file(file_path)
 
             # Cache result
             self.cache.put(file_path, file_hash, analysis)

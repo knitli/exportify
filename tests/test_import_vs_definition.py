@@ -158,7 +158,7 @@ MY_VAR = 42
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             # All should be marked as defined
             for export in result.symbols:
@@ -175,7 +175,7 @@ import sys
 """
         file_path = create_temp_file(content)
         try:
-            result = parser_aliased.parse_file(file_path, "test.module")
+            result = parser_aliased.parse_file(file_path)
 
             # All should be marked as imported
             imported = [e for e in result.symbols if e.member_type == MemberType.IMPORTED]
@@ -203,7 +203,7 @@ MY_VAR = 42  # Defined
 """
         file_path = create_temp_file(content)
         try:
-            result = parser_aliased.parse_file(file_path, "test.module")
+            result = parser_aliased.parse_file(file_path)
 
             # Check metadata
             defined = [e for e in result.symbols if e.provenance == SymbolProvenance.DEFINED_HERE]
@@ -236,7 +236,7 @@ import numpy as np  # Aliased
 """
         file_path = create_temp_file(content)
         try:
-            result = parser_aliased.parse_file(file_path, "test.module")
+            result = parser_aliased.parse_file(file_path)
 
             # Check aliases detected
             aliased = [e for e in result.symbols if e.provenance == SymbolProvenance.ALIAS_IMPORTED]
@@ -270,7 +270,7 @@ from .models import Post  # Not aliased
 """
         file_path = create_temp_file(content)
         try:
-            result = parser_aliased.parse_file(file_path, "test.module")
+            result = parser_aliased.parse_file(file_path)
 
             # Both should be in symbols
             symbol_names = {e.name for e in result.symbols}
@@ -298,7 +298,7 @@ class MyClass:  # Defined
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             # Check detection
             symbol_names = {e.name for e in result.symbols}
@@ -327,7 +327,7 @@ from typing import Any  # From import
 """
         file_path = create_temp_file(content)
         try:
-            result = parser_aliased.parse_file(file_path, "test.module")
+            result = parser_aliased.parse_file(file_path)
 
             # Both should be marked as imported
             assert len(result.symbols) == 2
@@ -356,7 +356,7 @@ from .models import (
 """
         file_path = create_temp_file(content)
         try:
-            result = parser_aliased.parse_file(file_path, "test.module")
+            result = parser_aliased.parse_file(file_path)
 
             # All 3 should be exported
             assert len(result.symbols) == 3
@@ -389,7 +389,7 @@ from ...root import util
 """
         file_path = create_temp_file(content)
         try:
-            result = parser_aliased.parse_file(file_path, "test.module")
+            result = parser_aliased.parse_file(file_path)
 
             assert len(result.symbols) == 3
 
@@ -430,7 +430,7 @@ def my_function():  # Defined function
 """
         file_path = create_temp_file(content)
         try:
-            result = parser_aliased.parse_file(file_path, "test.module")
+            result = parser_aliased.parse_file(file_path)
 
             # Categorize exports
             defined = [e for e in result.symbols if e.provenance == SymbolProvenance.DEFINED_HERE]
@@ -478,7 +478,7 @@ _private_var = "hidden"
 """
         file_path = create_temp_file(content)
         try:
-            result = parser_aliased.parse_file(file_path, "test.module")
+            result = parser_aliased.parse_file(file_path)
 
             symbol_names = {e.name for e in result.symbols}
             expected = {"UserModel", "helper", "sys", "MyClass", "CONSTANT", "_private_var"}
@@ -505,7 +505,7 @@ import sys
 """
         file_path = create_temp_file(content)
         try:
-            result = parser_aliased.parse_file(file_path, "test.module")
+            result = parser_aliased.parse_file(file_path)
 
             for export in result.symbols:
                 # All imports should have these fields
@@ -538,7 +538,7 @@ class MyClass:
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             export = result.symbols[0]
             assert export.provenance == SymbolProvenance.DEFINED_HERE
@@ -559,7 +559,7 @@ from .models import User as UserModel
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             # Check that imports list still exists
             assert hasattr(result, "imports")

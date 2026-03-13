@@ -36,7 +36,7 @@ class TestPython312TypeAliases:
 type MyType = dict[str, Any]
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         # Find MyType
         my_type = [e for e in result.symbols if e.name == "MyType"]
@@ -52,7 +52,7 @@ type Config = dict[str, str | int]
 type ResultType = tuple[bool, str]
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         # Find all type aliases
         aliases = [e for e in result.symbols if e.member_type == MemberType.TYPE_ALIAS]
@@ -66,7 +66,7 @@ type ResultType = tuple[bool, str]
 type GenericType[T] = list[T]
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         # Find GenericType
         generic = [e for e in result.symbols if e.name == "GenericType"]
@@ -81,7 +81,7 @@ type MultiParam[K, V] = dict[K, V]
 type ComplexGeneric[T, U, V] = tuple[T, U, V]
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         # Find both generic type aliases
         aliases = [e for e in result.symbols if e.member_type == MemberType.TYPE_ALIAS]
@@ -95,7 +95,7 @@ type ComplexType = Callable[[int, str], bool]
 type NestedType = dict[str, list[tuple[int, str]]]
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         # Find both complex aliases
         aliases = [e for e in result.symbols if e.member_type == MemberType.TYPE_ALIAS]
@@ -114,7 +114,7 @@ from typing import TypeAlias
 MyType: TypeAlias = int | str
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         # Find MyType
         my_type = [e for e in result.symbols if e.name == "MyType"]
@@ -131,7 +131,7 @@ MyType: typing.TypeAlias = list[int]
 Config: typing.TypeAlias = dict[str, Any]
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         # Find both type aliases
         aliases = [e for e in result.symbols if e.member_type == MemberType.TYPE_ALIAS]
@@ -149,7 +149,7 @@ ConfigDict: TypeAlias = dict[str, Any]
 ResultTuple: TypeAlias = tuple[bool, str, int]
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         # Find all type aliases
         aliases = [e for e in result.symbols if e.member_type == MemberType.TYPE_ALIAS]
@@ -174,7 +174,7 @@ type NewStyle = dict[str, Any]
 type ModernType = list[int]
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         # Find all type aliases
         aliases = [e for e in result.symbols if e.member_type == MemberType.TYPE_ALIAS]
@@ -212,7 +212,7 @@ MAX_SIZE = 100
 config: dict = {}
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         # Check all types are detected
         types = {e.name: e.member_type for e in result.symbols}
@@ -231,7 +231,7 @@ class TestRealProjectFiles:
     def test_real_fixture_file_has_both_alias_styles(self, parser: ASTParser) -> None:
         """Test with the project fixture file that has both pre-3.12 and 3.12+ aliases."""
         real_file = Path(__file__).parent / "fixtures" / "sample_type_aliases.py"
-        result = parser.parse_file(real_file, "tests.fixtures.sample_type_aliases")
+        result = parser.parse_file(real_file)
 
         aliases = [e for e in result.symbols if e.member_type == MemberType.TYPE_ALIAS]
 
@@ -246,7 +246,7 @@ class TestRealProjectFiles:
     def test_real_fixture_file_detects_all_known_aliases(self, parser: ASTParser) -> None:
         """Test that all named type aliases in the fixture file are detected."""
         real_file = Path(__file__).parent / "fixtures" / "sample_type_aliases.py"
-        result = parser.parse_file(real_file, "tests.fixtures.sample_type_aliases")
+        result = parser.parse_file(real_file)
 
         alias_names = {e.name for e in result.symbols if e.member_type == MemberType.TYPE_ALIAS}
 
@@ -268,7 +268,7 @@ class TestTypeAliasEdgeCases:
         """Empty file should have no type aliases."""
         content = ""
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         aliases = [e for e in result.symbols if e.member_type == MemberType.TYPE_ALIAS]
         assert len(aliases) == 0
@@ -284,7 +284,7 @@ from typing import TypeAlias
 ConfigType: TypeAlias = dict[str, str]  # Inline comment
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         aliases = [e for e in result.symbols if e.member_type == MemberType.TYPE_ALIAS]
         assert len(aliases) == 2
@@ -302,7 +302,7 @@ if TYPE_CHECKING:
 type GlobalAlias = list[str]
 """
         file_path = create_temp_file(content, tmp_path)
-        result = parser.parse_file(file_path, "test.module")
+        result = parser.parse_file(file_path)
 
         # Only top-level type aliases should be detected
         aliases = [e for e in result.symbols if e.member_type == MemberType.TYPE_ALIAS]
