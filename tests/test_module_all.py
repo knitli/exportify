@@ -11,6 +11,7 @@ def test_export_sort_key_constant():
     assert _export_sort_key("CONSTANT_VALUE") == (0, "constant_value")
     assert _export_sort_key("SCREAMING_SNAKE") == (0, "screaming_snake")
 
+
 def test_export_sort_key_grouping_uppercase():
     """Missing edge case: Grouping uppercase names (0).
 
@@ -20,10 +21,12 @@ def test_export_sort_key_grouping_uppercase():
     assert _export_sort_key("A") == (0, "a")
     assert _export_sort_key("SINGLEWORDUPPERCASE") == (0, "singleworduppercase")
 
+
 def test_export_sort_key_pascal():
     """PascalCase classes should be grouped as 1."""
     assert _export_sort_key("PascalCase") == (1, "pascalcase")
     assert _export_sort_key("MyClass") == (1, "myclass")
+
 
 def test_export_sort_key_snake():
     """snake_case functions should be grouped as 2."""
