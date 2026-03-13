@@ -204,3 +204,6 @@ force-wrap-aliases = false
 lines-after-imports = 2
 lines-between-types = 1
 split-on-trailing-comma = false
+
+[lint.extend-per-file-ignores]
+"tests/fixtures/sample_type_aliases.py" = ["UP040"]

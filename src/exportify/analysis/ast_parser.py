@@ -40,13 +40,11 @@ class ASTParser:
     def __init__(self):
         """Initialize AST parser."""
 
-    def parse_file(self, file_path: Path, module_path: str) -> AnalysisResult:
+    def parse_file(self, file_path: Path) -> AnalysisResult:
         """Parse a Python file and extract exports.
 
         Args:
             file_path: Path to Python file
-            module_path: Module path (e.g., "codeweaver.core.types")
-
         Returns:
             AnalysisResult with symbols and metadata
         """
