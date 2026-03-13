@@ -62,25 +62,10 @@ class FileDiscovery:
 
         python_files = []
 
-        # Common directories to always skip
-        skip_dirs = {
-            "__pycache__",
-            ".venv",
-            "venv",
-            ".git",
-            ".hg",
-            ".mypy_cache",
-            ".pytest_cache",
-            ".ruff_cache",
-            "build",
-            "dist",
-            "node_modules",
-        }
-
         # Use rglob to recursively find all .py files
         for py_file in root.rglob("*.py"):
-            # Skip common directories
-            if any(d in py_file.parts for d in skip_dirs):
+            # Skip __pycache__ directories
+            if "__pycache__" in py_file.parts:
                 continue
 
             # Skip if gitignored

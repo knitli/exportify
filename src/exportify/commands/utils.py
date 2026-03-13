@@ -15,7 +15,7 @@ from rich.panel import Panel
 from exportify.common.config import CONFIG_ENV_VAR, ExportifyConfig, find_config_file, load_config
 from exportify.export_manager import RuleEngine
 from exportify.types import ValidationReport
-from exportify.utils import detect_source_root, display_path, locate_project_root
+from exportify.utils import detect_source_root, locate_project_root
 
 
 logger = logging.getLogger(__name__)
@@ -46,14 +46,12 @@ def resolve_checks(all_checks: set[str], **flags: bool | None) -> set[str]:
 
 def get_all_source_roots(source_override: Path | None = None) -> list[Path]:
     """Get all source roots: primary (detected or overridden) + additional from config."""
-    source_root = (source_override or detect_source_root()).resolve()
+    source_root = source_override or detect_source_root()
     additional_source_roots: list[Path] = []
 
     if config_path := find_config_file():
         config = load_config(config_path)
-        additional_source_roots = [
-            Path(p).resolve() for p in config.project.additional_source_paths
-        ]
+        additional_source_roots = config.project.additional_source_paths
 
     return [source_root, *additional_source_roots]
 
@@ -208,11 +206,7 @@ def print_output_validation_verbose(results: ValidationReport) -> None:
         CONSOLE.print(f"[red]Errors found: {len(results.errors)}[/red]")
         CONSOLE.print()
         for error in results.errors:
-            location = (
-                f"{display_path(error.file)}:{error.line}"
-                if error.line
-                else display_path(error.file)
-            )
+            location = f"{error.file}:{error.line}" if error.line else str(error.file)
             CONSOLE.print(f"[red]ERROR[/red] {location}: [bold]{error.code}[/bold]")
             _print_error_in_validation(error)
     # Show warnings with full context
@@ -220,11 +214,7 @@ def print_output_validation_verbose(results: ValidationReport) -> None:
         CONSOLE.print(f"[yellow]Warnings found: {len(results.warnings)}[/yellow]")
         CONSOLE.print()
         for warning in results.warnings:
-            location = (
-                f"{display_path(warning.file)}:{warning.line}"
-                if warning.line
-                else display_path(warning.file)
-            )
+            location = f"{warning.file}:{warning.line}" if warning.line else str(warning.file)
             CONSOLE.print(f"[yellow]WARNING[/yellow] {location}")
             _print_error_in_validation(warning)
     # Show metrics
@@ -241,20 +231,12 @@ def print_output_validation_concise(results: ValidationReport) -> None:
     """Output validation results in concise human-readable format."""
     if results.errors:
         for error in results.errors:
-            location = (
-                f"{display_path(error.file)}:{error.line}"
-                if error.line
-                else display_path(error.file)
-            )
+            location = f"{error.file}:{error.line}" if error.line else str(error.file)
             CONSOLE.print(f"[red][ERROR][/red] {location}: {error.code} ({error.message})")
 
     if results.warnings:
         for warning in results.warnings:
-            location = (
-                f"{display_path(warning.file)}:{warning.line}"
-                if warning.line
-                else display_path(warning.file)
-            )
+            location = f"{warning.file}:{warning.line}" if warning.line else str(warning.file)
             CONSOLE.print(f"[yellow][WARNING][/yellow] {location}: {warning.message}")
 
     # Show summary
@@ -279,13 +261,9 @@ def collect_py_files(paths: tuple[Path, ...], source: Path | None) -> list[Path]
     Returns:
         List of Python file paths to process.
     """
-    from exportify.discovery.file_discovery import FileDiscovery
-
-    discovery = FileDiscovery()
-
     if not paths:
         source_root = source or detect_source_root()
-        return discovery.discover_python_files(source_root)
+        return list(source_root.rglob("*.py"))
 
     all_files: list[Path] = []
     for p in paths:
@@ -293,9 +271,9 @@ def collect_py_files(paths: tuple[Path, ...], source: Path | None) -> list[Path]
             print_error(f"Path does not exist: {p}")
             raise SystemExit(1)
         if p.is_file():
-            all_files.append(p.resolve())
+            all_files.append(p)
         else:
-            all_files.extend(discovery.discover_python_files(p.resolve()))
+            all_files.extend(p.rglob("*.py"))
     return all_files
 
 

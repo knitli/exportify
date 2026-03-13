@@ -316,16 +316,6 @@ def write_gitignore_patterns(exportify_dir: Path | None = None) -> None:
         gitignore_path.write_text("\n".join(gitignore_patterns) + "\n")
 
 
-def display_path(path: Path) -> str:
-    """Format a path for display, relative to CWD if possible."""
-    try:
-        # We use resolve() on CWD to ensure we're comparing absolute paths
-        # since 'path' is usually resolved.
-        return str(path.relative_to(Path.cwd().resolve()))
-    except ValueError:
-        return str(path)
-
-
 def find_project_name() -> str:
     """Find the project name from pyproject.toml or fallback to directory name."""
     if (data := _read_pyproject()) and (name := data.get("project", {}).get("name")):
