@@ -525,3 +525,37 @@ class TestFileHash:
         finally:
             file1.unlink()
             file2.unlink()
+
+class TestStdlibModuleDetection:
+    """Test standard library module detection."""
+
+    def test_empty_module_name(self, parser) -> None:
+        """Test with empty or None module name."""
+        assert parser._is_stdlib_module("") is False
+        assert parser._is_stdlib_module(None) is False
+
+    def test_common_stdlib_modules(self, parser) -> None:
+        """Test with common stdlib modules."""
+        assert parser._is_stdlib_module("sys") is True
+        assert parser._is_stdlib_module("os") is True
+        assert parser._is_stdlib_module("pathlib") is True
+        assert parser._is_stdlib_module("typing") is True
+
+    def test_submodules(self, parser) -> None:
+        """Test with stdlib submodules."""
+        assert parser._is_stdlib_module("os.path") is True
+        assert parser._is_stdlib_module("urllib.request") is True
+        assert parser._is_stdlib_module("xml.etree.ElementTree") is True
+
+    def test_non_stdlib_modules(self, parser) -> None:
+        """Test with non-stdlib modules."""
+        assert parser._is_stdlib_module("requests") is False
+        assert parser._is_stdlib_module("numpy") is False
+        assert parser._is_stdlib_module("exportify") is False
+        assert parser._is_stdlib_module("exportify.analysis") is False
+        assert parser._is_stdlib_module("pytest") is False
+
+    def test_internal_modules(self, parser) -> None:
+        """Test with internal modules starting with underscore."""
+        assert parser._is_stdlib_module("_ast") is True
+        assert parser._is_stdlib_module("_io") is True
