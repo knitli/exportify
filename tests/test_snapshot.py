@@ -130,3 +130,37 @@ class TestSnapshotManagerRestore:
 
     def test_read_manifest_returns_none_when_missing(self, manager):
         assert manager.read_manifest() is None
+
+    def test_read_manifest_with_invalid_json_returns_none(self, project_root, manager):
+        """If the manifest file contains invalid JSON, read_manifest should return None."""
+        init = project_root / "src" / "pkg" / "__init__.py"
+        manager.capture([init])
+        # Locate the manifest JSON file created by capture()
+        manifest_files = list(project_root.rglob("*.json"))
+        assert manifest_files, "Expected a manifest JSON file to exist after capture()"
+        manifest_path = manifest_files[0]
+        # Overwrite with syntactically invalid JSON
+        manifest_path.write_text("{ this is not valid JSON")
+        assert manager.read_manifest() is None
+
+    def test_read_manifest_with_missing_keys_returns_none(self, project_root, manager):
+        """If the manifest JSON is missing required keys, read_manifest should return None."""
+        init = project_root / "src" / "pkg" / "__init__.py"
+        manager.capture([init])
+        manifest_files = list(project_root.rglob("*.json"))
+        assert manifest_files, "Expected a manifest JSON file to exist after capture()"
+        manifest_path = manifest_files[0]
+        # Overwrite with structurally valid but schema-incorrect JSON (no expected keys)
+        manifest_path.write_text("{}")
+        assert manager.read_manifest() is None
+
+    def test_read_manifest_with_invalid_types_returns_none(self, project_root, manager):
+        """If manifest fields have invalid types, read_manifest should return None."""
+        init = project_root / "src" / "pkg" / "__init__.py"
+        manager.capture([init])
+        manifest_files = list(project_root.rglob("*.json"))
+        assert manifest_files, "Expected a manifest JSON file to exist after capture()"
+        manifest_path = manifest_files[0]
+        # Provide JSON with clearly wrong types for typical manifest fields
+        manifest_path.write_text('{"files": "not-a-list", "version": 123}')
+        assert manager.read_manifest() is None
