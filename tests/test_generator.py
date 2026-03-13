@@ -1031,6 +1031,6 @@ def test_has_preserved_definition_syntax_error(generator: CodeGenerator):
     # Invalid syntax will be suppressed, resulting in False
     assert not generator._has_preserved_definition("def my_func(:: pass", "my_func")
 
-def test_has_preserved_definition_empty_or_none(generator: CodeGenerator):
+def test_has_preserved_definition_empty(generator: CodeGenerator):
     """Test _has_preserved_definition handles empty preserved sections."""
     assert not generator._has_preserved_definition("", "my_func")
