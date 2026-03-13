@@ -83,7 +83,7 @@ def process(x: int | str) -> int | str:
 '''
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "mymodule")
+            result = parser.parse_file(file_path)
 
             # Should find ONE export named "process" (not 3)
             functions = [e for e in result.symbols if e.member_type == MemberType.FUNCTION]
@@ -113,7 +113,7 @@ def func(x):
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "mymodule")
+            result = parser.parse_file(file_path)
 
             funcs = [e for e in result.symbols if e.name == "func"]
             assert len(funcs) == 1
@@ -136,7 +136,7 @@ def func(x: str) -> str: ...
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "mymodule")
+            result = parser.parse_file(file_path)
 
             funcs = [e for e in result.symbols if e.name == "func"]
             assert len(funcs) == 1
@@ -162,7 +162,7 @@ async def fetch(url: str, timeout: int | None = None) -> str:
 '''
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "mymodule")
+            result = parser.parse_file(file_path)
 
             funcs = [e for e in result.symbols if e.name == "fetch"]
             assert len(funcs) == 1
@@ -186,7 +186,7 @@ def func():  # Duplicate without @overload - suspicious
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "mymodule")
+            result = parser.parse_file(file_path)
 
             # Should still export (not crash)
             funcs = [e for e in result.symbols if e.name == "func"]
@@ -221,7 +221,7 @@ def process(x: int | str) -> int | str:
 '''
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "mymodule")
+            result = parser.parse_file(file_path)
 
             funcs = [e for e in result.symbols if e.name == "process"]
             assert len(funcs) == 1
@@ -251,7 +251,7 @@ def convert(value: int | str) -> int | str:
 '''
         file_path = tmp_path / "module.py"
         file_path.write_text(content)
-        result = parser.parse_file(file_path, "mypackage.module")
+        result = parser.parse_file(file_path)
 
         funcs = [e for e in result.symbols if e.name == "convert"]
         assert len(funcs) == 1  # Only one export despite two overloads + implementation
@@ -288,7 +288,7 @@ def _process(x):
 '''
         file_path = tmp_path / "module.py"
         file_path.write_text(content)
-        result = parser.parse_file(file_path, "mypackage.module")
+        result = parser.parse_file(file_path)
 
         # _process is private but should still be detected by the parser
         funcs = [e for e in result.symbols if e.name == "_process"]
@@ -326,7 +326,7 @@ def another_regular():
 '''
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "mymodule")
+            result = parser.parse_file(file_path)
 
             functions = {e.name: e for e in result.symbols if e.member_type == MemberType.FUNCTION}
 
@@ -363,7 +363,7 @@ def func(x):  # Line 12
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "mymodule")
+            result = parser.parse_file(file_path)
 
             funcs = [e for e in result.symbols if e.name == "func"]
             assert len(funcs) == 1
@@ -389,7 +389,7 @@ def func(x):
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "mymodule")
+            result = parser.parse_file(file_path)
 
             funcs = [e for e in result.symbols if e.name == "func"]
             assert len(funcs) == 1
@@ -423,7 +423,7 @@ def func(x):
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "mymodule")
+            result = parser.parse_file(file_path)
 
             funcs = [e for e in result.symbols if e.name == "func"]
             assert len(funcs) == 1

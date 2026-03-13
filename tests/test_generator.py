@@ -538,6 +538,12 @@ def test_validate_init_file_missing_all(temp_dir: Path):
 # Sorting tests
 
 
+def test_generate_all_tuple_empty(generator: CodeGenerator):
+    """Test generating __all__ tuple with empty exports list."""
+    result = generator._generate_all_tuple([])
+    assert result == "__all__ = ()"
+
+
 def test_export_sorting_screaming_snake_pascal_snake(generator: CodeGenerator):
     """Test exports are sorted by custom key: SCREAMING_SNAKE, PascalCase, snake_case."""
     exports = [
@@ -1003,3 +1009,33 @@ def test_validate_init_file_oserror(temp_dir, monkeypatch):
     errors = validate_init_file(init_file)
     assert len(errors) > 0
     assert "Permission denied" in errors[0]
+
+
+def test_has_preserved_definition_function(generator: CodeGenerator):
+    """Test _has_preserved_definition detects a function."""
+    assert generator._has_preserved_definition("def my_func(): pass", "my_func")
+    assert not generator._has_preserved_definition("def my_func(): pass", "other_func")
+
+def test_has_preserved_definition_async_function(generator: CodeGenerator):
+    """Test _has_preserved_definition detects an async function."""
+    assert generator._has_preserved_definition("async def my_async_func(): pass", "my_async_func")
+
+def test_has_preserved_definition_assign(generator: CodeGenerator):
+    """Test _has_preserved_definition detects a variable assignment."""
+    assert generator._has_preserved_definition("my_var = 1", "my_var")
+    assert generator._has_preserved_definition("my_var = my_other_var = 1", "my_var")
+    assert generator._has_preserved_definition("my_var = my_other_var = 1", "my_other_var")
+
+def test_has_preserved_definition_ann_assign(generator: CodeGenerator):
+    """Test _has_preserved_definition detects an annotated assignment."""
+    assert generator._has_preserved_definition("my_var: int = 1", "my_var")
+    assert not generator._has_preserved_definition("my_var: int = 1", "other_var")
+
+def test_has_preserved_definition_syntax_error(generator: CodeGenerator):
+    """Test _has_preserved_definition handles syntax errors gracefully."""
+    # Invalid syntax will be suppressed, resulting in False
+    assert not generator._has_preserved_definition("def my_func(:: pass", "my_func")
+
+def test_has_preserved_definition_empty(generator: CodeGenerator):
+    """Test _has_preserved_definition handles empty preserved sections."""
+    assert not generator._has_preserved_definition("", "my_func")
