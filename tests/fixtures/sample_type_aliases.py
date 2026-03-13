@@ -19,14 +19,17 @@ if TYPE_CHECKING:
     # Dummy usage of type aliases to keep static analyzers happy.
     test_file_path: FilePath | None = None
 
+from typing import TypeAlias
+
+
 # Pre-3.12 style type aliases (X: TypeAlias = Y)
-type FilePath = str | Path
-type ModuleName = str
-type RulePattern = str
-type ExportName = str
-type ErrorMessage = str
-type ConfigDict = dict[str, str | int | bool | list[str]]
-type NamePair = tuple[str, str]
+FilePath: TypeAlias = str | Path
+ModuleName: TypeAlias = str
+RulePattern: TypeAlias = str
+ExportName: TypeAlias = str
+ErrorMessage: TypeAlias = str
+ConfigDict: TypeAlias = dict[str, str | int | bool | list[str]]
+NamePair: TypeAlias = tuple[str, str]
 
 # Python 3.12+ style type aliases (type X = Y)
 type FileContent = str
