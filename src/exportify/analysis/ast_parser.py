@@ -45,8 +45,6 @@ class ASTParser:
 
         Args:
             file_path: Path to Python file
-
-
         Returns:
             AnalysisResult with symbols and metadata
         """
