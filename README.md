@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: 2026 Knitli Inc.
 
 SPDX-License-Identifier: MIT OR Apache-2.0
 -->
-
+[![codecov](https://codecov.io/gh/knitli/exportify/graph/badge.svg?token=TV7RP2F9FG)](https://codecov.io/gh/knitli/exportify)
 # exportify
 
 **exportify** is a CLI tool and library for managing Python package exports: generating `__init__.py` files with lazy imports (using [`lateimport`](https://github.com/knitli/lateimport)), managing `__all__` declarations, and validating import consistency.
