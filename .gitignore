@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
 # local configs
-.claude/*.local.*
+\n.claude/*.local.*
 **/*.local.*
 **/*.local.*.license
 mise.local.toml
@@ -233,3 +233,4 @@ mise.local.env
 gha-creds-*.json
 
 src/exportify/_version.py
+.claude/*.local.*

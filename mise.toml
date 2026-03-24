@@ -9,6 +9,7 @@ ruff = "latest"
 ty = "latest"
 typos = "latest"
 "pipx:reuse" = "latest"
+"pipx:exportify" = "latest"
 
 [settings]
 idiomatic_version_file_enable_tools = []
