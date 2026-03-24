@@ -10,6 +10,7 @@ ty = "latest"
 typos = "latest"
 "pipx:reuse" = "latest"
 "pipx:exportify" = "latest"
+git-cliff = "latest"
 
 [settings]
 idiomatic_version_file_enable_tools = []
