@@ -181,7 +181,7 @@ self.x: int = 1
 """
         file_path = create_temp_file(content)
         try:
-            result = parser.parse_file(file_path, "test.module")
+            result = parser.parse_file(file_path)
 
             assert len(result.symbols) == 0
         finally:
