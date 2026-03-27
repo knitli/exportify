@@ -63,8 +63,7 @@ class LateImportValidator:
         Returns:
             Tuple of (list of issues, count of lateimport calls, parsed AST tree or None)
         """
-        issues, _, _ = self._validate_file_with_metrics(file_path)
-        return issues
+        return self._validate_file_with_metrics(file_path)
 
     def _validate_file_with_metrics(
         self, file_path: Path
